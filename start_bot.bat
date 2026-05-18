@@ -12,6 +12,19 @@ echo.
 :: Set working directory to this script's folder
 cd /d "%~dp0"
 
+:: Create local .env on first run without committing secrets to GitHub
+if not exist ".env" (
+    echo  [SETUP] .env not found - starting first-time setup...
+    call "%~dp0setup_env.bat"
+    if %ERRORLEVEL% NEQ 0 (
+        echo.
+        echo  [ERROR] First-time setup failed.
+        pause
+        exit /b 1
+    )
+    echo.
+)
+
 :: Read selected Ollama model from .env, fallback to repo default
 set "AI_MODEL=qwen2.5:7b"
 if exist ".env" (

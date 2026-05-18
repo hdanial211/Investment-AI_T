@@ -125,7 +125,15 @@ Recommended on Windows:
 start_bot.bat
 ```
 
-The launcher will start Ollama, read `OLLAMA_MODEL` from `.env`, pull the model if needed, warm it up, start the trading engine, then open the terminal dashboard.
+On first run, the launcher will create a local `.env` by asking for your MT5 login, password, server, symbols, and Ollama model. The `.env` file is ignored by Git so your trading credentials are not pushed to GitHub.
+
+After setup, the launcher will start Ollama, read `OLLAMA_MODEL` from `.env`, pull the model if needed, warm it up, start the trading engine, then open the terminal dashboard.
+
+You can also run the first-time setup manually:
+
+```bat
+setup_env.bat
+```
 
 Manual run:
 
