@@ -51,8 +51,9 @@ if errorlevel 1 (
 tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
 if errorlevel 1 (
     echo        Ollama not running - starting now...
-    :: Set keep-alive BEFORE starting Ollama so the server reads it
+    :: Set env vars BEFORE starting Ollama so the server reads them
     set OLLAMA_KEEP_ALIVE=30m
+    set OLLAMA_MAX_LOADED_MODELS=1
     start /MIN "" ollama serve
     echo        Waiting for Ollama API to be ready...
     timeout /t 12 /nobreak >NUL
