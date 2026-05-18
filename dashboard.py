@@ -112,6 +112,53 @@ col6.metric("Avg Confidence", f"{perf.get('avg_confidence', 0):.2f}")
 
 st.markdown("---")
 
+# ── TRADE MEMORY & COOLING OFF ───────────────────────────────────────────────
+memory_file = os.path.join(config.LOG_DIR, "trade_memory.json")
+if os.path.exists(memory_file):
+    try:
+        import json
+        with open(memory_file, "r") as f:
+            memory_data = json.load(f)
+            
+        mem_col1, mem_col2 = st.columns(2)
+        with mem_col1:
+            st.subheader("🧠 Active Trade Memory (AI Thesis)")
+            active = memory_data.get("active_trades", {})
+            if active:
+                for tkt, info in active.items():
+                    st.info(f"**{info['symbol']} ({info['action']})** [Ticket: {tkt}]\n\n*Reason:* {info['reason']}\n\n*Target:* {info.get('target', 'N/A')}")
+            else:
+                st.success("No active trades in memory.")
+                
+        with mem_col2:
+            st.subheader("🧊 Cooling-Off Periods")
+            cooling = memory_data.get("cooling_off", {})
+            if cooling:
+                for sym, data in cooling.items():
+                    if isinstance(data, dict):
+                        ts = data.get("timestamp")
+                        dur = data.get("duration", 15)
+                    else:
+                        ts = data
+                        dur = 15
+                    
+                    try:
+                        from datetime import timedelta
+                        time_passed = datetime.now() - datetime.fromisoformat(ts)
+                        remaining = timedelta(minutes=dur) - time_passed
+                        if remaining.total_seconds() > 0:
+                            st.warning(f"**{sym}**: Cooling off for {int(remaining.total_seconds()//60)} mins")
+                        else:
+                            st.success(f"**{sym}**: Ready to trade")
+                    except Exception:
+                        pass
+            else:
+                st.success("No symbols are currently cooling off.")
+    except Exception as e:
+        st.error(f"Could not load trade memory: {e}")
+
+st.markdown("---")
+
 # ── CHARTS ROW ───────────────────────────────────────────────────────────────
 if not df_all.empty and "profit" in df_all.columns:
     left_col, right_col = st.columns(2)

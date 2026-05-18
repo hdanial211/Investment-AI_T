@@ -64,13 +64,18 @@ class TradeMemory:
                 records.append(info)
         return records
 
-    def remove_trade_and_cool_off(self, ticket: int, symbol: str):
+    def remove_trade_and_cool_off(self, ticket: int, symbol: str, profit: float = 0.0):
         """Remove a closed trade from memory and start cooling-off period."""
         if str(ticket) in self.data["active_trades"]:
             del self.data["active_trades"][str(ticket)]
             
-        # Start cool down
-        self.data["cooling_off"][symbol] = datetime.now().isoformat()
+        # Adaptive Cool-down: 5 mins if win, 15 mins if loss
+        duration = 5 if profit > 0 else config.COOLING_OFF_MINUTES
+        
+        self.data["cooling_off"][symbol] = {
+            "timestamp": datetime.now().isoformat(),
+            "duration": duration
+        }
         self._save()
 
     def is_cooling_off(self, symbol: str) -> Tuple[bool, str]:
@@ -78,11 +83,19 @@ class TradeMemory:
         if symbol not in self.data["cooling_off"]:
             return False, ""
             
-        last_trade_time_str = self.data["cooling_off"][symbol]
+        cool_data = self.data["cooling_off"][symbol]
+        
+        # Backwards compatibility if old format (just string timestamp)
+        if isinstance(cool_data, str):
+            last_trade_time_str = cool_data
+            cool_down_duration = timedelta(minutes=config.COOLING_OFF_MINUTES)
+        else:
+            last_trade_time_str = cool_data["timestamp"]
+            cool_down_duration = timedelta(minutes=cool_data["duration"])
+            
         try:
             last_trade_time = datetime.fromisoformat(last_trade_time_str)
             elapsed = datetime.now() - last_trade_time
-            cool_down_duration = timedelta(minutes=config.COOLING_OFF_MINUTES)
             
             if elapsed < cool_down_duration:
                 remaining = int((cool_down_duration - elapsed).total_seconds() / 60)

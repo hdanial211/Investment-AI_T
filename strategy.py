@@ -62,6 +62,31 @@ def calc_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
     return tr.ewm(alpha=1/period, adjust=False).mean()
 
+def calc_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    high = df['high']
+    low = df['low']
+    close = df['close']
+    
+    up_move = high - high.shift(1)
+    down_move = low.shift(1) - low
+    
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+    
+    tr = pd.concat([
+        high - low,
+        (high - close.shift()).abs(),
+        (low - close.shift()).abs()
+    ], axis=1).max(axis=1)
+    
+    atr = tr.ewm(alpha=1/period, adjust=False).mean()
+    plus_di = 100 * (pd.Series(plus_dm).ewm(alpha=1/period, adjust=False).mean() / atr)
+    minus_di = 100 * (pd.Series(minus_dm).ewm(alpha=1/period, adjust=False).mean() / atr)
+    
+    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di).replace(0, np.finfo(float).eps))
+    adx = dx.ewm(alpha=1/period, adjust=False).mean()
+    return adx
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ADVANCED PRICE ACTION CONCEPTS
@@ -159,6 +184,10 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     macd_line, macd_sig, macd_h = calc_macd(df_h1['close'])
     h1_macd_hist = float(macd_h.iloc[-1])
     h1_macd_trend = "bullish" if h1_macd_hist > 0 else "bearish"
+    
+    # 2.5 Market Regime (ADX on H1)
+    adx_val = float(calc_adx(df_h1).iloc[-1])
+    market_regime = "TRENDING" if adx_val >= 25 else "RANGING"
 
     # 3. M15 Entry Context (Liquidity & Patterns)
     pip_size = config.get_pip_multiplier(symbol)
@@ -178,6 +207,8 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     indicators = {
         "symbol": symbol,
         "price": current_price,
+        "market_regime": market_regime,
+        "adx": round(adx_val, 2),
         "h4_trend": h4_trend,
         "h1_resistance": h1_res,
         "h1_support": h1_sup,
@@ -200,6 +231,9 @@ def format_for_prompt(ind: Dict) -> str:
     return (
         f"Symbol: {ind['symbol']}\n"
         f"Current Price: {ind['price']:.5f}\n"
+        f"\n--- MARKET REGIME ---\n"
+        f"Regime: {ind['market_regime']} (ADX: {ind['adx']})\n"
+        f"*(Instruction: If TRENDING, prioritize breakouts & trends. If RANGING, prioritize S/R bounces and sweeps)*\n"
         f"\n--- TIMEFRAME: H4 (MACRO TREND) ---\n"
         f"Major Trend: {ind['h4_trend'].upper()}\n"
         f"\n--- TIMEFRAME: H1 (ZONES & MOMENTUM) ---\n"

@@ -80,9 +80,7 @@ def run_cycle(
     ask = tick["ask"]
     logger.info(f"Tick: Bid={bid:.5f} | Ask={ask:.5f}")
 
-    # ── STEP 1.5: Update Trailing Stop ───────────────────────────────────────
-    if config.USE_TRAILING_STOP:
-        connector.update_trailing_stop(symbol, config.TRAILING_STOP_PIPS, config.TRAILING_STEP_PIPS)
+    # ── STEP 1.5: [Moved Trailing Stop after ATR calculation] ─────────────────
 
     # ── STEP 2: Get Multi-Timeframe OHLCV bars and calculate indicators ──────
     mdf = connector.get_multi_timeframe(symbol, timeframes=["H4", "H1", "M15", "M5"], bars=100)
@@ -96,6 +94,10 @@ def run_cycle(
         logger.warning(f"Cannot calculate indicators for {symbol}")
         trade_logger.log_skipped(symbol, "Indicator calculation failed")
         return "skipped"
+
+    # ── STEP 2.5: Update Trailing Stop ───────────────────────────────────────
+    if config.USE_TRAILING_STOP:
+        connector.update_trailing_stop(symbol, atr=indicators.get("atr"))
 
     # ── STEP 3: Pre-trade risk check ─────────────────────────────────────────
     open_positions = connector.get_open_positions(symbol)
@@ -128,6 +130,21 @@ def run_cycle(
         f"Confidence: {signal['confidence']:.2f} | "
         f"Reason: {signal['reason']}"
     )
+
+    # ── STEP 5.5: AI Position Closure ────────────────────────────────────────
+    # If we have open positions and the AI thesis is opposite, close them!
+    if open_pos_count > 0 and action in ("BUY", "SELL"):
+        closed_any = False
+        for pos in open_positions:
+            if pos["direction"] != action:
+                logger.warning(f"[{symbol}] AI signal ({action}) contradicts position {pos['ticket']} ({pos['direction']}). CLOSING POSITION!")
+                if connector.close_trade(pos["ticket"], symbol):
+                    trade_memory.remove_trade_and_cool_off(pos["ticket"], symbol, profit=pos["profit"])
+                    closed_any = True
+        
+        if closed_any:
+            logger.info(f"[{symbol}] Waiting for next cycle after closing positions.")
+            return "closed"
 
     # ── STEP 6: Calculate trade parameters ───────────────────────────────────
     account   = connector.get_account_info()

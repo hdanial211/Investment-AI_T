@@ -424,38 +424,55 @@ class MT5Connector:
             })
         return result
 
-    def update_trailing_stop(self, symbol: str, ts_pips: int, step_pips: int):
+    def update_trailing_stop(self, symbol: str, atr: float = None):
         """
-        Scan open positions and update SL if they are in profit by ts_pips.
-        Move SL by step_pips increments.
+        Multi-Stage Trailing Stop:
+        Stage 1: If profit > 0.5 * ATR, move SL to Break Even.
+        Stage 2: If profit > 1.5 * ATR, trail SL by 1.0 * ATR.
         """
-        if self.demo_mode or not MT5_AVAILABLE:
+        if self.demo_mode or not MT5_AVAILABLE or not atr:
             return
 
         positions = mt5.positions_get(symbol=symbol)
         if not positions:
             return
 
-        pip_val = self.get_pip_value(symbol)
-        ts_distance = ts_pips * pip_val
-        step_distance = step_pips * pip_val
+        stage1_distance = 0.5 * atr
+        stage2_distance = 1.5 * atr
+        trail_distance = 1.0 * atr
 
         for pos in positions:
             action = "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
             current_sl = pos.sl
             
             if action == "BUY":
-                if pos.price_current - pos.price_open > ts_distance:
-                    new_sl = pos.price_current - ts_distance
-                    # Only move SL up, and only in step increments
-                    if new_sl - current_sl >= step_distance:
+                profit_distance = pos.price_current - pos.price_open
+                
+                # Stage 2: Trailing
+                if profit_distance > stage2_distance:
+                    new_sl = pos.price_current - trail_distance
+                    if new_sl > current_sl: # Only move up
+                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+                        
+                # Stage 1: Break Even
+                elif profit_distance > stage1_distance:
+                    new_sl = pos.price_open
+                    if current_sl < new_sl:
                         self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
                         
             elif action == "SELL":
-                if pos.price_open - pos.price_current > ts_distance:
-                    new_sl = pos.price_current + ts_distance
-                    # Only move SL down, and only in step increments
-                    if current_sl == 0.0 or current_sl - new_sl >= step_distance:
+                profit_distance = pos.price_open - pos.price_current
+                
+                # Stage 2: Trailing
+                if profit_distance > stage2_distance:
+                    new_sl = pos.price_current + trail_distance
+                    if current_sl == 0.0 or new_sl < current_sl: # Only move down
+                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+                        
+                # Stage 1: Break Even
+                elif profit_distance > stage1_distance:
+                    new_sl = pos.price_open
+                    if current_sl == 0.0 or current_sl > new_sl:
                         self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
 
     def _modify_sl(self, ticket: int, symbol: str, new_sl: float, tp: float):
