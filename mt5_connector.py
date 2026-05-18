@@ -1,311 +1,246 @@
 """
-mt5_connector.py - MetaTrader 5 Connection & Trade Execution Module
-
-Responsibilities:
-- Initialize and maintain MT5 connection
-- Login with account credentials
-- Fetch live tick data and OHLCV bars
-- Place BUY/SELL market orders with SL/TP
-- Check open positions
-- Handle MT5 errors gracefully
+🏆 GOLD AI Trading Algo — MT5 Connector
+=========================================
+MetaTrader 5 connection manager untuk RoboForex PRO.
+Handle connect, data retrieval, order execution.
 """
 
-import time
-import logging
-from typing import Optional, Dict, List, Tuple
-
+from datetime import datetime, timedelta
+from typing import Optional
 import pandas as pd
+from loguru import logger
 
 try:
     import MetaTrader5 as mt5
-    MT5_AVAILABLE = False # Forced demo mode
+    MT5_AVAILABLE = True
 except ImportError:
     MT5_AVAILABLE = False
-    logging.warning("MetaTrader5 package not installed. Running in DEMO mode.")
+    logger.warning("⚠️ MetaTrader5 package not installed — running in OFFLINE mode")
 
-import config
-
-logger = logging.getLogger(__name__)
+from config import MT5_ACCOUNT, MT5_PASSWORD, MT5_SERVER, SYMBOL, TIMEFRAMES
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MT5 TIMEFRAME MAP
-# ─────────────────────────────────────────────────────────────────────────────
-TIMEFRAME_MAP = {
-    "M1":  1,   "M5":  5,   "M15": 15,  "M30": 30,
-    "H1":  16385, "H4": 16388, "D1": 16408,
+# ── Timeframe mapping ──
+TF_MAP = {
+    "M1": mt5.TIMEFRAME_M1 if MT5_AVAILABLE else 1,
+    "M5": mt5.TIMEFRAME_M5 if MT5_AVAILABLE else 5,
+    "M15": mt5.TIMEFRAME_M15 if MT5_AVAILABLE else 15,
+    "M30": mt5.TIMEFRAME_M30 if MT5_AVAILABLE else 30,
+    "H1": mt5.TIMEFRAME_H1 if MT5_AVAILABLE else 60,
+    "H4": mt5.TIMEFRAME_H4 if MT5_AVAILABLE else 240,
+    "D1": mt5.TIMEFRAME_D1 if MT5_AVAILABLE else 1440,
+    "W1": mt5.TIMEFRAME_W1 if MT5_AVAILABLE else 10080,
 }
 
-def _tf(tf_str: str):
-    """Convert timeframe string to MT5 constant."""
-    if not MT5_AVAILABLE:
-        return tf_str
-    tf_map = {
-        "M1":  mt5.TIMEFRAME_M1,
-        "M5":  mt5.TIMEFRAME_M5,
-        "M15": mt5.TIMEFRAME_M15,
-        "M30": mt5.TIMEFRAME_M30,
-        "H1":  mt5.TIMEFRAME_H1,
-        "H4":  mt5.TIMEFRAME_H4,
-        "D1":  mt5.TIMEFRAME_D1,
-    }
-    return tf_map.get(tf_str, mt5.TIMEFRAME_M5)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CONNECTION MANAGEMENT
-# ─────────────────────────────────────────────────────────────────────────────
 
 class MT5Connector:
-    """Handles all MetaTrader 5 operations."""
+    """MetaTrader 5 connection manager."""
 
     def __init__(self):
         self.connected = False
-        self._demo_mode = not MT5_AVAILABLE
-
-    # ── CONNECT ──────────────────────────────────────────────────────────────
+        self.account_info = None
 
     def connect(self) -> bool:
-        """Initialize MT5 terminal and login."""
-        if self._demo_mode:
-            logger.warning("DEMO MODE: MT5 not available. Using simulated data.")
-            self.connected = True
-            return True
+        """Connect to MT5 terminal."""
+        if not MT5_AVAILABLE:
+            logger.error("❌ MT5 not available — install MetaTrader5 package")
+            return False
 
-        try:
-            # Initialize MT5 terminal
-            init_args = {}
-            if config.MT5_PATH:
-                init_args["path"] = config.MT5_PATH
+        if not mt5.initialize():
+            logger.error(f"❌ MT5 initialize failed: {mt5.last_error()}")
+            return False
 
-            if not mt5.initialize(**init_args):
-                logger.error(f"MT5 initialize failed: {mt5.last_error()}")
-                return False
-
-            # Login to account
-            login_result = mt5.login(
-                login    = config.MT5_LOGIN,
-                password = config.MT5_PASSWORD,
-                server   = config.MT5_SERVER,
+        # Login to account
+        if MT5_ACCOUNT and MT5_PASSWORD:
+            authorized = mt5.login(
+                login=MT5_ACCOUNT,
+                password=MT5_PASSWORD,
+                server=MT5_SERVER,
             )
-            if not login_result:
-                err = mt5.last_error()
-                logger.error(f"MT5 login failed: {err}")
+            if not authorized:
+                logger.error(f"❌ MT5 login failed: {mt5.last_error()}")
                 mt5.shutdown()
                 return False
 
-            account = mt5.account_info()
-            logger.info(
-                f"MT5 connected | Account: {account.login} | "
-                f"Balance: {account.balance:.2f} {account.currency} | "
-                f"Broker: {account.company}"
-            )
-            self.connected = True
-            return True
+        self.account_info = mt5.account_info()
+        self.connected = True
 
-        except Exception as e:
-            logger.error(f"MT5 connection exception: {e}")
-            return False
+        logger.info(f"✅ MT5 Connected — Account: {self.account_info.login}")
+        logger.info(f"   Balance: ${self.account_info.balance:,.2f}")
+        logger.info(f"   Server: {self.account_info.server}")
+        logger.info(f"   Leverage: 1:{self.account_info.leverage}")
 
-    def disconnect(self):
-        """Shut down MT5 connection."""
-        if not self._demo_mode and MT5_AVAILABLE:
-            mt5.shutdown()
-        self.connected = False
-        logger.info("MT5 disconnected.")
-
-    def ensure_connected(self) -> bool:
-        """Reconnect if connection dropped."""
-        if not self.connected:
-            logger.warning("MT5 not connected. Attempting reconnect...")
-            return self.connect()
-        if not self._demo_mode:
-            if mt5.terminal_info() is None:
-                self.connected = False
-                return self.connect()
         return True
 
-    # ── ACCOUNT INFO ─────────────────────────────────────────────────────────
+    def disconnect(self):
+        """Disconnect from MT5."""
+        if MT5_AVAILABLE and self.connected:
+            mt5.shutdown()
+            self.connected = False
+            logger.info("🔌 MT5 Disconnected")
 
-    def get_account_info(self) -> Dict:
-        """Return account balance, equity, margin."""
-        if self._demo_mode:
-            return {"balance": 10000.0, "equity": 10000.0, "margin": 0.0, "currency": "USD"}
-        info = mt5.account_info()
-        if info is None:
-            return {}
-        return {
-            "balance":  info.balance,
-            "equity":   info.equity,
-            "margin":   info.margin,
-            "currency": info.currency,
-            "leverage": info.leverage,
-        }
-
-    # ── MARKET DATA ──────────────────────────────────────────────────────────
-
-    def get_tick(self, symbol: str) -> Optional[Dict]:
-        """Get the latest bid/ask tick for a symbol."""
-        if self._demo_mode:
-            import random
-            base = 1950.0 if "XAU" in symbol else 1.0850
-            spread = 0.30 if "XAU" in symbol else 0.0001
-            bid = base + random.uniform(-2, 2)
-            ask = bid + spread
-            return {"bid": round(bid, 5), "ask": round(ask, 5), "symbol": symbol}
-
-        if not self.ensure_connected():
+    def get_account_info(self) -> Optional[dict]:
+        """Get current account information."""
+        if not self.connected:
             return None
 
-        # Make sure symbol is selected in Market Watch
-        if not mt5.symbol_select(symbol, True):
-            logger.error(f"Cannot select symbol {symbol}: {mt5.last_error()}")
+        info = mt5.account_info()
+        if info is None:
+            return None
+
+        return {
+            "login": info.login,
+            "balance": info.balance,
+            "equity": info.equity,
+            "margin": info.margin,
+            "free_margin": info.margin_free,
+            "profit": info.profit,
+            "leverage": info.leverage,
+            "server": info.server,
+        }
+
+    def get_symbol_info(self, symbol: str = SYMBOL) -> Optional[dict]:
+        """Get symbol information."""
+        if not self.connected:
+            return None
+
+        info = mt5.symbol_info(symbol)
+        if info is None:
+            logger.error(f"❌ Symbol {symbol} not found")
+            return None
+
+        return {
+            "symbol": info.name,
+            "bid": info.bid,
+            "ask": info.ask,
+            "spread": info.spread,
+            "point": info.point,
+            "digits": info.digits,
+            "trade_mode": info.trade_mode,
+            "volume_min": info.volume_min,
+            "volume_max": info.volume_max,
+            "volume_step": info.volume_step,
+        }
+
+    def get_current_price(self, symbol: str = SYMBOL) -> Optional[dict]:
+        """Get current bid/ask."""
+        if not self.connected:
             return None
 
         tick = mt5.symbol_info_tick(symbol)
         if tick is None:
-            logger.error(f"No tick data for {symbol}: {mt5.last_error()}")
             return None
 
         return {
-            "symbol": symbol,
-            "bid":    tick.bid,
-            "ask":    tick.ask,
-            "time":   tick.time,
+            "bid": tick.bid,
+            "ask": tick.ask,
+            "last": tick.last,
+            "time": datetime.fromtimestamp(tick.time),
+            "spread": round(tick.ask - tick.bid, 2),
         }
 
-    def get_ohlcv(self, symbol: str, timeframe: str = None, bars: int = None) -> Optional[pd.DataFrame]:
-        """Fetch OHLCV bars as a DataFrame."""
-        tf  = timeframe or config.TIMEFRAME
-        n   = bars or config.BARS_TO_FETCH
+    def get_ohlcv(
+        self,
+        symbol: str = SYMBOL,
+        timeframe: str = "H1",
+        bars: int = 500,
+    ) -> Optional[pd.DataFrame]:
+        """Get OHLCV data as DataFrame.
 
-        if self._demo_mode:
-            return self._generate_demo_bars(symbol, n)
+        Args:
+            symbol: Trading symbol (default XAUUSD)
+            timeframe: Timeframe string (M5, M15, H1, H4, D1)
+            bars: Number of bars to fetch
 
-        if not self.ensure_connected():
+        Returns:
+            DataFrame with columns: time, open, high, low, close, volume, spread
+        """
+        if not self.connected:
             return None
 
-        mt5.symbol_select(symbol, True)
-        rates = mt5.copy_rates_from_pos(symbol, _tf(tf), 0, n)
+        tf = TF_MAP.get(timeframe)
+        if tf is None:
+            logger.error(f"❌ Invalid timeframe: {timeframe}")
+            return None
+
+        rates = mt5.copy_rates_from_pos(symbol, tf, 0, bars)
         if rates is None or len(rates) == 0:
-            logger.error(f"No OHLCV data for {symbol}: {mt5.last_error()}")
+            logger.error(f"❌ No data for {symbol} {timeframe}")
             return None
 
         df = pd.DataFrame(rates)
         df["time"] = pd.to_datetime(df["time"], unit="s")
-        df.rename(columns={"tick_volume": "volume"}, inplace=True)
-        return df[["time", "open", "high", "low", "close", "volume"]]
+        df = df.rename(columns={"tick_volume": "volume"})
 
-    def _generate_demo_bars(self, symbol: str, n: int) -> pd.DataFrame:
-        """Generate realistic demo OHLCV data for testing."""
-        import numpy as np
-        np.random.seed(42)
-        base = 1950.0 if "XAU" in symbol else 1.0850
-        closes = base + np.cumsum(np.random.randn(n) * 0.5)
-        highs  = closes + np.abs(np.random.randn(n) * 0.3)
-        lows   = closes - np.abs(np.random.randn(n) * 0.3)
-        opens  = np.roll(closes, 1)
-        times  = pd.date_range(end=pd.Timestamp.now(), periods=n, freq="5min")
-        return pd.DataFrame({
-            "time":   times,
-            "open":   opens,
-            "high":   highs,
-            "low":    lows,
-            "close":  closes,
-            "volume": np.random.randint(100, 1000, n).astype(float),
-        })
+        return df[["time", "open", "high", "low", "close", "volume", "spread"]]
 
-    def get_spread_pips(self, symbol: str) -> float:
-        """Return current spread in pips."""
-        tick = self.get_tick(symbol)
-        if not tick:
-            return 999.0
-        spread = tick["ask"] - tick["bid"]
-        # XAU: 1 pip = 0.01 | Forex: 1 pip = 0.0001
-        pip_size = 0.01 if "XAU" in symbol or "JPY" in symbol else 0.0001
-        return round(spread / pip_size, 1)
+    def get_multi_timeframe(self, symbol: str = SYMBOL, bars: int = 500) -> dict:
+        """Get OHLCV for all configured timeframes.
 
-    # ── POSITIONS ────────────────────────────────────────────────────────────
-
-    def get_open_positions(self, symbol: str = None) -> List[Dict]:
-        """Return list of open positions, optionally filtered by symbol."""
-        if self._demo_mode:
-            return []  # No demo positions
-
-        if not self.ensure_connected():
-            return []
-
-        positions = mt5.positions_get(symbol=symbol) if symbol else mt5.positions_get()
-        if positions is None:
-            return []
-
-        result = []
-        for p in positions:
-            result.append({
-                "ticket":     p.ticket,
-                "symbol":     p.symbol,
-                "type":       "BUY" if p.type == 0 else "SELL",
-                "volume":     p.volume,
-                "open_price": p.price_open,
-                "sl":         p.sl,
-                "tp":         p.tp,
-                "profit":     p.profit,
-                "time":       p.time,
-            })
+        Returns:
+            Dict of {timeframe: DataFrame}
+        """
+        result = {}
+        for tf in TIMEFRAMES:
+            df = self.get_ohlcv(symbol, tf, bars)
+            if df is not None:
+                result[tf] = df
+                logger.debug(f"📊 Got {len(df)} bars for {symbol} {tf}")
         return result
 
-    def has_open_position(self, symbol: str) -> bool:
-        """Check if there's already an open position for this symbol."""
-        return len(self.get_open_positions(symbol)) > 0
+    # ── TRADING OPERATIONS ──
 
-    # ── ORDER EXECUTION ──────────────────────────────────────────────────────
-
-    def place_order(
+    def open_trade(
         self,
-        symbol:    str,
-        action:    str,        # "BUY" or "SELL"
-        lot:       float,
-        sl_price:  float = 0.0,
-        tp_price:  float = 0.0,
-        comment:   str   = "AI_BOT",
-    ) -> Dict:
+        direction: str,
+        lot_size: float,
+        sl: float,
+        tp: float,
+        symbol: str = SYMBOL,
+        comment: str = "GOLD_AI",
+    ) -> Optional[dict]:
+        """Open a new trade.
+
+        Args:
+            direction: 'BUY' or 'SELL'
+            lot_size: Trade volume
+            sl: Stop loss price
+            tp: Take profit price
+            symbol: Symbol to trade
+            comment: Trade comment
+
+        Returns:
+            Trade result dict or None
         """
-        Place a market order.
-        Returns dict with success flag, ticket, and message.
-        """
-        if self._demo_mode:
-            import random
-            ticket = random.randint(100000, 999999)
-            logger.info(f"[DEMO] Order placed: {action} {lot} {symbol} | Ticket: {ticket}")
-            return {"success": True, "ticket": ticket, "message": "Demo order OK"}
+        if not self.connected:
+            logger.error("❌ MT5 not connected")
+            return None
 
-        if not self.ensure_connected():
-            return {"success": False, "ticket": None, "message": "MT5 not connected"}
+        # Ensure symbol is visible
+        if not mt5.symbol_select(symbol, True):
+            logger.error(f"❌ Cannot select symbol {symbol}")
+            return None
 
-        tick = self.get_tick(symbol)
-        if not tick:
-            return {"success": False, "ticket": None, "message": "No tick data"}
+        tick = mt5.symbol_info_tick(symbol)
+        if tick is None:
+            logger.error(f"❌ Cannot get tick for {symbol}")
+            return None
 
-        # Determine order type and price
-        order_type = mt5.ORDER_TYPE_BUY if action == "BUY" else mt5.ORDER_TYPE_SELL
-        price      = tick["ask"] if action == "BUY" else tick["bid"]
-
-        # Get symbol point for deviation calculation
-        sym_info = mt5.symbol_info(symbol)
-        if sym_info is None:
-            return {"success": False, "ticket": None, "message": f"Symbol info not found: {symbol}"}
+        # Build order request
+        order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
+        price = tick.ask if direction == "BUY" else tick.bid
 
         request = {
-            "action":    mt5.TRADE_ACTION_DEAL,
-            "symbol":    symbol,
-            "volume":    lot,
-            "type":      order_type,
-            "price":     price,
-            "sl":        sl_price,
-            "tp":        tp_price,
-            "deviation": 20,        # Max price deviation in points
-            "magic":     20240101,   # Magic number to identify bot orders
-            "comment":   comment,
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": lot_size,
+            "type": order_type,
+            "price": price,
+            "sl": sl,
+            "tp": tp,
+            "deviation": 20,
+            "magic": 123456,
+            "comment": comment,
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_IOC,
         }
@@ -313,66 +248,137 @@ class MT5Connector:
         result = mt5.order_send(request)
 
         if result is None:
-            err = mt5.last_error()
-            logger.error(f"order_send returned None: {err}")
-            return {"success": False, "ticket": None, "message": str(err)}
+            logger.error(f"❌ Order send failed: {mt5.last_error()}")
+            return None
 
-        if result.retcode == mt5.TRADE_RETCODE_DONE:
-            logger.info(
-                f"Order executed: {action} {lot} {symbol} @ {price:.5f} | "
-                f"Ticket: {result.order} | SL: {sl_price:.5f} | TP: {tp_price:.5f}"
-            )
-            return {"success": True, "ticket": result.order, "message": "Order filled"}
-        else:
-            msg = f"Order failed: retcode={result.retcode} | {result.comment}"
-            logger.error(msg)
-            return {"success": False, "ticket": None, "message": msg}
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            logger.error(f"❌ Order rejected: {result.comment} (code: {result.retcode})")
+            return None
 
-    def close_position(self, ticket: int, symbol: str, lot: float, pos_type: str) -> Dict:
-        """Close an existing position by ticket."""
-        if self._demo_mode:
-            return {"success": True, "message": "Demo close OK"}
+        logger.info(f"✅ Trade opened: {direction} {lot_size} {symbol} @ {price}")
+        logger.info(f"   SL: {sl} | TP: {tp} | Ticket: {result.order}")
 
-        tick = self.get_tick(symbol)
-        if not tick:
-            return {"success": False, "message": "No tick data"}
+        return {
+            "ticket": result.order,
+            "direction": direction,
+            "lot_size": lot_size,
+            "price": price,
+            "sl": sl,
+            "tp": tp,
+            "comment": comment,
+        }
 
-        # To close BUY → SELL, to close SELL → BUY
-        close_type  = mt5.ORDER_TYPE_SELL if pos_type == "BUY" else mt5.ORDER_TYPE_BUY
-        close_price = tick["bid"] if pos_type == "BUY" else tick["ask"]
+    def close_trade(self, ticket: int, symbol: str = SYMBOL) -> bool:
+        """Close an open position by ticket number."""
+        if not self.connected:
+            return False
+
+        position = mt5.positions_get(ticket=ticket)
+        if position is None or len(position) == 0:
+            logger.error(f"❌ Position {ticket} not found")
+            return False
+
+        pos = position[0]
+        # Reverse direction to close
+        close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+        tick = mt5.symbol_info_tick(symbol)
+        price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
 
         request = {
-            "action":       mt5.TRADE_ACTION_DEAL,
-            "symbol":       symbol,
-            "volume":       lot,
-            "type":         close_type,
-            "position":     ticket,
-            "price":        close_price,
-            "deviation":    20,
-            "magic":        20240101,
-            "comment":      "AI_BOT_CLOSE",
-            "type_time":    mt5.ORDER_TIME_GTC,
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": pos.volume,
+            "type": close_type,
+            "position": ticket,
+            "price": price,
+            "deviation": 20,
+            "magic": 123456,
+            "comment": "GOLD_AI_CLOSE",
+            "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_IOC,
         }
 
         result = mt5.order_send(request)
-        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-            return {"success": True, "message": f"Position {ticket} closed"}
-        return {"success": False, "message": f"Close failed: {result.comment if result else 'None'}"}
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            logger.error(f"❌ Close failed: {result.comment}")
+            return False
 
-    # ── SYMBOL INFO ──────────────────────────────────────────────────────────
+        logger.info(f"✅ Position {ticket} closed @ {price} | P/L: {pos.profit}")
+        return True
 
-    def get_pip_value(self, symbol: str) -> float:
-        """Return pip size for the symbol."""
-        if "XAU" in symbol or "XAG" in symbol:
-            return 0.01
-        if "JPY" in symbol:
-            return 0.01
-        return 0.0001
+    def modify_sl_tp(self, ticket: int, sl: float, tp: float, symbol: str = SYMBOL) -> bool:
+        """Modify SL/TP of an open position."""
+        if not self.connected:
+            return False
 
-    def get_contract_size(self, symbol: str) -> float:
-        """Return contract size for lot calculation."""
-        if self._demo_mode:
-            return 100.0 if "XAU" in symbol else 100000.0
-        info = mt5.symbol_info(symbol)
-        return info.trade_contract_size if info else 100000.0
+        request = {
+            "action": mt5.TRADE_ACTION_SLTP,
+            "symbol": symbol,
+            "position": ticket,
+            "sl": sl,
+            "tp": tp,
+        }
+
+        result = mt5.order_send(request)
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            logger.error(f"❌ Modify failed: {result.comment}")
+            return False
+
+        logger.info(f"✅ Position {ticket} modified — SL: {sl} | TP: {tp}")
+        return True
+
+    def get_open_positions(self, symbol: str = SYMBOL) -> list:
+        """Get all open positions."""
+        if not self.connected:
+            return []
+
+        positions = mt5.positions_get(symbol=symbol)
+        if positions is None:
+            return []
+
+        result = []
+        for pos in positions:
+            result.append({
+                "ticket": pos.ticket,
+                "direction": "BUY" if pos.type == 0 else "SELL",
+                "volume": pos.volume,
+                "price_open": pos.price_open,
+                "price_current": pos.price_current,
+                "sl": pos.sl,
+                "tp": pos.tp,
+                "profit": pos.profit,
+                "swap": pos.swap,
+                "comment": pos.comment,
+                "time": datetime.fromtimestamp(pos.time),
+            })
+
+        return result
+
+    def get_trade_history(self, days: int = 30) -> list:
+        """Get closed trade history."""
+        if not self.connected:
+            return []
+
+        from_date = datetime.now() - timedelta(days=days)
+        to_date = datetime.now()
+
+        deals = mt5.history_deals_get(from_date, to_date)
+        if deals is None:
+            return []
+
+        result = []
+        for deal in deals:
+            if deal.entry == 1:  # Only exit deals
+                result.append({
+                    "ticket": deal.order,
+                    "direction": "BUY" if deal.type == 0 else "SELL",
+                    "volume": deal.volume,
+                    "price": deal.price,
+                    "profit": deal.profit,
+                    "commission": deal.commission,
+                    "swap": deal.swap,
+                    "comment": deal.comment,
+                    "time": datetime.fromtimestamp(deal.time),
+                })
+
+        return result
