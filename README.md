@@ -119,6 +119,16 @@ Or edit `config.py` directly if you prefer not using `.env`.
 
 ### Step 5 — Run the bot
 
+Recommended on Windows:
+
+```bat
+start_bot.bat
+```
+
+The launcher will start Ollama, read `OLLAMA_MODEL` from `.env`, pull the model if needed, warm it up, start the trading engine, then open the terminal dashboard.
+
+Manual run:
+
 ```bash
 # Make sure you're in the trading_bot/ directory
 cd trading_bot
