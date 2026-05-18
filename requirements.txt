@@ -11,11 +11,9 @@ numpy>=1.26.0
 # ── HTTP requests (Ollama API) ────────────────────────────────
 requests>=2.31.0
 
-# ── Dashboard ─────────────────────────────────────────────────
-streamlit>=1.35.0
+# ── TUI Dashboard ─────────────────────────────────────────────
+textual>=0.70.0
+rich>=13.7.1
 
 # ── Environment config ────────────────────────────────────────
 python-dotenv>=1.0.0
-
-# ── Optional: better plotting in dashboard ────────────────────
-plotly>=5.20.0

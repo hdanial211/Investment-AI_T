@@ -37,22 +37,21 @@ if %ERRORLEVEL% NEQ 0 (
 )
 for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo        %%v found. OK.
 
-:: ── Step 3: Launch Dashboard (Website) ───────────────────────────────────────
-echo  [3/4] Starting Dashboard...
-echo        This will open the website in your default browser.
-start /MIN "" streamlit run dashboard.py
-timeout /t 5 /nobreak >NUL
+:: ── Step 3: Launch the trading bot (Engine) in background ──────────────
+echo  [3/4] Starting AI Trading Bot Engine...
+start /MIN "" python main.py
+timeout /t 3 /nobreak >NUL
 
-:: ── Step 4: Launch the trading bot (which auto-opens MT5) ────────────────────
-echo  [4/4] Starting AI Trading Bot...
+:: ── Step 4: Launch the TUI Dashboard (Foreground) ──────────────────────
+echo  [4/4] Starting Terminal UI Dashboard...
 echo.
 echo  ============================================================
-echo    Bot is LIVE. Close this window to STOP the bot.
-echo    MT5 and your web browser will be opened automatically.
+echo    Bot is LIVE. Close this window to STOP the dashboard.
+echo    (You may need to close the background python window to stop the engine)
 echo  ============================================================
 echo.
 
-python main.py
+python dashboard.py
 
 :: ── Bot exited ────────────────────────────────────────────────────────────────
 echo.
