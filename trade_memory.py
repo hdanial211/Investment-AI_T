@@ -20,9 +20,33 @@ class TradeMemory:
         self.memory_file = os.path.join(config.LOG_DIR, "trade_memory.json")
         self.data = {
             "active_trades": {},  # ticket_id (str) -> dict(symbol, action, reason, target)
-            "cooling_off": {}     # symbol -> timestamp (isoformat)
+            "cooling_off": {}     # symbol -> {timestamp, duration}
         }
         self._load()
+        self._purge_expired_cooloffs()
+
+    def _purge_expired_cooloffs(self):
+        """Remove any expired cooling-off entries (leftover from previous sessions)."""
+        expired = []
+        for symbol, cool_data in self.data.get("cooling_off", {}).items():
+            try:
+                if isinstance(cool_data, str):
+                    ts = cool_data
+                    dur = config.COOLING_OFF_MINUTES
+                else:
+                    ts = cool_data["timestamp"]
+                    dur = cool_data["duration"]
+                elapsed = datetime.now() - datetime.fromisoformat(ts)
+                if elapsed >= timedelta(minutes=dur):
+                    expired.append(symbol)
+            except Exception:
+                expired.append(symbol)
+        
+        if expired:
+            for sym in expired:
+                del self.data["cooling_off"][sym]
+                logger.info(f"[{sym}] Expired cooling-off cleared on startup.")
+            self._save()
 
     def _load(self):
         if os.path.exists(self.memory_file):
@@ -98,11 +122,16 @@ class TradeMemory:
             elapsed = datetime.now() - last_trade_time
             
             if elapsed < cool_down_duration:
-                remaining = int((cool_down_duration - elapsed).total_seconds() / 60)
-                return True, f"Cooling off for {remaining} more minutes"
+                remaining_secs = (cool_down_duration - elapsed).total_seconds()
+                remaining_mins = int(remaining_secs / 60)
+                remaining_s = int(remaining_secs % 60)
+                return True, f"Cooling off for {remaining_mins}m {remaining_s}s"
         except Exception:
             pass
-            
+        
+        # Expired — remove entry so we don't check again
+        del self.data["cooling_off"][symbol]
+        self._save()
         return False, ""
 
     def sync_with_broker(self, active_tickets: list):
