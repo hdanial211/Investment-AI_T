@@ -238,6 +238,27 @@ def _format_risk_review(signal: Dict, field: str) -> str:
 # PERFORMANCE ANALYSIS
 # ─────────────────────────────────────────────────────────────────────────────
 
+def load_trades():
+    """
+    Load the trade journal for dashboard views.
+    Returns an empty DataFrame with the expected columns if no log exists yet.
+    """
+    import pandas as pd
+
+    if not os.path.exists(config.TRADE_LOG_FILE):
+        return pd.DataFrame(columns=TRADE_CSV_HEADERS)
+
+    try:
+        df = pd.read_csv(config.TRADE_LOG_FILE)
+    except Exception:
+        return pd.DataFrame(columns=TRADE_CSV_HEADERS)
+
+    for column in TRADE_CSV_HEADERS:
+        if column not in df.columns:
+            df[column] = ""
+
+    return df
+
 def generate_performance_report() -> Dict:
     """
     Read trades.csv and compute performance statistics.
