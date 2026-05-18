@@ -327,6 +327,21 @@ class MT5Connector:
             df["spread"] = 0
         return df[["time", "open", "high", "low", "close", "volume", "spread"]]
 
+    def get_multi_timeframe(self, symbol: str, timeframes: list = None, bars: int = None) -> dict:
+        """
+        Get OHLCV for multiple timeframes.
+        Returns: Dict of {timeframe: DataFrame}
+        """
+        if timeframes is None:
+            timeframes = ["H4", "H1", "M15", "M5"]
+        
+        result = {}
+        for tf in timeframes:
+            df = self.get_ohlcv(symbol, tf, bars)
+            if df is not None and not df.empty:
+                result[tf] = df
+        return result
+
     def _generate_demo_ohlcv(self, symbol: str, bars: int) -> pd.DataFrame:
         """Generate realistic-looking synthetic OHLCV data for DEMO mode."""
         base = _DEMO_BASE.get(symbol, 1.0)
@@ -408,6 +423,54 @@ class MT5Connector:
                 "time":          datetime.fromtimestamp(pos.time),
             })
         return result
+
+    def update_trailing_stop(self, symbol: str, ts_pips: int, step_pips: int):
+        """
+        Scan open positions and update SL if they are in profit by ts_pips.
+        Move SL by step_pips increments.
+        """
+        if self.demo_mode or not MT5_AVAILABLE:
+            return
+
+        positions = mt5.positions_get(symbol=symbol)
+        if not positions:
+            return
+
+        pip_val = self.get_pip_value(symbol)
+        ts_distance = ts_pips * pip_val
+        step_distance = step_pips * pip_val
+
+        for pos in positions:
+            action = "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
+            current_sl = pos.sl
+            
+            if action == "BUY":
+                if pos.price_current - pos.price_open > ts_distance:
+                    new_sl = pos.price_current - ts_distance
+                    # Only move SL up, and only in step increments
+                    if new_sl - current_sl >= step_distance:
+                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+                        
+            elif action == "SELL":
+                if pos.price_open - pos.price_current > ts_distance:
+                    new_sl = pos.price_current + ts_distance
+                    # Only move SL down, and only in step increments
+                    if current_sl == 0.0 or current_sl - new_sl >= step_distance:
+                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+
+    def _modify_sl(self, ticket: int, symbol: str, new_sl: float, tp: float):
+        request = {
+            "action": mt5.TRADE_ACTION_SLTP,
+            "position": ticket,
+            "symbol": symbol,
+            "sl": float(new_sl),
+            "tp": float(tp),
+        }
+        result = mt5.order_send(request)
+        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+            logger.info(f"[{symbol}] Trailing Stop updated | Ticket {ticket} | New SL: {new_sl:.5f}")
+        else:
+            logger.debug(f"Failed to modify SL for {ticket}: {result.comment if result else mt5.last_error()}")
 
     # ── ORDER EXECUTION ───────────────────────────────────────────────────────
 

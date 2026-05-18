@@ -1,16 +1,16 @@
 """
-strategy.py - Technical Indicator Calculator
+strategy.py - Advanced Technical Indicator & Pattern Calculator
 
 Calculates:
-- RSI (Relative Strength Index)
-- EMA Fast / Slow (Exponential Moving Average)
-- MACD (Moving Average Convergence Divergence)
-- Trend detection (bullish / bearish / sideways)
-- Volatility check
+- Multi-Timeframe Analysis (H4, H1, M15, M5)
+- HTF Trend (H4 EMA/Structure)
+- S/R Zones (Swing Highs/Lows)
+- Liquidity Grabs / Stop Hunts (M15/M5)
+- Classic indicators (RSI, MACD, ATR)
 """
 
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -21,16 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# INDICATOR CALCULATIONS (pure numpy/pandas — no TA-Lib dependency)
+# BASIC INDICATORS
 # ─────────────────────────────────────────────────────────────────────────────
 
 def calc_ema(series: pd.Series, period: int) -> pd.Series:
-    """Calculate Exponential Moving Average."""
     return series.ewm(span=period, adjust=False).mean()
 
 
 def calc_rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    """Calculate RSI using Wilder's smoothing method."""
     delta = series.diff()
     gain  = delta.clip(lower=0)
     loss  = -delta.clip(upper=0)
@@ -39,20 +37,10 @@ def calc_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
 
     rs  = avg_gain / avg_loss.replace(0, np.finfo(float).eps)
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+    return 100 - (100 / (1 + rs))
 
 
-def calc_macd(
-    series: pd.Series,
-    fast:   int = 12,
-    slow:   int = 26,
-    signal: int = 9,
-) -> Tuple[pd.Series, pd.Series, pd.Series]:
-    """
-    Calculate MACD line, signal line, and histogram.
-    Returns (macd_line, signal_line, histogram)
-    """
+def calc_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
     ema_fast    = calc_ema(series, fast)
     ema_slow    = calc_ema(series, slow)
     macd_line   = ema_fast - ema_slow
@@ -62,7 +50,6 @@ def calc_macd(
 
 
 def calc_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """Calculate Average True Range for volatility measure."""
     high  = df["high"]
     low   = df["low"]
     close = df["close"]
@@ -77,121 +64,155 @@ def calc_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TREND DETECTION
+# ADVANCED PRICE ACTION CONCEPTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def detect_trend(ema_fast: float, ema_slow: float, rsi: float) -> str:
-    """
-    Determine market trend based on EMA crossover and RSI.
-    Returns: 'bullish' | 'bearish' | 'sideways'
-    """
-    if ema_fast > ema_slow and rsi > 50:
-        return "bullish"
-    elif ema_fast < ema_slow and rsi < 50:
-        return "bearish"
-    else:
-        return "sideways"
+def get_swing_levels(df: pd.DataFrame, lookback: int = 20) -> Tuple[float, float]:
+    """Find recent swing high (Resistance) and swing low (Support)."""
+    if len(df) < lookback:
+        return df['high'].max(), df['low'].min()
+    
+    recent = df.iloc[-lookback:]
+    resistance = recent['high'].max()
+    support = recent['low'].min()
+    return float(resistance), float(support)
 
 
-def check_volatility(atr: float, price: float, min_pips: int = None) -> bool:
+def detect_liquidity_grab(df: pd.DataFrame, resistance: float, support: float, threshold: float) -> str:
     """
-    Return True if market has sufficient volatility to trade.
-    ATR as percentage of price must exceed threshold.
+    Detect if the latest candle swept liquidity (poked through S/R but closed inside).
     """
-    threshold = (min_pips or config.MIN_VOLATILITY_PIPS) * config.get_pip_multiplier()
-    return atr >= threshold
+    if len(df) < 2:
+        return "none"
+        
+    latest = df.iloc[-1]
+    
+    # Bearish Grab (Swept high liquidity, but closed lower)
+    if latest['high'] > resistance and latest['close'] < resistance - threshold:
+        # Pinned above resistance but rejected
+        if (latest['high'] - max(latest['open'], latest['close'])) > (abs(latest['open'] - latest['close']) * 1.5):
+            return "bearish_sweep_high"
+            
+    # Bullish Grab (Swept low liquidity, but closed higher)
+    if latest['low'] < support and latest['close'] > support + threshold:
+        # Pinned below support but rejected
+        if (min(latest['open'], latest['close']) - latest['low']) > (abs(latest['open'] - latest['close']) * 1.5):
+            return "bullish_sweep_low"
+            
+    return "none"
+
+
+def detect_engulfing(df: pd.DataFrame) -> str:
+    """Detect bullish or bearish engulfing on the last completed candle."""
+    if len(df) < 3:
+        return "none"
+        
+    prev = df.iloc[-2]
+    curr = df.iloc[-1]
+    
+    # Bearish Engulfing
+    if prev['close'] > prev['open'] and curr['close'] < curr['open']:
+        if curr['open'] >= prev['close'] and curr['close'] < prev['open']:
+            return "bearish_engulfing"
+            
+    # Bullish Engulfing
+    if prev['close'] < prev['open'] and curr['close'] > curr['open']:
+        if curr['open'] <= prev['close'] and curr['close'] > prev['open']:
+            return "bullish_engulfing"
+            
+    return "none"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN INTERFACE
+# MAIN MULTI-TIMEFRAME INTERFACE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def calculate_indicators(df: pd.DataFrame, symbol: str = "") -> Optional[Dict]:
+def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Optional[Dict]:
     """
-    Given an OHLCV DataFrame, compute all indicators.
-    Returns a flat dictionary of current indicator values.
-    Returns None if not enough data.
+    Given a dict of OHLCV DataFrames for different timeframes (H4, H1, M15, M5),
+    compute strategy context.
     """
-    if df is None or len(df) < config.EMA_SLOW + 5:
-        logger.warning(f"Not enough bars to calculate indicators ({len(df) if df is not None else 0} bars)")
-        return None
+    # Ensure we have the base timeframes
+    for tf in ["H4", "H1", "M15", "M5"]:
+        if tf not in mdf or mdf[tf] is None or mdf[tf].empty:
+            logger.warning(f"[{symbol}] Missing {tf} data for multi-timeframe analysis.")
+            return None
 
-    closes = df["close"]
+    df_h4 = mdf["H4"]
+    df_h1 = mdf["H1"]
+    df_m15 = mdf["M15"]
+    df_m5 = mdf["M5"]
 
-    # ── Calculate indicators ──────────────────────────────────────────────
-    ema_fast_series = calc_ema(closes, config.EMA_FAST)
-    ema_slow_series = calc_ema(closes, config.EMA_SLOW)
-    rsi_series      = calc_rsi(closes, config.RSI_PERIOD)
-    macd_line, macd_signal, macd_hist = calc_macd(
-        closes,
-        config.MACD_FAST,
-        config.MACD_SLOW,
-        config.MACD_SIGNAL,
-    )
-    atr_series = calc_atr(df)
+    # 1. H4 Trend Analysis (Macro bias)
+    h4_ema9 = calc_ema(df_h4['close'], 9).iloc[-1]
+    h4_ema21 = calc_ema(df_h4['close'], 21).iloc[-1]
+    h4_rsi = calc_rsi(df_h4['close'], 14).iloc[-1]
+    
+    h4_trend = "sideways"
+    if h4_ema9 > h4_ema21 and h4_rsi > 50:
+        h4_trend = "bullish"
+    elif h4_ema9 < h4_ema21 and h4_rsi < 50:
+        h4_trend = "bearish"
 
-    # ── Get latest values ─────────────────────────────────────────────────
-    ema_fast = round(float(ema_fast_series.iloc[-1]), 5)
-    ema_slow = round(float(ema_slow_series.iloc[-1]), 5)
-    rsi      = round(float(rsi_series.iloc[-1]),      2)
-    macd     = round(float(macd_line.iloc[-1]),        5)
-    macd_sig = round(float(macd_signal.iloc[-1]),      5)
-    macd_h   = round(float(macd_hist.iloc[-1]),        5)
-    atr      = round(float(atr_series.iloc[-1]),       5)
-    price    = round(float(closes.iloc[-1]),            5)
+    # 2. H1 Support/Resistance & Momentum
+    h1_res, h1_sup = get_swing_levels(df_h1, lookback=20)
+    macd_line, macd_sig, macd_h = calc_macd(df_h1['close'])
+    h1_macd_hist = float(macd_h.iloc[-1])
+    h1_macd_trend = "bullish" if h1_macd_hist > 0 else "bearish"
 
-    # ── Trend & momentum signals ──────────────────────────────────────────
-    trend          = detect_trend(ema_fast, ema_slow, rsi)
-    ema_cross      = "golden_cross" if ema_fast > ema_slow else "death_cross"
-    macd_cross     = "bullish" if macd_h > 0 else "bearish"
-    rsi_zone       = "overbought" if rsi > 70 else "oversold" if rsi < 30 else "neutral"
-    sufficient_vol = bool(atr > 0)  # Basic volatility check
+    # 3. M15 Entry Context (Liquidity & Patterns)
+    pip_size = config.get_pip_multiplier(symbol)
+    m15_sweep = detect_liquidity_grab(df_m15, h1_res, h1_sup, threshold=pip_size*2)
+    m15_engulfing = detect_engulfing(df_m15)
+    m15_rsi = float(calc_rsi(df_m15['close'], 14).iloc[-1])
 
-    # ── Price change (momentum) ───────────────────────────────────────────
-    prev_close   = float(closes.iloc[-2]) if len(closes) > 1 else price
-    price_change = round(((price - prev_close) / prev_close) * 100, 4)
+    # 4. M5 Micro-Structure (Fast entry)
+    m5_sweep = detect_liquidity_grab(df_m5, h1_res, h1_sup, threshold=pip_size)
+    m5_engulfing = detect_engulfing(df_m5)
+    
+    # 5. Core Price Metrics (Using M5 as closest to real-time)
+    current_price = float(df_m5['close'].iloc[-1])
+    atr_val = float(calc_atr(df_m15).iloc[-1])
 
+    # Compile rich context
     indicators = {
-        "symbol":          symbol,
-        "price":           price,
-        "ema_fast":        ema_fast,
-        "ema_slow":        ema_slow,
-        "rsi":             rsi,
-        "macd":            macd,
-        "macd_signal":     macd_sig,
-        "macd_histogram":  macd_h,
-        "atr":             atr,
-        "trend":           trend,
-        "ema_cross":       ema_cross,
-        "macd_cross":      macd_cross,
-        "rsi_zone":        rsi_zone,
-        "price_change_pct": price_change,
-        "sufficient_volatility": sufficient_vol,
-        "bars_analyzed":   len(df),
+        "symbol": symbol,
+        "price": current_price,
+        "h4_trend": h4_trend,
+        "h1_resistance": h1_res,
+        "h1_support": h1_sup,
+        "h1_macd_trend": h1_macd_trend,
+        "m15_rsi": round(m15_rsi, 2),
+        "m15_liquidity_sweep": m15_sweep,
+        "m15_pattern": m15_engulfing,
+        "m5_liquidity_sweep": m5_sweep,
+        "m5_pattern": m5_engulfing,
+        "atr": round(atr_val, 5),
+        "sufficient_volatility": atr_val > (config.MIN_VOLATILITY_PIPS * pip_size)
     }
 
-    logger.debug(
-        f"[{symbol}] Price={price} | RSI={rsi} | EMA({config.EMA_FAST})={ema_fast} | "
-        f"EMA({config.EMA_SLOW})={ema_slow} | MACD={macd:.5f} | Trend={trend}"
-    )
-
+    logger.debug(f"[{symbol}] H4:{h4_trend} | S:{h1_sup} R:{h1_res} | M15 Sweep:{m15_sweep}")
     return indicators
 
 
-def format_for_prompt(indicators: Dict) -> str:
-    """Format indicator dict into a human-readable string for the AI prompt."""
+def format_for_prompt(ind: Dict) -> str:
+    """Format the rich multi-timeframe context for the AI prompt."""
     return (
-        f"Symbol: {indicators['symbol']}\n"
-        f"Current Price: {indicators['price']}\n"
-        f"EMA {config.EMA_FAST}: {indicators['ema_fast']}\n"
-        f"EMA {config.EMA_SLOW}: {indicators['ema_slow']}\n"
-        f"EMA Cross: {indicators['ema_cross']}\n"
-        f"RSI ({config.RSI_PERIOD}): {indicators['rsi']} [{indicators['rsi_zone']}]\n"
-        f"MACD Line: {indicators['macd']}\n"
-        f"MACD Signal: {indicators['macd_signal']}\n"
-        f"MACD Histogram: {indicators['macd_histogram']} [{indicators['macd_cross']}]\n"
-        f"ATR: {indicators['atr']}\n"
-        f"Market Trend: {indicators['trend']}\n"
-        f"Price Change: {indicators['price_change_pct']}%\n"
-        f"Bars Analyzed: {indicators['bars_analyzed']}"
+        f"Symbol: {ind['symbol']}\n"
+        f"Current Price: {ind['price']:.5f}\n"
+        f"\n--- TIMEFRAME: H4 (MACRO TREND) ---\n"
+        f"Major Trend: {ind['h4_trend'].upper()}\n"
+        f"\n--- TIMEFRAME: H1 (ZONES & MOMENTUM) ---\n"
+        f"Resistance Zone: {ind['h1_resistance']:.5f}\n"
+        f"Support Zone: {ind['h1_support']:.5f}\n"
+        f"MACD Momentum: {ind['h1_macd_trend'].upper()}\n"
+        f"\n--- TIMEFRAME: M15 (ENTRY CONTEXT) ---\n"
+        f"RSI (14): {ind['m15_rsi']}\n"
+        f"Liquidity Sweep Detected: {ind['m15_liquidity_sweep']}\n"
+        f"Candle Pattern: {ind['m15_pattern']}\n"
+        f"\n--- TIMEFRAME: M5 (MICRO SCALPING) ---\n"
+        f"Liquidity Sweep Detected: {ind['m5_liquidity_sweep']}\n"
+        f"Candle Pattern: {ind['m5_pattern']}\n"
+        f"\n--- RISK METRICS ---\n"
+        f"ATR: {ind['atr']}\n"
     )

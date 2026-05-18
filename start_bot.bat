@@ -13,7 +13,7 @@ echo.
 cd /d "%~dp0"
 
 :: ── Step 1: Start Ollama in background if not already running ────────────────
-echo  [1/3] Checking Ollama...
+echo  [1/4] Checking Ollama...
 tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
 if %ERRORLEVEL% NEQ 0 (
     echo        Ollama not running — starting now...
@@ -26,7 +26,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 :: ── Step 2: Check Python ─────────────────────────────────────────────────────
-echo  [2/3] Checking Python...
+echo  [2/4] Checking Python...
 python --version >NUL 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
@@ -37,11 +37,18 @@ if %ERRORLEVEL% NEQ 0 (
 )
 for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo        %%v found. OK.
 
-:: ── Step 3: Launch the trading bot ───────────────────────────────────────────
-echo  [3/3] Starting AI Trading Bot...
+:: ── Step 3: Launch Dashboard (Website) ───────────────────────────────────────
+echo  [3/4] Starting Dashboard...
+echo        This will open the website in your default browser.
+start /MIN "" streamlit run dashboard.py
+timeout /t 5 /nobreak >NUL
+
+:: ── Step 4: Launch the trading bot (which auto-opens MT5) ────────────────────
+echo  [4/4] Starting AI Trading Bot...
 echo.
 echo  ============================================================
 echo    Bot is LIVE. Close this window to STOP the bot.
+echo    MT5 and your web browser will be opened automatically.
 echo  ============================================================
 echo.
 

@@ -42,6 +42,12 @@ MIN_LOT                = float(os.getenv("MIN_LOT",                "0.01"))
 MAX_LOT                = float(os.getenv("MAX_LOT",                "1.0"))
 MIN_VOLATILITY_PIPS    = int(os.getenv("MIN_VOLATILITY_PIPS",      "5"))
 
+# Trade Layering & Trailing Stop
+MAX_TRADES_PER_PAIR    = int(os.getenv("MAX_TRADES_PER_PAIR",      "10"))
+USE_TRAILING_STOP      = os.getenv("USE_TRAILING_STOP",            "True").lower() == "true"
+TRAILING_STOP_PIPS     = int(os.getenv("TRAILING_STOP_PIPS",       "30"))
+TRAILING_STEP_PIPS     = int(os.getenv("TRAILING_STEP_PIPS",       "10"))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OLLAMA AI SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────

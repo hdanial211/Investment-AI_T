@@ -177,7 +177,7 @@ class RiskManager:
 
     # ── TRADE VALIDATION ─────────────────────────────────────────────────────
 
-    def can_trade(self, symbol: str, has_open_position: bool, indicators: Dict) -> Tuple[bool, str]:
+    def can_trade(self, symbol: str, open_positions_count: int, indicators: Dict) -> Tuple[bool, str]:
         """
         Run all pre-trade checks.
 
@@ -188,16 +188,16 @@ class RiskManager:
         if self.stats.trading_halted:
             return False, f"Trading halted: {self.stats.halt_reason}"
 
-        # 2. Check for existing position (1 trade per symbol rule)
-        if has_open_position:
-            return False, f"Already have open position on {symbol}"
+        # 2. Check for existing positions (Layering limit)
+        if open_positions_count >= config.MAX_TRADES_PER_PAIR:
+            return False, f"Max layered trades ({config.MAX_TRADES_PER_PAIR}) reached for {symbol}"
 
         # 3. Check volatility
         if not indicators.get("sufficient_volatility", True):
             return False, "Insufficient market volatility"
 
         # 4. Avoid extreme RSI (already overbought/oversold)
-        rsi = indicators.get("rsi", 50)
+        rsi = indicators.get("m15_rsi", 50)
         if rsi > 80 or rsi < 20:
             return False, f"Extreme RSI {rsi:.1f} — avoiding trade"
 

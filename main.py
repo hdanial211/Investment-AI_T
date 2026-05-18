@@ -22,7 +22,7 @@ from typing import Optional
 
 import config
 from mt5_connector import MT5Connector
-from strategy import calculate_indicators
+from strategy import calculate_multi_indicators
 from ai_engine import get_ai_signal, check_ollama_health
 from risk_manager import RiskManager
 from logger import setup_logging, TradeLogger, generate_performance_report
@@ -78,22 +78,27 @@ def run_cycle(
     ask = tick["ask"]
     logger.info(f"Tick: Bid={bid:.5f} | Ask={ask:.5f}")
 
-    # ── STEP 2: Get OHLCV bars and calculate indicators ──────────────────────
-    df = connector.get_ohlcv(symbol)
-    if df is None or df.empty:
-        logger.error(f"Failed to get OHLCV for {symbol}")
-        trade_logger.log_skipped(symbol, "No OHLCV data")
+    # ── STEP 1.5: Update Trailing Stop ───────────────────────────────────────
+    if config.USE_TRAILING_STOP:
+        connector.update_trailing_stop(symbol, config.TRAILING_STOP_PIPS, config.TRAILING_STEP_PIPS)
+
+    # ── STEP 2: Get Multi-Timeframe OHLCV bars and calculate indicators ──────
+    mdf = connector.get_multi_timeframe(symbol, timeframes=["H4", "H1", "M15", "M5"], bars=100)
+    if not mdf or len(mdf) < 4:
+        logger.error(f"Failed to get multi-timeframe data for {symbol}")
+        trade_logger.log_skipped(symbol, "Missing MTF data")
         return "error"
 
-    indicators = calculate_indicators(df, symbol=symbol)
+    indicators = calculate_multi_indicators(mdf, symbol=symbol)
     if not indicators:
         logger.warning(f"Cannot calculate indicators for {symbol}")
         trade_logger.log_skipped(symbol, "Indicator calculation failed")
         return "skipped"
 
     # ── STEP 3: Pre-trade risk check ─────────────────────────────────────────
-    has_position = connector.has_open_position(symbol)
-    can_trade, risk_reason = risk_mgr.can_trade(symbol, has_position, indicators)
+    open_positions = connector.get_open_positions(symbol)
+    open_pos_count = len(open_positions)
+    can_trade, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators)
     if not can_trade:
         logger.info(f"Trade blocked: {risk_reason}")
         trade_logger.log_skipped(symbol, risk_reason, indicators=indicators)
