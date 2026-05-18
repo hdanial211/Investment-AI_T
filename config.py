@@ -57,10 +57,17 @@ TRAILING_STEP_PIPS     = int(os.getenv("TRAILING_STEP_PIPS",       "10"))
 # ─────────────────────────────────────────────────────────────────────────────
 # OLLAMA AI SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
-OLLAMA_URL     = os.getenv("OLLAMA_URL",   "http://localhost:11434/api/generate")
-OLLAMA_MODEL   = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:14b")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
-OLLAMA_RETRIES = int(os.getenv("OLLAMA_RETRIES", "3"))
+OLLAMA_URL         = os.getenv("OLLAMA_URL",         "http://localhost:11434/api/generate")
+OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL",       "qwen2.5:7b")
+OLLAMA_RISK_MODEL  = os.getenv("OLLAMA_RISK_MODEL",  "deepseek-r1:8b")
+ENABLE_RISK_REVIEW = os.getenv("ENABLE_RISK_REVIEW", "False").lower() == "true"
+OLLAMA_TIMEOUT     = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+OLLAMA_RETRIES     = int(os.getenv("OLLAMA_RETRIES", "3"))
+OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
+OLLAMA_TOP_P       = float(os.getenv("OLLAMA_TOP_P",       "0.9"))
+OLLAMA_NUM_CTX     = int(os.getenv("OLLAMA_NUM_CTX",       "4096"))
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT",   "256"))
+OLLAMA_NUM_GPU     = int(os.getenv("OLLAMA_NUM_GPU",       "999"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGGING / OUTPUT

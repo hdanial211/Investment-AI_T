@@ -23,7 +23,7 @@ from typing import Optional
 import config
 from mt5_connector import MT5Connector
 from strategy import calculate_multi_indicators
-from ai_engine import get_ai_signal, check_ollama_health
+from ai_engine import get_ai_signal, review_trade_risk, check_ollama_health
 from risk_manager import RiskManager
 from logger import setup_logging, TradeLogger, generate_performance_report
 from trade_memory import TradeMemory
@@ -167,6 +167,20 @@ def run_cycle(
         f"SL={trade_params['sl']:.5f} | TP={trade_params['tp']:.5f}"
     )
 
+    # ── STEP 6.5: Optional second-model risk review ──────────────────────────
+    risk_review = review_trade_risk(signal, indicators, trade_params, symbol)
+    signal["risk_review"] = risk_review
+    if not risk_review["approved"]:
+        reason = f"Risk review rejected: {risk_review['reason']}"
+        logger.warning(reason)
+        trade_logger.log_skipped(
+            symbol,
+            reason,
+            signal=signal,
+            indicators=indicators,
+        )
+        return "skipped"
+
     # ── STEP 7: Execute trade ─────────────────────────────────────────────────
     exec_result = connector.place_order(
         symbol   = symbol,
@@ -233,6 +247,13 @@ def startup_checks(connector: MT5Connector) -> bool:
     else:
         logger.warning("⚠ Ollama not ready — bot will run but AI signals may fail")
         # Non-fatal: allow demo runs without Ollama
+
+    if config.ENABLE_RISK_REVIEW:
+        logger.info(f"Checking Ollama risk model ({config.OLLAMA_RISK_MODEL})...")
+        if check_ollama_health(config.OLLAMA_RISK_MODEL):
+            logger.info("✔ Ollama risk reviewer ready")
+        else:
+            logger.warning("⚠ Risk review enabled but risk model is not available")
 
     # 3. Symbol availability
     for sym in config.SYMBOLS:

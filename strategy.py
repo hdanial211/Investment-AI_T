@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 
 import config
+from eurusd_pattern_engine import scan_eurusd_patterns, summarize_pattern_bias
+from xauusd_pattern_engine import scan_xauusd_patterns, summarize_xauusd_pattern_bias
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +205,17 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     current_price = float(df_m5['close'].iloc[-1])
     atr_val = float(calc_atr(df_m15).iloc[-1])
 
+    symbol_upper = symbol.upper()
+    if "EURUSD" in symbol_upper:
+        detected_patterns = scan_eurusd_patterns(mdf, symbol=symbol)
+        pattern_bias = summarize_pattern_bias(detected_patterns)
+    elif "XAU" in symbol_upper or "GOLD" in symbol_upper:
+        detected_patterns = scan_xauusd_patterns(mdf, symbol=symbol)
+        pattern_bias = summarize_xauusd_pattern_bias(detected_patterns, mdf)
+    else:
+        detected_patterns = []
+        pattern_bias = summarize_pattern_bias(detected_patterns)
+
     # Compile rich context
     indicators = {
         "symbol": symbol,
@@ -219,15 +232,67 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
         "m5_liquidity_sweep": m5_sweep,
         "m5_pattern": m5_engulfing,
         "atr": round(atr_val, 5),
-        "sufficient_volatility": atr_val > (config.MIN_VOLATILITY_PIPS * pip_size)
+        "sufficient_volatility": atr_val > (config.MIN_VOLATILITY_PIPS * pip_size),
+        "detected_patterns": detected_patterns,
+        "pattern_bias": pattern_bias,
     }
 
-    logger.debug(f"[{symbol}] H4:{h4_trend} | S:{h1_sup} R:{h1_res} | M15 Sweep:{m15_sweep}")
+    logger.debug(
+        f"[{symbol}] H4:{h4_trend} | S:{h1_sup} R:{h1_res} | "
+        f"M15 Sweep:{m15_sweep} | Pattern bias:{pattern_bias.get('bias')}"
+    )
     return indicators
+
+
+def _format_detected_patterns(ind: Dict) -> str:
+    patterns = ind.get("detected_patterns") or []
+    if not patterns:
+        symbol = str(ind.get("symbol", "")).upper()
+        if "EURUSD" in symbol:
+            return "No active EURUSD pattern confluence detected.\n"
+        if "XAU" in symbol or "GOLD" in symbol:
+            return "No active XAUUSD Gold pattern confluence detected.\n"
+        return "Pattern scanner is currently enabled for EURUSD and XAUUSD only.\n"
+
+    lines = []
+    for pattern in patterns[:12]:
+        lines.append(
+            "- "
+            f"[{pattern.get('timeframe')}] "
+            f"{pattern.get('name')} "
+            f"({pattern.get('category')}, {pattern.get('direction')}, "
+            f"confidence {float(pattern.get('confidence', 0)):.2f}, "
+            f"priority {pattern.get('priority')}) - "
+            f"{pattern.get('reason')}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _format_pattern_context(ind: Dict) -> str:
+    symbol = str(ind.get("symbol", "")).upper()
+    pattern_bias = ind.get("pattern_bias") or {}
+    if "XAU" not in symbol and "GOLD" not in symbol:
+        return ""
+
+    return (
+        f"Gold Session: {pattern_bias.get('session', 'unknown')} "
+        f"({pattern_bias.get('session_profile', 'no session profile')})\n"
+        f"DXY Bias: {pattern_bias.get('dxy_bias', 'unavailable')}\n"
+        f"Nearest Psych Levels: $50={pattern_bias.get('nearest_psych_50', 'n/a')}, "
+        f"$100={pattern_bias.get('nearest_psych_100', 'n/a')}\n"
+    )
 
 
 def format_for_prompt(ind: Dict) -> str:
     """Format the rich multi-timeframe context for the AI prompt."""
+    pattern_bias = ind.get("pattern_bias") or {}
+    symbol = str(ind.get("symbol", "")).upper()
+    if "EURUSD" in symbol:
+        pattern_section_title = "EURUSD PATTERN CONFLUENCE"
+    elif "XAU" in symbol or "GOLD" in symbol:
+        pattern_section_title = "XAUUSD GOLD PATTERN CONFLUENCE"
+    else:
+        pattern_section_title = "PAIR-SPECIFIC PATTERN CONFLUENCE"
     return (
         f"Symbol: {ind['symbol']}\n"
         f"Current Price: {ind['price']:.5f}\n"
@@ -247,6 +312,13 @@ def format_for_prompt(ind: Dict) -> str:
         f"\n--- TIMEFRAME: M5 (MICRO SCALPING) ---\n"
         f"Liquidity Sweep Detected: {ind['m5_liquidity_sweep']}\n"
         f"Candle Pattern: {ind['m5_pattern']}\n"
+        f"\n--- {pattern_section_title} ---\n"
+        f"Pattern Bias: {pattern_bias.get('bias', 'none').upper()} "
+        f"(Bullish Score: {pattern_bias.get('bullish_score', 0)}, "
+        f"Bearish Score: {pattern_bias.get('bearish_score', 0)}, "
+        f"High-Priority Count: {pattern_bias.get('high_priority_count', 0)})\n"
+        f"{_format_pattern_context(ind)}"
+        f"{_format_detected_patterns(ind)}"
         f"\n--- RISK METRICS ---\n"
         f"ATR: {ind['atr']}\n"
     )

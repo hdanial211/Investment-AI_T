@@ -2,7 +2,8 @@
 
 A production-ready algorithmic trading system that combines:
 - **MetaTrader 5** for live market data and trade execution
-- **Ollama AI** (`qwen2.5-coder:14b`) as the decision engine
+- **Ollama AI** (`qwen2.5:7b`) as the main decision engine
+- Optional **DeepSeek-R1** (`deepseek-r1:8b`) risk-review model
 - Full **risk management**, **logging**, and **Streamlit dashboard**
 
 ---
@@ -63,8 +64,11 @@ pip install -r requirements.txt
 # Start Ollama server (keep this terminal open)
 ollama serve
 
-# In another terminal, pull the model (first time only, ~9GB download)
-ollama pull qwen2.5-coder:14b
+# In another terminal, pull the main model
+ollama pull qwen2.5:7b
+
+# Optional: pull the second-opinion risk reviewer
+ollama pull deepseek-r1:8b
 
 # Verify model is available
 ollama list
@@ -101,6 +105,12 @@ SYMBOLS=XAUUSD,EURUSD       # Symbols to trade
 LOOP_INTERVAL=10             # Seconds between cycles
 MAX_RISK_PERCENT=2.0         # Risk % per trade
 MIN_CONFIDENCE=0.60          # Minimum AI confidence to trade
+
+OLLAMA_MODEL=qwen2.5:7b
+OLLAMA_RISK_MODEL=deepseek-r1:8b
+ENABLE_RISK_REVIEW=False     # Set True after pulling deepseek-r1:8b
+OLLAMA_NUM_CTX=4096
+OLLAMA_TEMPERATURE=0.1
 ```
 
 Or edit `config.py` directly if you prefer not using `.env`.
@@ -124,7 +134,7 @@ Expected startup output:
 ============================================================
 Checking MT5 connection...
 ✔ MT5 connected
-Checking Ollama (qwen2.5-coder:14b)...
+Checking Ollama (qwen2.5:7b)...
 ✔ Ollama AI ready
 ✔ Symbol XAUUSD: Bid=1952.45000
 ✔ Account: Balance=10000.00 USD | Leverage=1:100
@@ -276,7 +286,8 @@ Expected response (strict JSON):
 |---|---|
 | `MT5 initialize failed` | Make sure MT5 terminal is open and logged in |
 | `Cannot connect to Ollama` | Run `ollama serve` in a terminal |
-| `Model not found` | Run `ollama pull qwen2.5-coder:14b` |
+| `Model not found` | Run `ollama pull qwen2.5:7b` |
+| `Risk review model not found` | Run `ollama pull deepseek-r1:8b` or set `ENABLE_RISK_REVIEW=False` |
 | `Invalid symbol` | Add symbol to MT5 Market Watch manually |
 | `Order failed: retcode=10014` | Invalid lot size — check broker's min lot |
 | `Order failed: retcode=10019` | Not enough margin/balance |

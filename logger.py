@@ -88,6 +88,8 @@ TRADE_CSV_HEADERS = [
     "ticket", "status", "profit",
     "balance_after", "consecutive_losses",
     "ema_fast", "ema_slow", "rsi", "macd", "trend",
+    "pattern_bias", "detected_patterns",
+    "risk_review_approved", "risk_review_reason",
     "raw_ai_response",
 ]
 
@@ -150,6 +152,10 @@ class TradeLogger:
             "rsi":                 indicators.get("rsi", 0),
             "macd":                indicators.get("macd", 0),
             "trend":               indicators.get("trend", ""),
+            "pattern_bias":         (indicators.get("pattern_bias") or {}).get("bias", ""),
+            "detected_patterns":    _format_pattern_names(indicators),
+            "risk_review_approved": _format_risk_review(signal, "approved"),
+            "risk_review_reason":   _format_risk_review(signal, "reason"),
             "raw_ai_response":     (signal.get("raw_response", "") or "")[:200],
         }
 
@@ -196,6 +202,10 @@ class TradeLogger:
             "rsi":                indicators.get("rsi", 0),
             "macd":               indicators.get("macd", 0),
             "trend":              indicators.get("trend", ""),
+            "pattern_bias":        (indicators.get("pattern_bias") or {}).get("bias", ""),
+            "detected_patterns":   _format_pattern_names(indicators),
+            "risk_review_approved": _format_risk_review(signal, "approved"),
+            "risk_review_reason":   _format_risk_review(signal, "reason"),
             "raw_ai_response":    "",
         }
         try:
@@ -204,6 +214,24 @@ class TradeLogger:
                 writer.writerow(row)
         except IOError:
             pass
+
+
+def _format_pattern_names(indicators: Dict) -> str:
+    """Compact pattern names for the CSV journal."""
+    patterns = indicators.get("detected_patterns") or []
+    names = [
+        f"{p.get('timeframe')}:{p.get('name')}:{p.get('direction')}"
+        for p in patterns[:10]
+    ]
+    return " | ".join(names)
+
+
+def _format_risk_review(signal: Dict, field: str) -> str:
+    review = signal.get("risk_review") or {}
+    if not review:
+        return ""
+    value = review.get(field, "")
+    return str(value)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
