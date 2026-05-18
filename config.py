@@ -27,7 +27,7 @@ MT5_PATH     = os.getenv("MT5_PATH",         "")   # e.g. C:/Program Files/MetaT
 SYMBOLS          = os.getenv("SYMBOLS", "XAUUSD,EURUSD").split(",")
 PRIMARY_SYMBOL   = SYMBOLS[0]
 TIMEFRAME        = os.getenv("TIMEFRAME", "M5")
-LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "10"))
+LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "60"))
 BARS_TO_FETCH    = int(os.getenv("BARS_TO_FETCH", "100"))
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -41,6 +41,12 @@ TP_PIPS                = int(os.getenv("TP_PIPS",                  "100"))
 MIN_LOT                = float(os.getenv("MIN_LOT",                "0.01"))
 MAX_LOT                = float(os.getenv("MAX_LOT",                "1.0"))
 MIN_VOLATILITY_PIPS    = int(os.getenv("MIN_VOLATILITY_PIPS",      "5"))
+
+# Dynamic Risk Management & Cooling Off
+USE_DYNAMIC_SL         = os.getenv("USE_DYNAMIC_SL",               "True").lower() == "true"
+DYNAMIC_SL_MULTIPLIER  = float(os.getenv("DYNAMIC_SL_MULTIPLIER",  "1.5"))
+DYNAMIC_TP_MULTIPLIER  = float(os.getenv("DYNAMIC_TP_MULTIPLIER",  "4.5"))
+COOLING_OFF_MINUTES    = int(os.getenv("COOLING_OFF_MINUTES",      "15"))
 
 # Trade Layering & Trailing Stop
 MAX_TRADES_PER_PAIR    = int(os.getenv("MAX_TRADES_PER_PAIR",      "10"))

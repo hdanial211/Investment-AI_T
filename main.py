@@ -26,6 +26,7 @@ from strategy import calculate_multi_indicators
 from ai_engine import get_ai_signal, check_ollama_health
 from risk_manager import RiskManager
 from logger import setup_logging, TradeLogger, generate_performance_report
+from trade_memory import TradeMemory
 
 # ─────────────────────────────────────────────────────────────────────────────
 # INITIALIZE LOGGING FIRST
@@ -58,6 +59,7 @@ def run_cycle(
     connector:    MT5Connector,
     risk_mgr:     RiskManager,
     trade_logger: TradeLogger,
+    trade_memory: TradeMemory,
 ) -> Optional[str]:
     """
     Execute one complete trading cycle for a given symbol.
@@ -97,8 +99,10 @@ def run_cycle(
 
     # ── STEP 3: Pre-trade risk check ─────────────────────────────────────────
     open_positions = connector.get_open_positions(symbol)
+    trade_memory.sync_with_broker([pos["ticket"] for pos in open_positions])
+    
     open_pos_count = len(open_positions)
-    can_trade, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators)
+    can_trade, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators, trade_memory)
     if not can_trade:
         logger.info(f"Trade blocked: {risk_reason}")
         trade_logger.log_skipped(symbol, risk_reason, indicators=indicators)
@@ -106,7 +110,7 @@ def run_cycle(
 
     # ── STEP 4: Query AI ─────────────────────────────────────────────────────
     logger.info("Querying AI model...")
-    signal = get_ai_signal(indicators, bid, ask)
+    signal = get_ai_signal(indicators, bid, ask, trade_memory, symbol)
 
     # ── STEP 5: Validate AI signal ───────────────────────────────────────────
     signal_valid, signal_reason = risk_mgr.validate_signal(signal)
@@ -138,6 +142,7 @@ def run_cycle(
         balance       = balance,
         pip_value     = pip_value,
         contract_size = contract,
+        indicators    = indicators,
     )
 
     logger.info(
@@ -168,6 +173,13 @@ def run_cycle(
     )
 
     if exec_result["success"]:
+        trade_memory.add_trade(
+            ticket=exec_result["ticket"], 
+            symbol=symbol, 
+            action=action, 
+            reason=signal["reason"], 
+            target_tp=trade_params["tp"]
+        )
         logger.info(f"✅ Trade executed! Ticket: {exec_result['ticket']}")
         cycle_time = round(time.time() - cycle_start, 2)
         logger.info(f"Cycle completed in {cycle_time}s")
@@ -240,6 +252,7 @@ def main():
     connector    = MT5Connector()
     risk_mgr     = RiskManager()
     trade_logger = TradeLogger()
+    trade_memory = TradeMemory()
 
     # Pre-flight checks
     if not startup_checks(connector):
@@ -274,7 +287,7 @@ def main():
             if _shutdown_requested:
                 break
             try:
-                run_cycle(symbol, connector, risk_mgr, trade_logger)
+                run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory)
             except Exception as e:
                 logger.error(f"Unhandled exception in cycle [{symbol}]: {e}", exc_info=True)
 

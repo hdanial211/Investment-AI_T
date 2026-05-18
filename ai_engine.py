@@ -57,7 +57,7 @@ XAUUSD is highly volatile and prone to institutional manipulation (stop hunts).
 }
 
 
-def build_prompt(indicators: Dict, bid: float, ask: float) -> str:
+def build_prompt(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN") -> str:
     symbol = indicators.get("symbol", "")
     
     # Get specific rules based on symbol, fallback to general if unknown
@@ -83,9 +83,18 @@ Evaluate the timeframes logically:
 1. Does the trade align with the H4 Major Trend? (If not, HOLD).
 2. Is the price near H1 Support/Resistance?
 3. What is the M15/M5 pattern telling you? Is there a liquidity sweep or valid engulfing?
-
-Return the JSON decision now.
 """
+    
+    if trade_memory:
+        active_records = trade_memory.get_symbol_active_memory(symbol)
+        if active_records:
+            prompt += "\n--- TRADE MEMORY (ACTIVE POSITIONS) ---\n"
+            prompt += "You currently have the following open positions on this asset:\n"
+            for r in active_records:
+                prompt += f"- {r['action']} opened because: '{r['reason']}'. Target TP: {r['target']:.5f}\n"
+            prompt += "\nEVALUATION REQUIRED: Since you are already in a trade, evaluate if the original thesis (reason) is still valid based on the current market data. If it is still valid and momentum is strong, you may return the same ACTION to add another layer. If the thesis is invalidated, or trend reversed, consider returning HOLD to wait, or the opposite ACTION to hedge/close.\n"
+
+    prompt += "\nReturn the JSON decision now.\n"
     return prompt
 
 
@@ -197,7 +206,7 @@ def query_ollama(prompt: str) -> Optional[str]:
 # MAIN PUBLIC INTERFACE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_ai_signal(indicators: Dict, bid: float, ask: float) -> Dict:
+def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN") -> Dict:
     default_response = {
         "action":       "HOLD",
         "confidence":   0.0,
@@ -206,7 +215,7 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float) -> Dict:
     }
 
     try:
-        prompt = build_prompt(indicators, bid, ask)
+        prompt = build_prompt(indicators, bid, ask, trade_memory, symbol)
     except Exception as e:
         logger.error(f"Failed to build prompt: {e}")
         return default_response

@@ -177,13 +177,18 @@ class RiskManager:
 
     # ── TRADE VALIDATION ─────────────────────────────────────────────────────
 
-    def can_trade(self, symbol: str, open_positions_count: int, indicators: Dict) -> Tuple[bool, str]:
+    def can_trade(self, symbol: str, open_positions_count: int, indicators: Dict, trade_memory=None) -> Tuple[bool, str]:
         """
         Run all pre-trade checks.
 
         Returns:
             (allowed: bool, reason: str)
         """
+        # 0. Check cooling off period
+        if trade_memory:
+            is_cooling, reason = trade_memory.is_cooling_off(symbol)
+            if is_cooling:
+                return False, reason
         # 1. Check if trading is halted
         if self.stats.trading_halted:
             return False, f"Trading halted: {self.stats.halt_reason}"
@@ -233,35 +238,54 @@ class RiskManager:
         balance:       float,
         pip_value:     float,
         contract_size: float,
+        indicators:    Dict = None,
     ) -> Dict:
         """
         Calculate all parameters needed to place a trade.
 
         Returns dict with: lot, sl, tp, sl_pips, tp_pips
         """
+        sl_pips = config.SL_PIPS
+        tp_pips = config.TP_PIPS
+        
+        if config.USE_DYNAMIC_SL and indicators and "atr" in indicators:
+            atr = indicators["atr"]
+            pip_multiplier = 10000
+            if "XAU" in symbol or "XAG" in symbol:
+                pip_multiplier = 100
+            elif "JPY" in symbol:
+                pip_multiplier = 100
+            
+            atr_pips = atr * pip_multiplier
+            # Calculate dynamic SL, but ensure it's at least MIN_VOLATILITY_PIPS
+            dynamic_sl = int(atr_pips * config.DYNAMIC_SL_MULTIPLIER)
+            sl_pips = max(dynamic_sl, config.MIN_VOLATILITY_PIPS * 2)
+            tp_pips = int(atr_pips * config.DYNAMIC_TP_MULTIPLIER)
+
         lot = calculate_lot_size(
             balance       = balance,
             risk_pct      = config.MAX_RISK_PERCENT,
-            sl_pips       = config.SL_PIPS,
+            sl_pips       = sl_pips,
             symbol        = symbol,
             pip_value     = pip_value,
             contract_size = contract_size,
         )
 
-        sl_price, tp_price = calculate_sl_tp(
-            action    = action,
-            price     = price,
-            sl_pips   = config.SL_PIPS,
-            tp_pips   = config.TP_PIPS,
-            pip_value = pip_value,
-        )
+        pip_size = config.get_pip_multiplier(symbol)
+
+        if action == "BUY":
+            sl_price = price - (sl_pips * pip_size)
+            tp_price = price + (tp_pips * pip_size)
+        else:
+            sl_price = price + (sl_pips * pip_size)
+            tp_price = price - (tp_pips * pip_size)
 
         return {
             "lot":     lot,
-            "sl":      sl_price,
-            "tp":      tp_price,
-            "sl_pips": config.SL_PIPS,
-            "tp_pips": config.TP_PIPS,
+            "sl":      round(sl_price, 5),
+            "tp":      round(tp_price, 5),
+            "sl_pips": sl_pips,
+            "tp_pips": tp_pips,
         }
 
     # ── RESULT RECORDING ─────────────────────────────────────────────────────
