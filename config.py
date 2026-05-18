@@ -68,6 +68,7 @@ OLLAMA_TOP_P       = float(os.getenv("OLLAMA_TOP_P",       "0.9"))
 OLLAMA_NUM_CTX     = int(os.getenv("OLLAMA_NUM_CTX",       "4096"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT",   "256"))
 OLLAMA_NUM_GPU     = int(os.getenv("OLLAMA_NUM_GPU",       "999"))
+OLLAMA_KEEP_ALIVE  = os.getenv("OLLAMA_KEEP_ALIVE",        "2m")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGGING / OUTPUT

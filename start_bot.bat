@@ -16,7 +16,7 @@ cd /d "%~dp0"
 if not exist ".env" (
     echo  [SETUP] .env not found - starting first-time setup...
     call "%~dp0setup_env.bat"
-    if %ERRORLEVEL% NEQ 0 (
+    if errorlevel 1 (
         echo.
         echo  [ERROR] First-time setup failed.
         pause
@@ -27,23 +27,29 @@ if not exist ".env" (
 
 :: Read selected Ollama model from .env, fallback to repo default
 set "AI_MODEL=qwen2.5:7b"
+set "AI_KEEP_ALIVE=2m"
+set "RISK_REVIEW=False"
+set "RISK_MODEL=deepseek-r1:8b"
 if exist ".env" (
     for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
         if /I "%%A"=="OLLAMA_MODEL" set "AI_MODEL=%%B"
+        if /I "%%A"=="OLLAMA_KEEP_ALIVE" set "AI_KEEP_ALIVE=%%B"
+        if /I "%%A"=="ENABLE_RISK_REVIEW" set "RISK_REVIEW=%%B"
+        if /I "%%A"=="OLLAMA_RISK_MODEL" set "RISK_MODEL=%%B"
     )
 )
 
 :: Step 1: Start Ollama in background if not already running
 echo  [1/5] Checking Ollama...
 where ollama >NUL 2>&1
-if %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo.
     echo  [ERROR] Ollama command not found. Please install Ollama first.
     pause
     exit /b 1
 )
 tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
-if %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo        Ollama not running - starting now...
     start /MIN "" ollama serve
     echo        Waiting for Ollama to be ready...
@@ -56,10 +62,10 @@ if %ERRORLEVEL% NEQ 0 (
 :: Step 2: Pull and warm up the selected Ollama model
 echo  [2/5] Loading Ollama model: %AI_MODEL%
 ollama show "%AI_MODEL%" >NUL 2>&1
-if %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo        Model not found locally - pulling %AI_MODEL%...
     ollama pull "%AI_MODEL%"
-    if %ERRORLEVEL% NEQ 0 (
+    if errorlevel 1 (
         echo.
         echo  [ERROR] Failed to pull Ollama model: %AI_MODEL%
         pause
@@ -67,20 +73,36 @@ if %ERRORLEVEL% NEQ 0 (
     )
 )
 
-set "OLLAMA_KEEP_ALIVE=30m"
+set "OLLAMA_KEEP_ALIVE=%AI_KEEP_ALIVE%"
 ollama run "%AI_MODEL%" "Reply with OK only." >NUL 2>&1
-if %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo.
     echo  [ERROR] Failed to start Ollama model: %AI_MODEL%
     pause
     exit /b 1
 )
-echo        Model %AI_MODEL% is loaded and ready. OK.
+echo        Model %AI_MODEL% is ready. Idle unload after %AI_KEEP_ALIVE%. OK.
+
+if /I "%RISK_REVIEW%"=="True" (
+    echo        Risk review enabled. Checking on-demand model: %RISK_MODEL%
+    ollama show "%RISK_MODEL%" >NUL 2>&1
+    if errorlevel 1 (
+        echo        Risk model not found locally - pulling %RISK_MODEL%...
+        ollama pull "%RISK_MODEL%"
+        if errorlevel 1 (
+            echo.
+            echo  [ERROR] Failed to pull Ollama risk model: %RISK_MODEL%
+            pause
+            exit /b 1
+        )
+    )
+    echo        Risk model %RISK_MODEL% is available on-demand. OK.
+)
 
 :: Step 3: Check Python
 echo  [3/5] Checking Python...
 python --version >NUL 2>&1
-if %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo.
     echo  [ERROR] Python not found. Please install Python 3.10+
     echo          and make sure it is added to PATH.

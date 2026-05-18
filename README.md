@@ -108,9 +108,10 @@ MIN_CONFIDENCE=0.60          # Minimum AI confidence to trade
 
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_RISK_MODEL=deepseek-r1:8b
-ENABLE_RISK_REVIEW=False     # Set True after pulling deepseek-r1:8b
+ENABLE_RISK_REVIEW=True      # DeepSeek is used only for valid trade risk review
 OLLAMA_NUM_CTX=4096
 OLLAMA_TEMPERATURE=0.1
+OLLAMA_KEEP_ALIVE=2m         # Unload idle models after 2 minutes
 ```
 
 Or edit `config.py` directly if you prefer not using `.env`.
@@ -127,12 +128,18 @@ start_bot.bat
 
 On first run, the launcher will create a local `.env` by asking for your MT5 login, password, server, symbols, and Ollama model. The `.env` file is ignored by Git so your trading credentials are not pushed to GitHub.
 
-After setup, the launcher will start Ollama, read `OLLAMA_MODEL` from `.env`, pull the model if needed, warm it up, start the trading engine, then open the terminal dashboard.
+After setup, the launcher will start Ollama, read `OLLAMA_MODEL` and `OLLAMA_KEEP_ALIVE` from `.env`, pull the model if needed, warm it up briefly, start the trading engine, then open the terminal dashboard. Idle models are allowed to unload automatically after the configured keep-alive time.
 
 You can also run the first-time setup manually:
 
 ```bat
 setup_env.bat
+```
+
+To enable two-model on-demand mode on an existing `.env`:
+
+```bat
+enable_dual_ai.bat
 ```
 
 Manual run:

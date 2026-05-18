@@ -255,9 +255,10 @@ def query_ollama(
 ) -> Optional[str]:
     selected_model = model or config.OLLAMA_MODEL
     payload = {
-        "model":  selected_model,
-        "prompt": prompt,
-        "stream": False,
+        "model":      selected_model,
+        "prompt":     prompt,
+        "stream":     False,
+        "keep_alive": config.OLLAMA_KEEP_ALIVE,
         "options": _ollama_options(
             temperature=temperature,
             num_predict=num_predict,
