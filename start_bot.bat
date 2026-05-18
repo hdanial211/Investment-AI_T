@@ -52,8 +52,15 @@ tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
 if errorlevel 1 (
     echo        Ollama not running - starting now...
     start /MIN "" ollama serve
-    echo        Waiting for Ollama to be ready...
-    timeout /t 8 /nobreak >NUL
+    echo        Waiting for Ollama API to be ready...
+    timeout /t 12 /nobreak >NUL
+    
+    :: Verify Ollama is responding
+    curl -s http://localhost:11434/api/tags >NUL 2>&1
+    if errorlevel 1 (
+        echo        Still waiting... giving Ollama more time...
+        timeout /t 10 /nobreak >NUL
+    )
     echo        Ollama started.
 ) else (
     echo        Ollama already running. OK.
