@@ -1,0 +1,21 @@
+# AI Trading Bot — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Core trading ─────────────────────────────────────────────
+MetaTrader5>=5.0.45        # MT5 Python API (Windows only)
+
+# ── Data & math ───────────────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.26.0
+
+# ── HTTP requests (Ollama API) ────────────────────────────────
+requests>=2.31.0
+
+# ── Dashboard ─────────────────────────────────────────────────
+streamlit>=1.35.0
+
+# ── Environment config ────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# ── Optional: better plotting in dashboard ────────────────────
+plotly>=5.20.0
