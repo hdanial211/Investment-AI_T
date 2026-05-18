@@ -1,11 +1,11 @@
 @echo off
-title 🤖 AI Trading Bot — Launcher
+title AI Trading Bot - Launcher
 color 0A
 cls
 
 echo.
 echo  ============================================================
-echo    GOLD AI TRADING BOT — STARTUP
+echo    GOLD AI TRADING BOT - STARTUP
 echo  ============================================================
 echo.
 
@@ -16,7 +16,7 @@ cd /d "%~dp0"
 echo  [1/4] Checking Ollama...
 tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
 if %ERRORLEVEL% NEQ 0 (
-    echo        Ollama not running — starting now...
+    echo        Ollama not running - starting now...
     start /MIN "" ollama serve
     echo        Waiting for Ollama to be ready...
     timeout /t 8 /nobreak >NUL
