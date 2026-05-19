@@ -12,6 +12,7 @@ Responsibilities:
 import json
 import logging
 import re
+import threading
 import time
 from typing import Dict, Optional
 
@@ -21,6 +22,7 @@ import config
 from strategy import format_for_prompt
 
 logger = logging.getLogger(__name__)
+_AI_CALL_LOCK = threading.Lock()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -265,38 +267,48 @@ def query_ollama(
         ),
     }
 
-    for attempt in range(1, config.OLLAMA_RETRIES + 1):
-        try:
-            logger.debug(
-                f"Querying Ollama model={selected_model} "
-                f"(attempt {attempt}/{config.OLLAMA_RETRIES})..."
-            )
-            response = requests.post(
-                config.OLLAMA_URL,
-                json    = payload,
-                timeout = timeout or config.OLLAMA_TIMEOUT,
-                headers = {"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
+    if _AI_CALL_LOCK.locked():
+        logger.info(f"AI busy. Waiting for current model call before starting {selected_model}...")
 
-            data = response.json()
-            raw_text = data.get("response", "").strip()
+    with _AI_CALL_LOCK:
+        logger.info(f"AI locked for model={selected_model}. Waiting for full response...")
+        for attempt in range(1, config.OLLAMA_RETRIES + 1):
+            try:
+                logger.debug(
+                    f"Querying Ollama model={selected_model} "
+                    f"(attempt {attempt}/{config.OLLAMA_RETRIES})..."
+                )
+                response = requests.post(
+                    config.OLLAMA_URL,
+                    json    = payload,
+                    timeout = timeout or config.OLLAMA_TIMEOUT,
+                    headers = {"Content-Type": "application/json"},
+                )
+                response.raise_for_status()
 
-            if raw_text:
-                return raw_text
+                data = response.json()
+                raw_text = data.get("response", "").strip()
 
-            logger.warning(f"Ollama returned empty response (attempt {attempt})")
+                if raw_text:
+                    logger.info(f"AI response completed for model={selected_model}")
+                    return raw_text
 
-        except requests.exceptions.ConnectionError:
-            logger.error("Cannot connect to Ollama. Is it running?")
-        except requests.exceptions.Timeout:
-            logger.warning(f"Ollama request timed out (attempt {attempt})")
-        except Exception as e:
-            logger.error(f"Ollama unexpected error: {e}")
+                logger.warning(f"Ollama returned empty response (attempt {attempt})")
 
-        if attempt < config.OLLAMA_RETRIES:
-            wait = 2 ** attempt
-            time.sleep(wait)
+            except requests.exceptions.ConnectionError:
+                logger.error("Cannot connect to Ollama. Is it running?")
+            except requests.exceptions.Timeout:
+                logger.warning(
+                    f"Ollama request timed out after {timeout or config.OLLAMA_TIMEOUT}s "
+                    f"(attempt {attempt})"
+                )
+            except Exception as e:
+                logger.error(f"Ollama unexpected error: {e}")
+
+            if attempt < config.OLLAMA_RETRIES:
+                wait = 2 ** attempt
+                logger.info(f"Waiting {wait}s before retrying model={selected_model}...")
+                time.sleep(wait)
 
     return None
 

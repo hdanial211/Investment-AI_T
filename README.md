@@ -111,8 +111,10 @@ OLLAMA_RISK_MODEL=deepseek-r1:8b
 ENABLE_RISK_REVIEW=True      # DeepSeek is used only for valid trade risk review
 OLLAMA_NUM_CTX=4096
 OLLAMA_TEMPERATURE=0.1
-OLLAMA_KEEP_ALIVE=2m         # Unload idle models after 2 minutes
+OLLAMA_KEEP_ALIVE=10m         # Unload idle models after 10 minutes
 ```
+
+AI calls are blocking and protected by a single in-process lock: Qwen must finish before DeepSeek starts, and DeepSeek must finish before the bot continues to order placement.
 
 Or edit `config.py` directly if you prefer not using `.env`.
 

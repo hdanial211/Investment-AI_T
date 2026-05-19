@@ -27,7 +27,7 @@ if not exist ".env" (
 
 :: Read selected Ollama model from .env, fallback to repo default
 set "AI_MODEL=qwen2.5:7b"
-set "AI_KEEP_ALIVE=2m"
+set "AI_KEEP_ALIVE=10m"
 set "RISK_REVIEW=False"
 set "RISK_MODEL=deepseek-r1:8b"
 if exist ".env" (
@@ -38,6 +38,8 @@ if exist ".env" (
         if /I "%%A"=="OLLAMA_RISK_MODEL" set "RISK_MODEL=%%B"
     )
 )
+if /I "%AI_KEEP_ALIVE%"=="2m" set "AI_KEEP_ALIVE=10m"
+if "%AI_KEEP_ALIVE%"=="" set "AI_KEEP_ALIVE=10m"
 
 :: Step 1: Start Ollama in background if not already running
 echo  [1/5] Checking Ollama...
@@ -52,7 +54,7 @@ tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
 if errorlevel 1 (
     echo        Ollama not running - starting now...
     :: Set env vars BEFORE starting Ollama so the server reads them
-    set OLLAMA_KEEP_ALIVE=30m
+    set "OLLAMA_KEEP_ALIVE=%AI_KEEP_ALIVE%"
     set OLLAMA_MAX_LOADED_MODELS=1
     start /MIN "" ollama serve
     echo        Waiting for Ollama API to be ready...

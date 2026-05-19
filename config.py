@@ -13,6 +13,32 @@ try:
 except ImportError:
     pass
 
+
+def _normalize_keep_alive(value: str, minimum_minutes: float = 10.0) -> str:
+    """Keep Ollama models loaded long enough for smooth sequential AI calls."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return f"{int(minimum_minutes)}m"
+
+    try:
+        if text.endswith("ms"):
+            minutes = float(text[:-2]) / 60000
+        elif text.endswith("s"):
+            minutes = float(text[:-1]) / 60
+        elif text.endswith("m"):
+            minutes = float(text[:-1])
+        elif text.endswith("h"):
+            minutes = float(text[:-1]) * 60
+        else:
+            minutes = float(text) / 60
+    except ValueError:
+        return text
+
+    if minutes < minimum_minutes:
+        return f"{int(minimum_minutes)}m"
+
+    return text
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MT5 CONNECTION SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -61,14 +87,14 @@ OLLAMA_URL         = os.getenv("OLLAMA_URL",         "http://localhost:11434/api
 OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL",       "qwen2.5:7b")
 OLLAMA_RISK_MODEL  = os.getenv("OLLAMA_RISK_MODEL",  "deepseek-r1:8b")
 ENABLE_RISK_REVIEW = os.getenv("ENABLE_RISK_REVIEW", "False").lower() == "true"
-OLLAMA_TIMEOUT     = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+OLLAMA_TIMEOUT     = int(os.getenv("OLLAMA_TIMEOUT", "300"))
 OLLAMA_RETRIES     = int(os.getenv("OLLAMA_RETRIES", "3"))
 OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
 OLLAMA_TOP_P       = float(os.getenv("OLLAMA_TOP_P",       "0.9"))
 OLLAMA_NUM_CTX     = int(os.getenv("OLLAMA_NUM_CTX",       "4096"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT",   "256"))
 OLLAMA_NUM_GPU     = int(os.getenv("OLLAMA_NUM_GPU",       "999"))
-OLLAMA_KEEP_ALIVE  = os.getenv("OLLAMA_KEEP_ALIVE",        "2m")
+OLLAMA_KEEP_ALIVE  = _normalize_keep_alive(os.getenv("OLLAMA_KEEP_ALIVE", "10m"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGGING / OUTPUT
