@@ -1,7 +1,7 @@
 # Planning: Migrasi AI dari Ollama ke OpenRouter / Hugging Face + Deploy
 
 Tarikh: 2026-05-25
-Status: Phase 2-5 sedang diimplement: config cloud AI, provider client, ai_engine refactor, dan launcher tanpa Ollama.
+Status: Phase 2-5 DONE in `v1.6.11`: config cloud AI, provider client, ai_engine refactor, dan launcher tanpa Ollama.
 
 Matlamat utama:
 - Buang dependency Ollama local.
@@ -977,7 +977,7 @@ Phase 2: Config migration
 - Add `AI_PROVIDER`, `OPENROUTER_API_KEY`, `HF_TOKEN`, `AI_MAIN_MODEL`, `AI_RISK_MODEL`.
 - Deprecate `OLLAMA_*`.
 - Update `.env.example`.
-- Status: DONE in code. Old `OLLAMA_*` only remains as backward-compatible fallback for existing local `.env`.
+- Status: DONE in code. Runtime config sekarang guna `AI_*`.
 
 Phase 3: Provider client
 - Add `ai_clients/`.
@@ -990,7 +990,7 @@ Phase 4: Refactor `ai_engine.py`
 - Replace `query_ollama()` with `query_ai_provider()`.
 - Keep JSON validation.
 - Keep single AI lock.
-- Status: DONE in code. `query_ollama()` remains only as compatibility alias.
+- Status: DONE in code. Runtime call utama sekarang `query_ai_provider()`.
 
 Phase 5: Launcher cleanup
 - Remove Ollama startup logic.
