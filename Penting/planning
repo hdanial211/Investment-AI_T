@@ -1,0 +1,895 @@
+# Planning: Migrasi AI dari Ollama ke OpenRouter / Hugging Face + Deploy
+
+Tarikh: 2026-05-25
+Status: Draft untuk dibahas dahulu sebelum ubah code besar.
+
+Matlamat utama:
+- Buang dependency Ollama local.
+- AI dipanggil melalui cloud API sahaja.
+- Sistem tetap autonomous bila tekan `start_bot.bat`.
+- Qwen/DeepSeek style dua-AI masih boleh digunakan, tetapi on-demand dan sequential.
+- Runtime utama sekarang: laptop Windows running 24 jam.
+- Vercel HTML digunakan sebagai fallback dashboard/manual guide jika laptop offline.
+- Supabase digunakan sebagai cloud sync layer untuk active trades, heartbeat, virtual SL/TP, dan manual status.
+- Semua SL/TP/trailing stop adalah virtual dalam sistem, bukan fixed broker-side level dalam MT5.
+- Dashboard realtime perlu tunjuk pattern mana digunakan untuk setiap trade, termasuk count pattern A/B/C, win/loss, dan status trade semasa.
+
+---
+
+## 1. Keputusan Provider
+
+Cadangan utama: OpenRouter dahulu.
+
+Sebab:
+- API dia OpenAI-compatible melalui `/api/v1/chat/completions`.
+- Mudah tukar model tanpa ubah banyak code.
+- Sesuai untuk multi-model routing: main signal model + risk review model.
+- Deployment lebih senang sebab tidak perlu GPU/Ollama di laptop/VPS.
+
+Pilihan kedua: Hugging Face Inference Providers.
+
+Sebab:
+- Juga boleh jadi OpenAI-compatible / unified inference layer.
+- Banyak pilihan model open-source.
+- Bagus sebagai fallback provider jika OpenRouter down atau model mahal.
+
+Keputusan awal:
+```ini
+AI_PROVIDER=openrouter
+AI_FALLBACK_PROVIDER=huggingface
+```
+
+Nota:
+- Kita jangan hardcode satu provider sahaja dalam `ai_engine.py`.
+- Buat adapter supaya nanti boleh tukar:
+  - `openrouter`
+  - `huggingface`
+  - optional future: `openai`, `gemini`, `anthropic`
+
+---
+
+## 2. Flow Baru Tanpa Ollama
+
+Flow startup baru:
+```text
+DOUBLE CLICK start_bot.bat
+        |
+        v
+Check .env exists
+        |
+        v
+Validate Python + packages
+        |
+        v
+Validate API key exists
+        |
+        v
+Start main.py engine
+        |
+        v
+Start dashboard.py
+```
+
+Apa yang dibuang:
+```text
+Ollama serve
+ollama pull
+ollama run warm-up
+OLLAMA_KEEP_ALIVE
+OLLAMA_MAX_LOADED_MODELS
+local model preload
+```
+
+Sebab cloud API tidak perlu warm-up local model.
+
+---
+
+## 3. Flow Trading Cycle Selepas Migrasi
+
+```text
+MAIN LOOP
+  |
+  v
+For each symbol: XAUUSD, EURUSD
+  |
+  v
+Get tick price from MT5
+  |
+  v
+Get H4/H1/M15/M5 data
+  |
+  v
+Calculate indicators + pattern engines
+  |
+  v
+Build pattern usage snapshot
+  |
+  +-- primary_pattern
+  +-- all_detected_patterns
+  +-- confluence_combo
+  +-- pattern_count
+  +-- pattern_confidence
+  |
+  v
+Active Trade Manager
+  |
+  +-- monitor every open ticket one-by-one
+  +-- update virtual SL / virtual TP / virtual trailing stop
+  +-- close ticket if virtual trigger is hit
+  +-- sync active state to Supabase
+  |
+  v
+RiskManager.can_trade()
+  |
+  +-- blocked / cooling-off / max trade / bad volatility
+  |       |
+  |       v
+  |   SKIP
+  |   AI API NOT CALLED
+  |
+  v
+Call MAIN cloud AI
+  |
+  v
+Wait until full response OR timeout
+  |
+  v
+Validate JSON signal
+  |
+  +-- HOLD / low confidence / invalid
+  |       |
+  |       v
+  |   SKIP
+  |   Risk AI NOT CALLED
+  |
+  v
+Calculate lot + virtual SL/TP plan
+  |
+  v
+If ENABLE_RISK_REVIEW=True
+  |
+  v
+Call RISK cloud AI
+  |
+  v
+Wait until full response OR timeout
+  |
+  +-- rejected / timeout / invalid JSON
+  |       |
+  |       v
+  |   SKIP trade
+  |
+  v
+Place order in MT5
+  |
+  v
+Save virtual exit plan into trade memory + Supabase
+  |
+  v
+Save pattern usage snapshot into trade memory + Supabase
+  |
+  v
+Log trade
+  |
+  v
+Sleep LOOP_INTERVAL
+```
+
+Rule penting:
+- AI call mesti blocking.
+- Hanya satu AI call boleh jalan dalam satu masa.
+- Main AI mesti siap dahulu sebelum risk AI.
+- Risk AI mesti siap dahulu sebelum order dihantar.
+- Kalau cooling-off, AI tidak dipanggil langsung.
+- Bot mesti jaga setiap open ticket sampai trade tamat.
+- SL/TP/trailing stop tidak dihantar sebagai fixed broker-side level ke MT5.
+- Exit dilakukan oleh bot melalui close order apabila virtual trigger kena.
+
+---
+
+## 4. Active Trade Management: Full Control Per Ticket
+
+Requirement baru:
+- Jika ada 4 trade sedang berjalan, bot perlu jaga keempat-empat trade itu satu-persatu.
+- Setiap ticket ada state sendiri.
+- Bot tidak boleh cuma buka trade kemudian tinggal dengan fixed SL/TP.
+- Bot mesti control trade sampai closed.
+
+Flow:
+```text
+ACTIVE TRADE MANAGER
+  |
+  v
+Get all open positions from MT5
+  |
+  v
+For each ticket individually
+  |
+  +-- Ticket 1001: check entry, floating P/L, drawdown, thesis, pattern, trend
+  +-- Ticket 1002: check entry, floating P/L, drawdown, thesis, pattern, trend
+  +-- Ticket 1003: check entry, floating P/L, drawdown, thesis, pattern, trend
+  +-- Ticket 1004: check entry, floating P/L, drawdown, thesis, pattern, trend
+  |
+  v
+Decision per ticket
+  |
+  +-- HOLD: thesis still valid
+  +-- PROTECT: update hidden profit-lock level
+  +-- TRAIL: update hidden dynamic trailing level
+  +-- TAKE PROFIT: close ticket when virtual TP condition is hit
+  +-- CUT LOSS: close ticket when virtual SL condition is hit
+  +-- EXIT: close ticket when thesis is invalid
+  |
+  v
+Send MT5 close order only when trigger is hit
+  |
+  v
+Save new state to local trade_memory + Supabase
+```
+
+Trade state per ticket:
+```text
+ticket
+symbol
+direction
+entry_price
+lot
+opened_at
+primary_pattern
+pattern_names
+pattern_categories
+pattern_timeframes
+confluence_combo
+pattern_confidence
+pattern_count
+original_thesis
+current_status
+virtual_sl
+virtual_tp
+virtual_trailing_stop
+profit_lock_level
+max_favorable_price
+max_drawdown
+last_ai_management_decision
+last_checked_at
+```
+
+Important:
+- Virtual SL/TP/trailing stop hanya disimpan dalam bot memory/Supabase.
+- Ia tidak diletakkan sebagai SL/TP dalam MT5.
+- Jika laptop/internet/MT5/API mati, virtual trigger tidak boleh execute.
+- Oleh itu perlu fallback monitoring dan manual mode.
+
+---
+
+## 5. Virtual SL/TP dan Virtual Dynamic Trailing Stop
+
+Prinsip:
+```text
+Broker tidak nampak fixed SL/TP.
+Bot simpan hidden exit levels.
+Bot monitor price setiap cycle.
+Bila condition kena, bot close ticket sendiri.
+```
+
+Virtual SL:
+- Stop condition dikira dalam bot.
+- Boleh berubah ikut structure, ATR, volatility, liquidity sweep, dan thesis.
+- Jika price breach virtual SL, bot hantar close order ke MT5.
+
+Virtual TP:
+- Take-profit condition juga dikira dalam bot.
+- Boleh partial/full close pada target logical level.
+- Boleh extend target jika momentum masih valid.
+
+Virtual trailing stop:
+- Tidak modify trailing stop dalam MT5.
+- Bot kira trailing level sendiri.
+- Formula boleh guna:
+  - ATR trailing distance
+  - swing high/low
+  - liquidity level
+  - profit lock level
+  - market regime
+  - session behavior
+- Jika price touch virtual trailing level, bot close ticket.
+
+Safety note:
+```text
+Virtual exit memberi lebih privacy daripada broker-side SL/TP,
+tetapi ia bergantung penuh kepada bot/laptop/internet/MT5 yang hidup.
+```
+
+---
+
+## 6. Supabase Sync Layer
+
+Tujuan Supabase:
+- Cloud memory untuk status bot dan trade.
+- Vercel dashboard boleh baca status walaupun laptop offline.
+- Simpan active trade snapshot, virtual levels, AI decisions, heartbeat, dan manual notes.
+
+Supabase bukan executor:
+```text
+Supabase tidak buka/close trade MT5.
+Supabase hanya simpan data.
+Execution tetap berlaku di laptop melalui MT5.
+```
+
+Cadangan tables:
+```text
+bot_heartbeat
+  - id
+  - machine_id
+  - status: online/offline/error
+  - last_seen_at
+  - mt5_connected
+  - current_cycle
+  - message
+
+active_trades
+  - ticket
+  - symbol
+  - direction
+  - lot
+  - entry_price
+  - floating_profit
+  - virtual_sl
+  - virtual_tp
+  - virtual_trailing_stop
+  - primary_pattern
+  - pattern_names
+  - pattern_categories
+  - pattern_timeframes
+  - confluence_combo
+  - pattern_confidence
+  - pattern_count
+  - current_status
+  - original_thesis
+  - last_management_decision
+  - updated_at
+
+trade_pattern_usage
+  - id
+  - ticket
+  - symbol
+  - direction
+  - trade_opened_at
+  - pattern_name
+  - category
+  - timeframe
+  - direction_bias
+  - confidence
+  - priority
+  - is_primary
+  - trade_status: open/closed
+  - exit_reason
+  - profit
+  - created_at
+  - updated_at
+
+pattern_usage_stats
+  - id
+  - symbol
+  - timeframe
+  - pattern_name
+  - category
+  - detected_count
+  - used_count
+  - open_trade_count
+  - closed_trade_count
+  - win_count
+  - loss_count
+  - win_rate
+  - net_profit
+  - avg_confidence
+  - updated_at
+
+trade_events
+  - id
+  - ticket
+  - event_type
+  - old_value
+  - new_value
+  - reason
+  - created_at
+
+ai_decisions
+  - id
+  - symbol
+  - model_role: main/risk/manager
+  - action
+  - confidence
+  - reason
+  - raw_response
+  - created_at
+
+manual_actions
+  - id
+  - ticket
+  - suggested_action
+  - manual_note
+  - status: pending/done/ignored
+  - created_at
+```
+
+---
+
+## 7. Vercel Dashboard / Offline Manual Mode
+
+Vercel role:
+- Deploy `system running.html` / dashboard page.
+- Read latest data from Supabase.
+- Show active trades, virtual SL/TP, virtual trailing level, bot heartbeat, and manual guide.
+- Show realtime pattern usage: which trade used which pattern, how many times each pattern is active/used, and outcome after close.
+
+Pattern dashboard widgets:
+```text
+Active Trade Pattern Table
+  - ticket
+  - opened_at
+  - symbol
+  - direction
+  - primary_pattern
+  - confluence_combo
+  - confidence
+  - floating_profit
+  - virtual_sl
+  - virtual_tp
+  - status
+
+Pattern Usage Counter
+  - pattern_name
+  - used_count
+  - active_count
+  - win_count
+  - loss_count
+  - win_rate
+  - net_profit
+
+Trade Timeline
+  - 2026-05-26 08:26
+  - Ticket 1001
+  - BUY XAUUSD
+  - Primary pattern: Liquidity Sweep Low / Stop Hunt
+  - Combo: Liquidity Sweep + Bullish FVG + Psych Level Bounce
+```
+
+Offline fallback:
+```text
+Laptop OFF / internet down / MT5 disconnected
+  |
+  v
+Bot cannot trigger virtual SL/TP/trailing stop
+  |
+  v
+Vercel page remains online
+  |
+  v
+User checks active trade snapshot + virtual levels
+  |
+  v
+User manually manages trade in MT5 mobile / broker app
+  |
+  v
+When laptop returns, bot resyncs open positions from MT5
+```
+
+Important limitation:
+- Vercel cannot directly close MT5 trades if laptop is offline.
+- Manual trading is required until laptop/bot returns online.
+
+---
+
+## 8. Environment Baru
+
+Ganti semua `OLLAMA_*` dengan `AI_*`.
+
+Cadangan `.env.example` baru:
+```ini
+# Provider
+AI_PROVIDER=openrouter
+AI_FALLBACK_PROVIDER=huggingface
+
+# OpenRouter
+OPENROUTER_API_KEY=CHANGE_ME
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_APP_NAME=Investment-AI_T
+OPENROUTER_SITE_URL=https://github.com/hdanial211/Investment-AI_T
+
+# Hugging Face
+HF_TOKEN=CHANGE_ME
+HF_BASE_URL=https://router.huggingface.co/v1
+
+# Models
+AI_MAIN_MODEL=CHANGE_AFTER_MODEL_SELECTION
+AI_RISK_MODEL=CHANGE_AFTER_MODEL_SELECTION
+ENABLE_RISK_REVIEW=True
+
+# Request behavior
+AI_TIMEOUT=300
+AI_RETRIES=2
+AI_TEMPERATURE=0.1
+AI_MAX_TOKENS=256
+
+# Supabase Sync
+SUPABASE_URL=CHANGE_ME
+SUPABASE_SERVICE_ROLE_KEY=CHANGE_ME
+SUPABASE_ANON_KEY=CHANGE_ME
+SUPABASE_SYNC_ENABLED=True
+
+# Virtual Exit
+USE_BROKER_SL_TP=False
+USE_VIRTUAL_SL_TP=True
+USE_VIRTUAL_TRAILING_STOP=True
+VIRTUAL_EXIT_CHECK_INTERVAL=10
+
+# Pattern Usage Dashboard
+PATTERN_USAGE_SYNC_ENABLED=True
+PATTERN_PRIMARY_LIMIT=1
+PATTERN_CONFLUENCE_LIMIT=8
+PATTERN_STATS_UPDATE_INTERVAL=10
+```
+
+Nota:
+- `OPENROUTER_API_KEY` dan `HF_TOKEN` tidak boleh commit dalam GitHub.
+- `SUPABASE_SERVICE_ROLE_KEY` juga tidak boleh expose di frontend/Vercel public client.
+- `.env.example` hanya template.
+- Real `.env` kekal local sahaja.
+
+---
+
+## 9. Model Strategy
+
+Kita jangan pilih final model ID dalam code sebelum test latency/cost.
+
+Cadangan role:
+```text
+MAIN AI
+- cepat
+- JSON stabil
+- bagus baca pattern + market context
+- tugas: BUY / SELL / HOLD
+
+RISK AI
+- lebih reasoning
+- hanya dipanggil jika signal valid
+- tugas: approve / reject trade
+```
+
+Model selection rule:
+- Pilih model yang support chat completion.
+- Pilih model yang stabil output JSON.
+- Elakkan model terlalu lambat untuk M5/M15.
+- Test 20-50 sample prompts dulu sebelum live.
+
+OpenRouter candidate:
+```text
+AI_MAIN_MODEL = model Qwen/DeepSeek/GPT mini yang laju
+AI_RISK_MODEL = model reasoning yang lebih kuat
+```
+
+Hugging Face candidate:
+```text
+AI_MAIN_MODEL = instruct/chat model melalui Inference Providers
+AI_RISK_MODEL = model reasoning/instruct yang support chat completion
+```
+
+Nota:
+- Exact model ID perlu disahkan semasa implement sebab model catalog boleh berubah.
+
+---
+
+## 10. Code Architecture Baru
+
+Fail baru dicadangkan:
+```text
+ai_clients/
+  __init__.py
+  base.py
+  openrouter_client.py
+  huggingface_client.py
+  provider_factory.py
+trade_management/
+  __init__.py
+  active_trade_manager.py
+  virtual_exit_engine.py
+  supabase_sync.py
+  manual_mode.py
+  pattern_usage_tracker.py
+```
+
+`ai_engine.py` selepas refactor:
+```text
+ai_engine.py
+  - build_prompt()
+  - build_risk_review_prompt()
+  - parse/validate JSON
+  - get_ai_signal()
+  - review_trade_risk()
+  - tidak tahu detail HTTP provider
+```
+
+`active_trade_manager.py`:
+```text
+- scan open positions
+- load ticket state
+- update virtual SL/TP/trailing stop
+- decide hold/protect/trail/exit
+- close ticket through MT5 when virtual trigger hit
+- sync to Supabase
+```
+
+`virtual_exit_engine.py`:
+```text
+- calculate virtual SL
+- calculate virtual TP
+- calculate virtual trailing stop
+- detect trigger hit
+```
+
+`supabase_sync.py`:
+```text
+- write heartbeat
+- upsert active trades
+- upsert pattern usage snapshot
+- update pattern usage stats
+- insert trade events
+- insert AI decisions
+- read manual actions if needed
+```
+
+`pattern_usage_tracker.py`:
+```text
+- extract primary pattern from detected_patterns
+- store all pattern names used for the trade
+- build confluence combo text
+- count pattern usage by symbol/timeframe/category
+- update win/loss/profit after trade closes
+- prepare realtime dashboard payload
+```
+
+Provider client responsibilities:
+```text
+OpenRouterClient
+  - POST /chat/completions
+  - headers Authorization Bearer
+  - parse choices[0].message.content
+
+HuggingFaceClient
+  - OpenAI-compatible chat completion OR huggingface_hub InferenceClient
+  - parse response kepada text
+
+ProviderFactory
+  - baca AI_PROVIDER
+  - fallback ke provider kedua jika provider utama fail
+```
+
+---
+
+## 11. Single AI Lock
+
+Kekalkan global AI lock.
+
+Tujuan:
+- Qwen/OpenRouter main AI tidak overlap dengan risk AI.
+- Kalau request pertama belum siap, request kedua wajib tunggu.
+- Elak race condition bila multi-symbol loop berkembang nanti.
+
+Pseudo-flow:
+```python
+with AI_CALL_LOCK:
+    response = provider.chat_completion(...)
+    return response
+```
+
+---
+
+## 12. Error Handling
+
+Kalau cloud AI gagal:
+```text
+Connection error -> HOLD / skip
+Timeout -> HOLD / skip
+Invalid JSON -> HOLD / skip
+Rate limit -> retry, then skip
+Risk review fail -> reject trade by default
+Supabase sync fail -> continue local trading, log warning
+Pattern usage sync fail -> continue local trading, log warning
+Virtual exit trigger fail to close -> retry, alert dashboard
+```
+
+Trading safety rule:
+- Kalau AI tidak beri JSON valid, jangan trade.
+- Kalau risk AI enabled tapi gagal, jangan trade.
+- Jangan fallback kepada random/default BUY/SELL.
+- Kalau virtual SL/TP/trailing trigger kena tetapi MT5 close gagal, retry dan mark trade as `close_failed`.
+- Jika laptop offline, Vercel dashboard hanya manual guide; no automatic execution.
+
+---
+
+## 13. Runtime Reality: Laptop 24 Jam + Optional Future VPS
+
+Penting: MT5 Python package biasanya perlukan Windows + MetaTrader terminal.
+
+Maksudnya:
+- Buat masa sekarang user pilih laptop running 24 jam.
+- Future upgrade masih boleh ke Windows VPS.
+- Deploy ke Linux cloud biasa tidak cukup kalau mahu place order MT5 terus.
+- Dashboard/web monitoring boleh deploy asing, tapi engine MT5 tetap Windows.
+
+Runtime sekarang:
+```text
+Laptop Windows 24 jam
+  - MetaTrader 5 installed
+  - Python installed
+  - repo cloned
+  - .env local with broker + API keys
+  - start_bot.bat starts bot + dashboard
+  - Supabase sync enabled
+  - Vercel dashboard reads Supabase
+```
+
+Future deployment:
+```text
+Windows VPS
+  - MetaTrader 5 installed
+  - Python installed
+  - repo cloned
+  - .env local with broker + API keys
+  - Task Scheduler starts start_bot.bat on boot
+  - logs saved locally
+```
+
+Untuk production:
+```text
+Windows Task Scheduler
+  trigger: at startup / on login
+  action: start_bot.bat
+```
+
+---
+
+## 14. Migration Steps
+
+Phase 1: Planning only
+- Tulis planning ini.
+- Decide OpenRouter vs Hugging Face primary.
+- Decide model candidates.
+- Confirm virtual SL/TP/trailing stop design.
+- Confirm Supabase table schema.
+
+Phase 2: Config migration
+- Add `AI_PROVIDER`, `OPENROUTER_API_KEY`, `HF_TOKEN`, `AI_MAIN_MODEL`, `AI_RISK_MODEL`.
+- Deprecate `OLLAMA_*`.
+- Update `.env.example`.
+
+Phase 3: Provider client
+- Add `ai_clients/`.
+- Implement OpenRouter first.
+- Implement Hugging Face second/fallback.
+
+Phase 4: Refactor `ai_engine.py`
+- Keep prompt builder.
+- Replace `query_ollama()` with `query_ai_provider()`.
+- Keep JSON validation.
+- Keep single AI lock.
+
+Phase 5: Launcher cleanup
+- Remove Ollama startup logic.
+- `start_bot.bat` only checks Python, `.env`, API key, then starts bot + dashboard.
+
+Phase 6: Active trade management
+- Add virtual exit engine.
+- Add active trade manager per ticket.
+- Stop sending fixed SL/TP to MT5 unless fail-safe mode is enabled.
+- Add close-ticket trigger logic.
+- Add trade state persistence.
+
+Phase 7: Supabase + Vercel
+- Add Supabase sync.
+- Add heartbeat.
+- Add active trades snapshot.
+- Add pattern usage tracker.
+- Add realtime pattern usage dashboard widgets.
+- Add trade timeline showing each ticket and pattern used.
+- Build Vercel dashboard/manual fallback page.
+
+Phase 8: Testing
+- Unit test JSON parser.
+- Dry-run AI calls with fake MT5 data.
+- Check risk review flow.
+- Confirm no trade if AI timeout/invalid JSON.
+- Test virtual SL hit.
+- Test virtual TP hit.
+- Test virtual trailing stop hit.
+- Test pattern usage saved when trade opens.
+- Test pattern stats update when trade closes.
+- Test dashboard table shows trade time + ticket + primary pattern.
+- Test laptop offline manual fallback scenario.
+
+Phase 8B: One-year backtest duplicate protection
+- Semua file testing setahun disimpan dalam `TESTING DATA SETAHUN/`.
+- `TESTING DATA SETAHUN/run_yearly_backtest.py` mesti guna lock file `TESTING DATA SETAHUN/storage/backtests/yearly_backtest.lock`.
+- Jika user tertekan `TESTING DATA SETAHUN/run_yearly_backtest.bat` 2-3 kali, hanya proses pertama berjalan.
+- Proses kedua mesti stop dengan mesej `Yearly backtest already running`.
+- Backtest CSV/report ditulis secara replace, bukan append, supaya result tidak duplicate.
+- Jika laptop crash dan lock tertinggal, boleh run `cd "TESTING DATA SETAHUN"` kemudian `python run_yearly_backtest.py --force-unlock`.
+
+Phase 8C: Backtest date memory / no repeat yearly test
+- First run ikut tarikh user tekan:
+  - contoh run pada `2026-05-25`
+  - window = `2025-05-25` sampai `2026-05-25`
+- Selepas full-year baseline siap, sistem simpan `TESTING DATA SETAHUN/storage/backtests/yearly_backtest_state.json`.
+- Sistem juga boleh baca live/realtime coverage melalui `TESTING DATA SETAHUN/storage/live/live_data_state.json`.
+- Jika user tekan lagi pada `2026-05-30` dan live bot memang running 24 jam:
+  - live data sudah cover gap selepas `2026-05-25`
+  - result = `0 hari historical backtest`
+  - tiada duplicate yearly test
+- Jika user lama tidak buka laptop/bot dan live data tidak cover gap:
+  - sistem auto sambung dari tarikh last tested/live data
+  - contoh: last tested `2026-05-25`, tekan semula `2026-06-20`
+  - window = `2026-05-25` sampai `2026-06-20`
+  - bukan ulang `2025-06-20` sampai `2026-06-20`
+- Default auto-gap bermula bila gap melebihi `BACKTEST_AUTO_GAP_AFTER_DAYS=1`.
+- Jika user memang mahu historical gap dari last run ke hari ini, guna:
+  - `cd "TESTING DATA SETAHUN"`
+  - `python run_yearly_backtest.py --include-gap`
+- Jika user mahu paksa full year semula, guna:
+  - `python run_yearly_backtest.py --full-year`
+- Jika user mahu skip gap walaupun lama tidak buka, guna:
+  - `python run_yearly_backtest.py --skip-gap`
+- Default `TESTING DATA SETAHUN/run_yearly_backtest.bat` tetap selamat: tidak duplicate, tidak ulang yearly baseline tanpa sengaja.
+
+Phase 9: 24-hour laptop run
+- Disable Windows sleep.
+- Keep laptop plugged in.
+- Run bot 24 hours on demo/small lot.
+- Monitor Supabase/Vercel heartbeat.
+- Monitor manual fallback accuracy.
+
+---
+
+## 15. Decision Needed Before Coding
+
+Kita perlu pilih:
+
+Option A: OpenRouter primary
+```text
+Recommended.
+Fastest to implement.
+One API style for many models.
+Best for deployment.
+```
+
+Option B: Hugging Face primary
+```text
+Good for open-source model ecosystem.
+May need more testing for model/provider availability.
+Better as fallback first.
+```
+
+My recommendation:
+```text
+Primary: OpenRouter
+Fallback: Hugging Face
+```
+
+Need confirm:
+```text
+1. Do we fully disable broker-side SL/TP?
+2. Do we allow optional emergency broker-side SL as hidden safety fallback? (currently user prefers no broker SL/TP)
+3. Which Supabase project/table schema should be used?
+4. Should Vercel dashboard be read-only or allow manual notes/actions?
+5. How often should active trade manager check virtual exits? Suggested: every 5-10 seconds.
+```
+
+---
+
+## 16. References
+
+OpenRouter official chat completion docs:
+https://openrouter.ai/docs/api-reference/chat-completion
+
+Hugging Face Inference Providers docs:
+https://huggingface.co/docs/inference-providers

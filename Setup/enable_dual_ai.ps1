@@ -1,10 +1,15 @@
+param(
+    [string]$TargetDir = (Join-Path $PSScriptRoot "..\Bot Engine")
+)
+
 $ErrorActionPreference = "Stop"
 
-Set-Location -Path $PSScriptRoot
+$TargetDir = (Resolve-Path -Path $TargetDir).Path
+Set-Location -Path $TargetDir
 
 if (-not (Test-Path ".env")) {
     Write-Host ".env not found. Starting first-time setup first..."
-    & "$PSScriptRoot\setup_env.ps1"
+    & "$PSScriptRoot\setup_env.ps1" -TargetDir $TargetDir
 }
 
 if (-not (Test-Path ".env")) {

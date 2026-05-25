@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Investment-AI_T - System Running Flow</title>
+  <style>
+    :root {
+      --bg: #f5f0e8;
+      --paper: #fffaf1;
+      --ink: #1e2522;
+      --muted: #6d756f;
+      --line: #d8c7aa;
+      --gold: #c78b2d;
+      --green: #2f7d63;
+      --blue: #2d5f88;
+      --red: #a84f3f;
+      --shadow: 0 18px 50px rgba(57, 42, 21, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(199, 139, 45, 0.22), transparent 34rem),
+        radial-gradient(circle at bottom right, rgba(47, 125, 99, 0.18), transparent 32rem),
+        linear-gradient(135deg, #f7f1e7, #ede3d0);
+      font-family: Georgia, "Times New Roman", serif;
+      line-height: 1.6;
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0 58px;
+    }
+
+    .hero {
+      background: rgba(255, 250, 241, 0.88);
+      border: 1px solid rgba(216, 199, 170, 0.9);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+      padding: clamp(26px, 5vw, 54px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -80px -100px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: rgba(199, 139, 45, 0.14);
+    }
+
+    .eyebrow {
+      color: var(--gold);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.12;
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin-top: 12px;
+      font-size: clamp(2.2rem, 6vw, 5.2rem);
+      letter-spacing: -0.05em;
+    }
+
+    .hero p {
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 1.13rem;
+      margin: 20px 0 0;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .status {
+      background: #fff6e5;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      min-height: 108px;
+    }
+
+    .status b {
+      display: block;
+      color: var(--ink);
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+
+    .status span {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    section {
+      margin-top: 24px;
+      background: rgba(255, 250, 241, 0.92);
+      border: 1px solid rgba(216, 199, 170, 0.95);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: clamp(22px, 4vw, 38px);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+      margin-bottom: 22px;
+    }
+
+    .section-head h2 {
+      font-size: clamp(1.55rem, 3vw, 2.6rem);
+      letter-spacing: -0.035em;
+    }
+
+    .section-head p {
+      max-width: 520px;
+      margin: 0;
+      color: var(--muted);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.96rem;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      background: linear-gradient(180deg, #fffdf6, #fbf0de);
+      position: relative;
+      min-height: 150px;
+    }
+
+    .step::before {
+      content: attr(data-num);
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fffaf1;
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.86rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .step h3 {
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.93rem;
+    }
+
+    .diagram {
+      background: #17201d;
+      color: #f8ebd4;
+      border-radius: 22px;
+      padding: 24px;
+      overflow: auto;
+      font-family: "Courier New", monospace;
+      font-size: 0.94rem;
+      line-height: 1.45;
+      border: 1px solid #2d4038;
+    }
+
+    .diagram .good {
+      color: #8bd8b4;
+    }
+
+    .diagram .warn {
+      color: #ffd28a;
+    }
+
+    .diagram .bad {
+      color: #ffad9d;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 19px;
+      background: #fff8ec;
+    }
+
+    .card h3 {
+      font-size: 1.18rem;
+      margin-bottom: 8px;
+    }
+
+    .card p, .card li {
+      color: var(--muted);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.94rem;
+    }
+
+    ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+    }
+
+    code {
+      background: rgba(30, 37, 34, 0.08);
+      border: 1px solid rgba(30, 37, 34, 0.08);
+      border-radius: 8px;
+      padding: 2px 6px;
+      font-family: "Courier New", monospace;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: #fffdf6;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.92rem;
+    }
+
+    th,
+    td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--gold);
+      background: #fff4db;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .pill {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(47, 125, 99, 0.12);
+      color: var(--green);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.78rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .callout {
+      border-left: 5px solid var(--gold);
+      background: #fff4db;
+      padding: 18px 20px;
+      border-radius: 18px;
+      color: var(--muted);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: rgba(47, 125, 99, 0.12);
+      color: var(--green);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    .tag.red {
+      background: rgba(168, 79, 63, 0.12);
+      color: var(--red);
+    }
+
+    .tag.blue {
+      background: rgba(45, 95, 136, 0.12);
+      color: var(--blue);
+    }
+
+    footer {
+      color: var(--muted);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      padding: 24px 4px 0;
+      text-align: center;
+    }
+
+    @media (max-width: 900px) {
+      .status-grid,
+      .flow,
+      .cards,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        display: block;
+      }
+
+      .section-head p {
+        margin-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <div class="eyebrow">Investment-AI_T latest planning</div>
+      <h1>Bagaimana sistem trading ini berjalan 24 jam di laptop.</h1>
+      <p>
+        Dokumen ini menerangkan flow terbaru yang kita rancang: bot tetap running di laptop,
+        MetaTrader 5 menjadi execution engine, dan AI akan dipanggil melalui cloud provider
+        seperti OpenRouter atau Hugging Face. Ollama local tidak lagi menjadi sasaran utama.
+      </p>
+
+      <div class="status-grid">
+        <div class="status">
+          <b>Runtime</b>
+          <span>Laptop Windows hidup 24 jam, bukan Hugging Face Spaces dan bukan Vercel.</span>
+        </div>
+        <div class="status">
+          <b>Execution</b>
+          <span>MT5 terminal buka dan login broker. Python bot hantar order melalui MT5.</span>
+        </div>
+        <div class="status">
+          <b>AI</b>
+          <span>Cloud API: OpenRouter primary, Hugging Face fallback jika kita implement.</span>
+        </div>
+        <div class="status">
+          <b>Safety</b>
+          <span>AI dipanggil selepas risk filter. Jika fail JSON atau timeout, trade diskip.</span>
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <div class="section-head">
+        <h2>1. Startup Autonomous</h2>
+        <p>Matlamatnya: tekan <code>start_bot.bat</code> sahaja, sistem buat semua check yang perlu dan terus hidup.</p>
+      </div>
+
+      <div class="flow">
+        <div class="step" data-num="01">
+          <h3>Double click launcher</h3>
+          <p><code>start_bot.bat</code> menjadi pintu masuk utama untuk user. Tiada command manual diperlukan.</p>
+        </div>
+        <div class="step" data-num="02">
+          <h3>Check .env</h3>
+          <p>Pastikan MT5 credential, API key, model ID, symbol, risk, dan timeout sudah wujud.</p>
+        </div>
+        <div class="step" data-num="03">
+          <h3>Check Python packages</h3>
+          <p>Bot perlu Python, MetaTrader5 package, requests, pandas, textual, dan dependency lain.</p>
+        </div>
+        <div class="step" data-num="04">
+          <h3>Start engine + dashboard</h3>
+          <p><code>main.py</code> berjalan di background. <code>dashboard.py</code> dibuka untuk monitoring.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>2. Flow Trading Utama</h2>
+        <p>Ini flow yang bot ikut setiap cycle untuk setiap symbol seperti XAUUSD dan EURUSD.</p>
+      </div>
+
+      <pre class="diagram"><span class="good">MAIN LOOP</span>
+  |
+  v
+For each symbol: XAUUSD, EURUSD
+  |
+  v
+Get tick price from MT5
+  |
+  v
+Get H4 / H1 / M15 / M5 candle data
+  |
+  v
+Calculate indicators + EURUSD/XAUUSD pattern engine
+  |
+  v
+Build pattern usage snapshot
+  |
+  +-- primary_pattern
+  +-- confluence_combo
+  +-- all_detected_patterns
+  +-- pattern_count
+  |
+  v
+Manage every active trade one-by-one
+  |
+  +-- Trade #1: hold / dynamic SL / dynamic TP / close
+  +-- Trade #2: hold / dynamic SL / dynamic TP / close
+  +-- Trade #3: hold / dynamic SL / dynamic TP / close
+  +-- Trade #4: hold / dynamic SL / dynamic TP / close
+  |
+  v
+Update trailing stop / dynamic protection if enabled
+  |
+  v
+RiskManager.can_trade()
+  |
+  +-- <span class="warn">blocked / cooling-off / max trade / weak volatility</span>
+  |       |
+  |       v
+  |   SKIP
+  |   <span class="bad">AI API NOT CALLED</span>
+  |
+  v
+Call MAIN cloud AI
+  |
+  v
+Wait until full response OR timeout
+  |
+  v
+Validate JSON signal
+  |
+  +-- <span class="warn">HOLD / low confidence / invalid JSON</span>
+  |       |
+  |       v
+  |   SKIP
+  |   <span class="bad">Risk AI NOT CALLED</span>
+  |
+  v
+Calculate lot, SL, TP
+  |
+  v
+If ENABLE_RISK_REVIEW=True
+  |
+  v
+Call RISK cloud AI
+  |
+  v
+Wait until full response OR timeout
+  |
+  +-- <span class="warn">rejected / timeout / invalid JSON</span>
+  |       |
+  |       v
+  |   SKIP trade
+  |
+  v
+Place order in MT5
+  |
+  v
+Save virtual exit plan + pattern usage snapshot
+  |
+  v
+Sync active trade + pattern usage to Supabase
+  |
+  v
+Log trade
+  |
+  v
+Sleep LOOP_INTERVAL</pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>3. Active Trade Management</h2>
+        <p>Requirement baru: setiap trade yang sedang berjalan mesti dikawal sampai trade itu tamat, dengan virtual SL/TP dan virtual trailing stop dalam sistem, bukan diletakkan dalam MT5.</p>
+      </div>
+
+      <pre class="diagram"><span class="good">ACTIVE TRADE MANAGER</span>
+  |
+  v
+Get all open positions from MT5
+  |
+  v
+For each ticket individually
+  |
+  +-- Ticket 1001: analyze current price, profit, drawdown, original pattern, trend
+  +-- Ticket 1002: analyze current price, profit, drawdown, original pattern, trend
+  +-- Ticket 1003: analyze current price, profit, drawdown, original pattern, trend
+  +-- Ticket 1004: analyze current price, profit, drawdown, original pattern, trend
+  |
+  v
+Decision per trade
+  |
+  +-- HOLD: thesis still valid
+  +-- PROTECT: update hidden/virtual stop level in bot memory
+  +-- TRAIL: move hidden virtual trailing stop by ATR / structure / liquidity
+  +-- TAKE PROFIT: close ticket when virtual TP condition is hit
+  +-- CUT LOSS: close ticket when virtual SL condition is hit
+  +-- TRAILING STOP HIT: close ticket when virtual trail is touched
+  +-- EXIT: close ticket if thesis invalid
+  |
+  v
+Bot sends close order to MT5 when virtual trigger is hit
+  |
+  v
+Save virtual SL/TP, decision, and result into trade memory + log</pre>
+
+      <div class="cards" style="margin-top: 16px;">
+        <div class="card">
+          <span class="tag blue">Per Ticket</span>
+          <h3>Satu trade, satu keputusan</h3>
+          <p>Kalau ada 4 trade aktif, bot tidak anggap semuanya sama. Setiap ticket dinilai berasingan ikut entry, profit, drawdown, trend, pattern, dan sebab asal trade dibuka.</p>
+        </div>
+        <div class="card">
+          <span class="tag">Dynamic Exit</span>
+          <h3>Virtual SL/TP dalam bot</h3>
+          <p>SL dan TP tidak dihantar sebagai fixed level kepada broker. Bot simpan hidden level dalam memory dan trigger close sendiri bila price sampai condition.</p>
+        </div>
+        <div class="card">
+          <span class="tag">Virtual Trail</span>
+          <h3>Dynamic trailing stop tersembunyi</h3>
+          <p>Trailing stop juga tidak diletakkan dalam MT5. Bot kira trailing level sendiri ikut ATR, swing structure, liquidity, profit lock, dan current volatility.</p>
+        </div>
+        <div class="card">
+          <span class="tag blue">Pattern Identity</span>
+          <h3>Trade ingat pattern asal</h3>
+          <p>Setiap ticket simpan <code>primary_pattern</code>, semua pattern confluence, timeframe, confidence, dan sebab asal entry supaya dashboard boleh tunjuk trade itu dibuka berdasarkan pattern apa.</p>
+        </div>
+        <div class="card">
+          <span class="tag red">Fail-safe</span>
+          <h3>Risiko virtual exit</h3>
+          <p>Jika laptop, internet, MT5, atau API mati, virtual SL/TP/trailing stop tidak boleh trigger. Jadi sistem perlu watchdog/kill switch, bukan sekadar harap bot hidup.</p>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top: 16px;">
+        Prinsip baru: bot bukan sekadar buka trade. Selepas trade dibuka, bot menjadi trade manager
+        yang menjaga setiap position sampai selesai. SL/TP tidak diletakkan sebagai broker-side fixed
+        target; trailing stop juga tidak diubah dalam MT5. Semua level exit menjadi virtual trigger
+        dalam sistem. Bila condition kena, bot sendiri hantar arahan close ticket ke MT5.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>4. Realtime Pattern Usage Dashboard</h2>
+        <p>Feature baru: dashboard boleh pantau pattern mana digunakan untuk setiap trade dan berapa kali pattern itu digunakan semasa live.</p>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <span class="tag blue">Per Trade</span>
+          <h3>Pattern pada setiap ticket</h3>
+          <p>Contoh: trade pukul <code>08:26 AM 26 May 2026</code> simpan bahawa ticket itu guna pattern utama <code>Liquidity Sweep Low / Stop Hunt</code> bersama confluence lain.</p>
+        </div>
+        <div class="card">
+          <span class="tag">Live Counter</span>
+          <h3>Pattern A/B/C berapa kali</h3>
+          <p>Dashboard kira <code>used_count</code>, <code>active_count</code>, win/loss, win rate, dan net profit untuk setiap pattern.</p>
+        </div>
+        <div class="card">
+          <span class="tag red">After Close</span>
+          <h3>Outcome dikaitkan semula</h3>
+          <p>Bila trade closed, sistem update pattern stats: pattern mana profit, pattern mana loss, exit sebab virtual SL/TP/trailing/reverse signal.</p>
+        </div>
+      </div>
+
+      <div class="section-head" style="margin-top: 26px;">
+        <h2 style="font-size: clamp(1.25rem, 2vw, 1.7rem);">Contoh Active Trade Pattern Table</h2>
+        <p>Inilah bentuk data yang Vercel dashboard boleh baca dari Supabase secara realtime.</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Ticket</th>
+              <th>Symbol</th>
+              <th>Action</th>
+              <th>Primary Pattern</th>
+              <th>Confluence Combo</th>
+              <th>Status</th>
+              <th>Floating P/L</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>26 May 2026<br>08:26 AM</td>
+              <td>1001</td>
+              <td>XAUUSD</td>
+              <td><span class="pill">BUY</span></td>
+              <td>Liquidity Sweep Low / Stop Hunt</td>
+              <td>Liquidity Sweep + Bullish FVG + Psych Level Bounce</td>
+              <td>TRAIL</td>
+              <td>+$18.40</td>
+            </tr>
+            <tr>
+              <td>26 May 2026<br>09:05 AM</td>
+              <td>1002</td>
+              <td>EURUSD</td>
+              <td><span class="pill">SELL</span></td>
+              <td>Bearish Engulfing</td>
+              <td>Bearish Engulfing + H1 Resistance + H4 Bearish Trend</td>
+              <td>HOLD</td>
+              <td>+$4.20</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-head" style="margin-top: 26px;">
+        <h2 style="font-size: clamp(1.25rem, 2vw, 1.7rem);">Pattern Usage Counter</h2>
+        <p>Ini membantu kita nampak pattern mana sistem banyak pakai dan mana yang perlu dikurangkan.</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pattern</th>
+              <th>Symbol</th>
+              <th>Used</th>
+              <th>Active</th>
+              <th>Wins</th>
+              <th>Losses</th>
+              <th>Win Rate</th>
+              <th>Net P/L</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Liquidity Sweep Low / Stop Hunt</td>
+              <td>XAUUSD</td>
+              <td>18</td>
+              <td>2</td>
+              <td>12</td>
+              <td>4</td>
+              <td>75%</td>
+              <td>+$286.50</td>
+            </tr>
+            <tr>
+              <td>Bearish Engulfing</td>
+              <td>EURUSD</td>
+              <td>11</td>
+              <td>1</td>
+              <td>7</td>
+              <td>3</td>
+              <td>70%</td>
+              <td>+$74.20</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <pre class="diagram" style="margin-top: 16px;"><span class="good">PATTERN USAGE DATA FLOW</span>
+Trade signal approved
+  |
+  v
+Extract primary pattern + confluence combo
+  |
+  v
+Open MT5 order
+  |
+  v
+Save to active_trades + trade_pattern_usage
+  |
+  v
+Dashboard shows ticket, time, symbol, pattern, status, floating P/L
+  |
+  v
+When trade closes, update pattern_usage_stats win/loss/net profit</pre>
+
+      <div class="callout" style="margin-top: 16px;">
+        Dengan feature ini, awak boleh tengok bukan sahaja profit/loss, tapi juga sebab sebenar trade dibuka:
+        pattern apa yang dipakai, berapa banyak kali pattern itu digunakan, dan outcome pattern itu dari masa ke masa.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>5. AI Cloud Architecture</h2>
+        <p>Dalam planning terbaru, AI tidak lagi perlu berjalan di laptop. Laptop hanya panggil API dan tunggu jawapan penuh.</p>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <span class="tag blue">Main AI</span>
+          <h3>Market signal</h3>
+          <p>Tugas utama ialah baca market context, indicator, pattern, trend, session, dan bagi output JSON:</p>
+          <ul>
+            <li><code>BUY</code></li>
+            <li><code>SELL</code></li>
+            <li><code>HOLD</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="tag">Risk AI</span>
+          <h3>Second opinion</h3>
+          <p>Hanya dipanggil bila main AI beri signal valid. Tugasnya approve atau reject trade berdasarkan risk/reward.</p>
+        </div>
+        <div class="card">
+          <span class="tag red">Safety</span>
+          <h3>No JSON, no trade</h3>
+          <p>Kalau AI timeout, API down, atau response bukan JSON valid, bot tidak boleh buka trade.</p>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top: 16px;">
+        Rule penting: AI call mesti blocking dan sequential. Main AI mesti siap dahulu sebelum Risk AI.
+        Risk AI mesti siap dahulu sebelum order dihantar ke MT5.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>6. Laptop 24 Jam Setup</h2>
+        <p>Kalau tidak mahu cloud VPS sekarang, laptop boleh jadi server sementara selagi ia stabil dan tidak sleep.</p>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h3>Yang wajib hidup</h3>
+          <ul>
+            <li>Laptop power plugged in.</li>
+            <li>Windows sleep dimatikan.</li>
+            <li>Internet stabil.</li>
+            <li>MT5 terminal login dan connected.</li>
+            <li><code>main.py</code> engine running.</li>
+            <li>API key OpenRouter/Hugging Face valid.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Yang tidak perlu lagi</h3>
+          <ul>
+            <li>Tidak perlu GPU besar.</li>
+            <li>Tidak perlu Ollama local.</li>
+            <li>Tidak perlu pull model ke laptop.</li>
+            <li>Tidak perlu keep local model loaded.</li>
+            <li>Tidak perlu Hugging Face Spaces untuk execution bot.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>7. Laptop Offline Fallback + Vercel Page</h2>
+        <p>Jika laptop tertutup, Vercel HTML boleh jadi dashboard/manual control guide, tetapi execution MT5 tetap tidak boleh berlaku dari laptop yang offline.</p>
+      </div>
+
+      <pre class="diagram"><span class="good">NORMAL MODE</span>
+Laptop ON + MT5 ON + bot ON
+  |
+  v
+Bot manages all active trades automatically
+  |
+  v
+Vercel page shows status / plan / manual reference
+  |
+  v
+Dashboard shows active ticket + pattern used + virtual levels
+
+<span class="warn">OFFLINE FALLBACK MODE</span>
+Laptop OFF / internet down / MT5 disconnected
+  |
+  v
+Bot cannot trigger virtual SL/TP
+  |
+  v
+Vercel page stays online as reference dashboard
+  |
+  v
+Trader checks active trade list + virtual levels + latest plan
+  |
+  v
+Trader also checks primary pattern + confluence reason
+  |
+  v
+Trader manages manually in MT5 mobile / broker app
+  |
+  v
+When laptop returns, bot resyncs open positions from MT5</pre>
+
+      <div class="cards" style="margin-top: 16px;">
+        <div class="card">
+          <span class="tag blue">Vercel Role</span>
+          <h3>Dashboard, bukan executor</h3>
+          <p>HTML di Vercel boleh tunjuk system flow, active trade plan, virtual SL/TP reference, pattern usage realtime, dan manual action guide.</p>
+        </div>
+        <div class="card">
+          <span class="tag red">Limit penting</span>
+          <h3>Laptop offline = bot offline</h3>
+          <p>Kalau laptop tertutup, Vercel tidak boleh close trade MT5 secara direct kecuali ada backend execution lain yang connected ke broker.</p>
+        </div>
+        <div class="card">
+          <span class="tag">Manual Mode</span>
+          <h3>Awak ambil alih sementara</h3>
+          <p>Semasa laptop offline, awak trade manual melalui MT5 mobile/desktop lain ikut virtual levels dan plan yang dipaparkan.</p>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top: 16px;">
+        Untuk fallback ini berfungsi dengan baik, bot perlu simpan snapshot active trades ke satu tempat yang Vercel boleh baca:
+        contohnya GitHub gist, Supabase, Firebase, atau simple cloud database. Bila laptop hidup semula, bot sync semula dengan MT5.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>8. File Yang Berperanan</h2>
+        <p>Ringkasan cepat supaya kita tahu file mana buat kerja apa.</p>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <h3><code>start_bot.bat</code></h3>
+          <p>Launcher untuk user. Dalam planning baru, ia tidak perlu start Ollama. Ia cuma validate environment dan run engine/dashboard.</p>
+        </div>
+        <div class="card">
+          <h3><code>main.py</code></h3>
+          <p>Loop utama trading: ambil data MT5, jaga active trades satu-persatu, check risk, call AI, place order, log trade.</p>
+        </div>
+        <div class="card">
+          <h3><code>ai_engine.py</code></h3>
+          <p>Build prompt, call provider AI, validate JSON, dan pastikan AI call jalan satu-satu.</p>
+        </div>
+        <div class="card">
+          <h3><code>system running.html</code></h3>
+          <p>Dokumen/dashboard planning yang boleh deploy ke Vercel sebagai rujukan manual ketika laptop offline.</p>
+        </div>
+        <div class="card">
+          <h3><code>strategy.py</code></h3>
+          <p>Kira indicator multi-timeframe dan gabungkan output pattern engine ke market context.</p>
+        </div>
+        <div class="card">
+          <h3><code>eurusd_pattern_engine.py</code></h3>
+          <p>Detect pattern khusus EURUSD: candlestick, price action, chart pattern, harmonic, dan liquidity setup.</p>
+        </div>
+        <div class="card">
+          <h3><code>xauusd_pattern_engine.py</code></h3>
+          <p>Detect pattern khusus Gold: SMC, liquidity sweep, FVG, psych level, session behavior, dan volatility setup.</p>
+        </div>
+        <div class="card">
+          <h3><code>pattern_usage_tracker.py</code></h3>
+          <p>Module target untuk simpan pattern utama, confluence combo, usage count, win/loss, dan net profit bagi setiap pattern.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>9. Environment Planning</h2>
+        <p>Ini bentuk config selepas migrasi AI cloud. Real key kekal dalam local <code>.env</code>, bukan GitHub.</p>
+      </div>
+
+      <pre class="diagram">AI_PROVIDER=openrouter
+AI_FALLBACK_PROVIDER=huggingface
+
+OPENROUTER_API_KEY=local_only
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+
+HF_TOKEN=local_only
+HF_BASE_URL=https://router.huggingface.co/v1
+
+AI_MAIN_MODEL=to_be_selected_after_test
+AI_RISK_MODEL=to_be_selected_after_test
+ENABLE_RISK_REVIEW=True
+
+AI_TIMEOUT=300
+AI_RETRIES=2
+AI_TEMPERATURE=0.1
+AI_MAX_TOKENS=256
+
+PATTERN_USAGE_SYNC_ENABLED=True
+PATTERN_CONFLUENCE_LIMIT=8
+PATTERN_STATS_UPDATE_INTERVAL=10</pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>10. Kesimpulan Operasi</h2>
+        <p>Versi target yang kita nak capai sebelum running 24 jam.</p>
+      </div>
+
+      <div class="callout">
+        Laptop boleh running 24 jam sebagai mesin execution. AI pula cloud-based supaya laptop tidak terbeban
+        dengan local model. Bot hanya trade bila semua syarat lepas: market data valid, risk manager approve,
+        main AI beri signal valid, risk AI approve, dan MT5 order berjaya. Selepas order dibuka,
+        bot wajib terus menjaga setiap ticket aktif dengan dynamic trade management sampai trade tamat.
+        Setiap trade juga wajib simpan pattern asal dan confluence supaya dashboard boleh pantau pattern mana
+        yang sedang digunakan dan pattern mana sebenarnya membawa profit atau loss.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>11. One-Year Backtest Duplicate Guard</h2>
+        <p>Supaya kalau <code>run_yearly_backtest.bat</code> tertekan dua atau tiga kali, result tidak duplicate dan file tidak berebut ditulis.</p>
+      </div>
+
+      <pre class="diagram"><span class="good">RUN YEARLY BACKTEST</span>
+  |
+  v
+Read state: TESTING DATA SETAHUN/storage/backtests/yearly_backtest_state.json
+  |
+  v
+Read live coverage: TESTING DATA SETAHUN/storage/live/live_data_state.json
+  |
+  +-- <span class="good">no previous baseline</span>
+  |       |
+  |       v
+  |   Run full year:
+  |   today - 1 year  ->  today
+  |
+  +-- <span class="good">previous baseline exists + live data covers today</span>
+  |       |
+  |       v
+  |   Normal run = 0 historical days
+  |   because live 24h bot already covered realtime data
+  |
+  +-- <span class="warn">previous baseline exists + bot was offline too long</span>
+          |
+          v
+      Continue from last tested/live-data date
+      example: 2026-05-25 -> 2026-06-20
+  |
+  v
+Create lock file: TESTING DATA SETAHUN/storage/backtests/yearly_backtest.lock
+  |
+  +-- <span class="warn">lock already exists</span>
+  |       |
+  |       v
+  |   STOP second run
+  |   Show: Yearly backtest already running
+  |
+  v
+Run collect history + simulate trades + pattern analytics
+  |
+  v
+Write CSV/report by replace, not append
+  |
+  v
+Save latest completed date into yearly_backtest_state.json
+  |
+  v
+Remove lock file after finish</pre>
+
+      <div class="callout" style="margin-top: 16px;">
+        Kalau laptop crash dan lock tertinggal, run command ini sekali sahaja:
+        <code>cd "TESTING DATA SETAHUN"</code> kemudian <code>python run_yearly_backtest.py --force-unlock</code>.
+        Normalnya awak cuma tekan <code>TESTING DATA SETAHUN/run_yearly_backtest.bat</code>; duplicate guard akan protect secara automatik.
+        Kalau mahu test gap dari last baseline ke hari ini, guna <code>python run_yearly_backtest.py --include-gap</code>.
+        Kalau mahu paksa full year semula, guna <code>python run_yearly_backtest.py --full-year</code>.
+        Kalau mahu skip gap walaupun lama tidak buka, guna <code>python run_yearly_backtest.py --skip-gap</code>.
+      </div>
+    </section>
+
+    <footer>
+      Investment-AI_T system running document - latest planning version, 2026-05-25.
+    </footer>
+  </main>
+</body>
+</html>

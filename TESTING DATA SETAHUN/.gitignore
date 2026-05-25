@@ -1,0 +1,12 @@
+# Generated one-year backtest data can become large.
+# Keep the folder structure and code, but do not commit runtime outputs.
+storage/history/*
+storage/features/*
+storage/backtests/*
+storage/live/*
+
+!storage/history/.gitkeep
+!storage/features/.gitkeep
+!storage/backtests/.gitkeep
+!storage/live/.gitkeep
+
