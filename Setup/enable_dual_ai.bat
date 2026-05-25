@@ -1,12 +1,12 @@
 @echo off
-title AI Trading Bot - Enable Dual AI
+title AI Trading Bot - Enable Cloud Dual AI
 cd /d "%~dp0"
 
 set "BOT_DIR=%~dp0..\Bot Engine"
 
 echo.
 echo  ============================================================
-echo    AI TRADING BOT - ENABLE DUAL AI ON-DEMAND
+echo    AI TRADING BOT - ENABLE CLOUD DUAL AI
 echo  ============================================================
 echo.
 
@@ -19,6 +19,6 @@ if errorlevel 1 (
 )
 
 echo.
-echo  Dual AI on-demand mode is ready.
+echo  Cloud dual AI on-demand mode is ready.
 echo.
 pause

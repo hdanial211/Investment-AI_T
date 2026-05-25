@@ -3,7 +3,7 @@ main.py - AI Trading Bot Main Entry Point
 
 Orchestrates the full trading loop:
 1. Connect to MT5
-2. Verify Ollama AI is available
+2. Verify cloud AI provider config is available
 3. Loop every N seconds:
    a. Fetch market data
    b. Calculate indicators
@@ -23,7 +23,7 @@ from typing import Optional
 import config
 from mt5_connector import MT5Connector
 from strategy import calculate_multi_indicators
-from ai_engine import get_ai_signal, review_trade_risk, check_ollama_health
+from ai_engine import get_ai_signal, review_trade_risk, check_ai_health
 from risk_manager import RiskManager
 from logger import setup_logging, TradeLogger, generate_performance_report
 from trade_memory import TradeMemory
@@ -232,6 +232,9 @@ def startup_checks(connector: MT5Connector) -> bool:
 
     all_ok = True
 
+    for warning in config.validate():
+        logger.warning(f"Config warning: {warning}")
+
     # 1. MT5 connection
     logger.info("Checking MT5 connection...")
     if connector.connect():
@@ -240,18 +243,22 @@ def startup_checks(connector: MT5Connector) -> bool:
         logger.critical("✘ MT5 connection failed")
         all_ok = False
 
-    # 2. Ollama AI
-    logger.info(f"Checking Ollama ({config.OLLAMA_MODEL})...")
-    if check_ollama_health():
-        logger.info("✔ Ollama AI ready")
+    # 2. Cloud AI
+    logger.info(
+        f"Checking cloud AI ({config.AI_PROVIDER} / {config.AI_MAIN_MODEL})..."
+    )
+    if check_ai_health(role="main"):
+        logger.info("✔ Cloud AI main model ready")
     else:
-        logger.warning("⚠ Ollama not ready — bot will run but AI signals may fail")
-        # Non-fatal: allow demo runs without Ollama
+        logger.warning("⚠ Cloud AI not ready — bot will run but AI signals may fail")
+        # Non-fatal: allow dashboard/demo runs without AI
 
     if config.ENABLE_RISK_REVIEW:
-        logger.info(f"Checking Ollama risk model ({config.OLLAMA_RISK_MODEL})...")
-        if check_ollama_health(config.OLLAMA_RISK_MODEL):
-            logger.info("✔ Ollama risk reviewer ready")
+        logger.info(
+            f"Checking cloud AI risk model ({config.AI_PROVIDER} / {config.AI_RISK_MODEL})..."
+        )
+        if check_ai_health(role="risk"):
+            logger.info("✔ Cloud AI risk reviewer ready")
         else:
             logger.warning("⚠ Risk review enabled but risk model is not available")
 

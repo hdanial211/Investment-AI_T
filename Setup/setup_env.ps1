@@ -55,20 +55,26 @@ if ([string]::IsNullOrWhiteSpace($Server)) {
     $Server = "RoboForex-Pro"
 }
 
-$Symbols = Read-Host "Trading symbols [XAUUSD,EURUSD]"
-if ([string]::IsNullOrWhiteSpace($Symbols)) {
-    $Symbols = "XAUUSD,EURUSD"
+$Symbols = "XAUUSD,EURUSD"
+Write-Host "Trading symbols: $Symbols"
+
+$OpenRouterKey = Read-Host "OpenRouter API key (starts sk-or-v1)"
+if ([string]::IsNullOrWhiteSpace($OpenRouterKey)) {
+    throw "OpenRouter API key is required for cloud AI mode."
 }
 
-$Model = Read-Host "Ollama main model [qwen2.5:7b]"
-if ([string]::IsNullOrWhiteSpace($Model)) {
-    $Model = "qwen2.5:7b"
+$HfToken = Read-Host "Hugging Face token for fallback [optional]"
+$FallbackEnabled = "True"
+if ([string]::IsNullOrWhiteSpace($HfToken)) {
+    $FallbackEnabled = "False"
 }
 
-$RiskReview = Read-Host "Enable DeepSeek risk review? Type True or False [True]"
-if ([string]::IsNullOrWhiteSpace($RiskReview)) {
-    $RiskReview = "True"
-}
+$MainModel = "openai/gpt-oss-20b:free"
+$RiskModel = "openai/gpt-oss-120b:free"
+$RiskReview = "True"
+Write-Host "Main AI model: $MainModel"
+Write-Host "Risk AI model: $RiskModel"
+Write-Host "Risk review: $RiskReview"
 
 $EnvContent = @"
 # ============================================================
@@ -98,19 +104,40 @@ TP_PIPS=100
 MIN_LOT=0.01
 MAX_LOT=1.0
 
-# Ollama Settings
-OLLAMA_URL=http://localhost:11434/api/generate
-OLLAMA_MODEL=$(ConvertTo-DotEnvValue $Model)
-OLLAMA_RISK_MODEL=deepseek-r1:8b
+# Cloud AI Settings
+AI_PROVIDER=openrouter
+AI_FALLBACK_PROVIDER=huggingface
+AI_FALLBACK_ENABLED=$FallbackEnabled
+OPENROUTER_API_KEY=$(ConvertTo-DotEnvValue $OpenRouterKey)
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_APP_NAME=Investment-AI_T
+OPENROUTER_SITE_URL=https://github.com/hdanial211/Investment-AI_T
+HF_TOKEN=$(ConvertTo-DotEnvValue $HfToken)
+HF_BASE_URL=https://router.huggingface.co/v1
+AI_MAIN_MODEL=$(ConvertTo-DotEnvValue $MainModel)
+AI_RISK_MODEL=$(ConvertTo-DotEnvValue $RiskModel)
+AI_FALLBACK_MODEL=qwen/qwen3-next-80b-a3b-instruct:free
+HF_MAIN_MODEL=Qwen/Qwen3-4B-Instruct-2507
+HF_RISK_MODEL=deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
 ENABLE_RISK_REVIEW=$(ConvertTo-DotEnvValue $RiskReview)
-OLLAMA_TIMEOUT=300
-OLLAMA_RETRIES=3
-OLLAMA_TEMPERATURE=0.1
-OLLAMA_TOP_P=0.9
-OLLAMA_NUM_CTX=4096
-OLLAMA_NUM_PREDICT=256
-OLLAMA_NUM_GPU=999
-OLLAMA_KEEP_ALIVE=10m
+AI_STARTUP_HEALTHCHECK=False
+AI_TIMEOUT=300
+AI_RETRIES=2
+AI_TEMPERATURE=0.1
+AI_MAX_TOKENS=256
+
+# Supabase Sync (future dashboard integration)
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_SYNC_ENABLED=False
+SUPABASE_MACHINE_ID=laptop-main
+
+# Virtual Exit / Trade Management
+USE_BROKER_SL_TP=True
+USE_VIRTUAL_SL_TP=False
+USE_VIRTUAL_TRAILING_STOP=False
+VIRTUAL_EXIT_CHECK_INTERVAL=10
 
 # Logging
 LOG_LEVEL=INFO
@@ -119,5 +146,7 @@ LOG_LEVEL=INFO
 Set-Content -Path ".env" -Value $EnvContent -Encoding UTF8
 Write-Host ""
 Write-Host ".env created successfully."
-Write-Host "Main model: $Model"
+Write-Host "Provider: OpenRouter"
+Write-Host "Main model: $MainModel"
+Write-Host "Risk model: $RiskModel"
 Write-Host "Risk review: $RiskReview"

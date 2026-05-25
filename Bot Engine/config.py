@@ -1,6 +1,8 @@
 """
-config.py - Central configuration for the AI Trading Bot
-All settings are defined here. Modify this file before running.
+config.py - Central configuration for the AI Trading Bot.
+
+Runtime values should come from local .env. Real credentials and API keys must
+stay outside GitHub.
 """
 
 import os
@@ -14,30 +16,8 @@ except ImportError:
     pass
 
 
-def _normalize_keep_alive(value: str, minimum_minutes: float = 10.0) -> str:
-    """Keep Ollama models loaded long enough for smooth sequential AI calls."""
-    text = str(value or "").strip().lower()
-    if not text:
-        return f"{int(minimum_minutes)}m"
-
-    try:
-        if text.endswith("ms"):
-            minutes = float(text[:-2]) / 60000
-        elif text.endswith("s"):
-            minutes = float(text[:-1]) / 60
-        elif text.endswith("m"):
-            minutes = float(text[:-1])
-        elif text.endswith("h"):
-            minutes = float(text[:-1]) * 60
-        else:
-            minutes = float(text) / 60
-    except ValueError:
-        return text
-
-    if minutes < minimum_minutes:
-        return f"{int(minimum_minutes)}m"
-
-    return text
+def _env_bool(name: str, default: str = "False") -> bool:
+    return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "y", "on")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MT5 CONNECTION SETTINGS
@@ -53,7 +33,7 @@ MT5_PATH     = os.getenv("MT5_PATH",         "")   # e.g. C:/Program Files/MetaT
 SYMBOLS          = os.getenv("SYMBOLS", "XAUUSD,EURUSD").split(",")
 PRIMARY_SYMBOL   = SYMBOLS[0]
 TIMEFRAME        = os.getenv("TIMEFRAME", "M5")
-LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "60"))
+LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "10"))
 BARS_TO_FETCH    = int(os.getenv("BARS_TO_FETCH", "100"))
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -81,20 +61,50 @@ TRAILING_STOP_PIPS     = int(os.getenv("TRAILING_STOP_PIPS",       "30"))
 TRAILING_STEP_PIPS     = int(os.getenv("TRAILING_STEP_PIPS",       "10"))
 
 # ─────────────────────────────────────────────────────────────────────────────
-# OLLAMA AI SETTINGS
+# CLOUD AI SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
-OLLAMA_URL         = os.getenv("OLLAMA_URL",         "http://localhost:11434/api/generate")
-OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL",       "qwen2.5:7b")
-OLLAMA_RISK_MODEL  = os.getenv("OLLAMA_RISK_MODEL",  "deepseek-r1:8b")
-ENABLE_RISK_REVIEW = os.getenv("ENABLE_RISK_REVIEW", "False").lower() == "true"
-OLLAMA_TIMEOUT     = int(os.getenv("OLLAMA_TIMEOUT", "300"))
-OLLAMA_RETRIES     = int(os.getenv("OLLAMA_RETRIES", "3"))
-OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
-OLLAMA_TOP_P       = float(os.getenv("OLLAMA_TOP_P",       "0.9"))
-OLLAMA_NUM_CTX     = int(os.getenv("OLLAMA_NUM_CTX",       "4096"))
-OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT",   "256"))
-OLLAMA_NUM_GPU     = int(os.getenv("OLLAMA_NUM_GPU",       "999"))
-OLLAMA_KEEP_ALIVE  = _normalize_keep_alive(os.getenv("OLLAMA_KEEP_ALIVE", "10m"))
+AI_PROVIDER          = os.getenv("AI_PROVIDER", "openrouter").strip().lower()
+AI_FALLBACK_PROVIDER = os.getenv("AI_FALLBACK_PROVIDER", "huggingface").strip().lower()
+AI_FALLBACK_ENABLED  = _env_bool("AI_FALLBACK_ENABLED", "True")
+
+OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
+OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "Investment-AI_T").strip()
+OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://github.com/hdanial211/Investment-AI_T").strip()
+
+HF_TOKEN    = os.getenv("HF_TOKEN", "").strip()
+HF_BASE_URL = os.getenv("HF_BASE_URL", "https://router.huggingface.co/v1").strip()
+
+AI_MAIN_MODEL     = os.getenv("AI_MAIN_MODEL", "openai/gpt-oss-20b:free").strip()
+AI_RISK_MODEL     = os.getenv("AI_RISK_MODEL", "openai/gpt-oss-120b:free").strip()
+AI_FALLBACK_MODEL = os.getenv("AI_FALLBACK_MODEL", "qwen/qwen3-next-80b-a3b-instruct:free").strip()
+HF_MAIN_MODEL     = os.getenv("HF_MAIN_MODEL", "Qwen/Qwen3-4B-Instruct-2507").strip()
+HF_RISK_MODEL     = os.getenv("HF_RISK_MODEL", "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B").strip()
+
+ENABLE_RISK_REVIEW = _env_bool("ENABLE_RISK_REVIEW", "True")
+AI_TIMEOUT          = int(os.getenv("AI_TIMEOUT", "300"))
+AI_RETRIES          = int(os.getenv("AI_RETRIES", "2"))
+AI_TEMPERATURE      = float(os.getenv("AI_TEMPERATURE", "0.1"))
+AI_MAX_TOKENS       = int(os.getenv("AI_MAX_TOKENS", "256"))
+AI_STARTUP_HEALTHCHECK = _env_bool("AI_STARTUP_HEALTHCHECK", "False")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FUTURE SYNC / VIRTUAL EXIT SETTINGS
+# ─────────────────────────────────────────────────────────────────────────────
+SUPABASE_URL              = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_ANON_KEY         = os.getenv("SUPABASE_ANON_KEY", "").strip()
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+SUPABASE_SYNC_ENABLED     = _env_bool("SUPABASE_SYNC_ENABLED", "False")
+SUPABASE_MACHINE_ID       = os.getenv("SUPABASE_MACHINE_ID", "laptop-main").strip()
+
+USE_BROKER_SL_TP              = _env_bool("USE_BROKER_SL_TP", "True")
+USE_VIRTUAL_SL_TP             = _env_bool("USE_VIRTUAL_SL_TP", "False")
+USE_VIRTUAL_TRAILING_STOP     = _env_bool("USE_VIRTUAL_TRAILING_STOP", "False")
+VIRTUAL_EXIT_CHECK_INTERVAL   = int(os.getenv("VIRTUAL_EXIT_CHECK_INTERVAL", "10"))
+PATTERN_USAGE_SYNC_ENABLED    = _env_bool("PATTERN_USAGE_SYNC_ENABLED", "False")
+PATTERN_PRIMARY_LIMIT         = int(os.getenv("PATTERN_PRIMARY_LIMIT", "1"))
+PATTERN_CONFLUENCE_LIMIT      = int(os.getenv("PATTERN_CONFLUENCE_LIMIT", "8"))
+PATTERN_STATS_UPDATE_INTERVAL = int(os.getenv("PATTERN_STATS_UPDATE_INTERVAL", "10"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGGING / OUTPUT
@@ -145,4 +155,10 @@ def validate():
         errors.append("MT5_SERVER is still the default. Set your broker's server name.")
     if MAX_RISK_PERCENT > 5.0:
         errors.append(f"MAX_RISK_PERCENT={MAX_RISK_PERCENT}% is dangerously high. Recommended max: 2%")
+    if AI_PROVIDER == "openrouter" and OPENROUTER_API_KEY in ("", "CHANGE_ME"):
+        errors.append("OPENROUTER_API_KEY is missing. Add it to local .env.")
+    if AI_PROVIDER in ("huggingface", "hf") and HF_TOKEN in ("", "CHANGE_ME"):
+        errors.append("HF_TOKEN is missing. Add it to local .env.")
+    if AI_FALLBACK_ENABLED and AI_FALLBACK_PROVIDER in ("huggingface", "hf") and HF_TOKEN in ("", "CHANGE_ME"):
+        errors.append("HF_TOKEN is missing, so Hugging Face fallback will be unavailable.")
     return errors

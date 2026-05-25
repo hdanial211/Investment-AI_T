@@ -1,11 +1,11 @@
 """
-ai_engine.py - Ollama AI Decision Engine
+ai_engine.py - Cloud AI Decision Engine
 
 Responsibilities:
 - Build structured prompts with multi-timeframe market data
 - Enforce symbol-specific rules (EURUSD vs XAUUSD)
-- Call Ollama REST API (default: qwen2.5:7b)
-- Optionally use a second model (default: deepseek-r1:8b) for risk review
+- Call OpenRouter / Hugging Face cloud AI through provider clients
+- Optionally use a second model for risk review
 - Return BUY / SELL / HOLD signal
 """
 
@@ -16,9 +16,8 @@ import threading
 import time
 from typing import Dict, Optional
 
-import requests
-
 import config
+from ai_clients import AIProviderError, get_client, get_model_for_role, get_provider_sequence
 from strategy import format_for_prompt
 
 logger = logging.getLogger(__name__)
@@ -228,89 +227,127 @@ def _validate_signal(data: Dict) -> Optional[Dict]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# OLLAMA API CALL
+# CLOUD AI API CALL
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _ollama_options(
-    temperature: float = None,
-    num_predict: int = None,
-) -> Dict:
-    options = {
-        "temperature": config.OLLAMA_TEMPERATURE if temperature is None else temperature,
-        "top_p":       config.OLLAMA_TOP_P,
-        "num_ctx":     config.OLLAMA_NUM_CTX,
-        "num_predict": config.OLLAMA_NUM_PREDICT if num_predict is None else num_predict,
-    }
-
-    if config.OLLAMA_NUM_GPU >= 0:
-        options["num_gpu"] = config.OLLAMA_NUM_GPU
-
-    return options
+def _build_messages(prompt: str) -> list:
+    return [{"role": "user", "content": prompt}]
 
 
-def query_ollama(
+def query_ai_provider(
     prompt: str,
     model: str = None,
+    provider: str = None,
+    role: str = "main",
     timeout: int = None,
     temperature: float = None,
-    num_predict: int = None,
+    max_tokens: int = None,
 ) -> Optional[str]:
-    selected_model = model or config.OLLAMA_MODEL
-    payload = {
-        "model":      selected_model,
-        "prompt":     prompt,
-        "stream":     False,
-        "keep_alive": config.OLLAMA_KEEP_ALIVE,
-        "options": _ollama_options(
-            temperature=temperature,
-            num_predict=num_predict,
-        ),
-    }
+    providers = get_provider_sequence(provider)
+    selected_timeout = timeout or config.AI_TIMEOUT
+    selected_temperature = config.AI_TEMPERATURE if temperature is None else temperature
+    selected_max_tokens = max_tokens or config.AI_MAX_TOKENS
 
     if _AI_CALL_LOCK.locked():
-        logger.info(f"AI busy. Waiting for current model call before starting {selected_model}...")
+        logger.info("AI busy. Waiting for current cloud AI call to finish...")
 
     with _AI_CALL_LOCK:
-        logger.info(f"AI locked for model={selected_model}. Waiting for full response...")
-        for attempt in range(1, config.OLLAMA_RETRIES + 1):
+        for provider_name in providers:
+            selected_model = model or get_model_for_role(provider_name, role)
             try:
-                logger.debug(
-                    f"Querying Ollama model={selected_model} "
-                    f"(attempt {attempt}/{config.OLLAMA_RETRIES})..."
-                )
-                response = requests.post(
-                    config.OLLAMA_URL,
-                    json    = payload,
-                    timeout = timeout or config.OLLAMA_TIMEOUT,
-                    headers = {"Content-Type": "application/json"},
-                )
-                response.raise_for_status()
-
-                data = response.json()
-                raw_text = data.get("response", "").strip()
-
-                if raw_text:
-                    logger.info(f"AI response completed for model={selected_model}")
-                    return raw_text
-
-                logger.warning(f"Ollama returned empty response (attempt {attempt})")
-
-            except requests.exceptions.ConnectionError:
-                logger.error("Cannot connect to Ollama. Is it running?")
-            except requests.exceptions.Timeout:
-                logger.warning(
-                    f"Ollama request timed out after {timeout or config.OLLAMA_TIMEOUT}s "
-                    f"(attempt {attempt})"
-                )
+                client = get_client(provider_name)
             except Exception as e:
-                logger.error(f"Ollama unexpected error: {e}")
+                logger.error(f"AI provider setup failed for {provider_name}: {e}")
+                continue
 
-            if attempt < config.OLLAMA_RETRIES:
-                wait = 2 ** attempt
-                logger.info(f"Waiting {wait}s before retrying model={selected_model}...")
-                time.sleep(wait)
+            logger.info(
+                f"AI locked for provider={provider_name}, model={selected_model}. "
+                "Waiting for full response..."
+            )
+
+            for attempt in range(1, config.AI_RETRIES + 1):
+                try:
+                    logger.debug(
+                        f"Querying {provider_name} model={selected_model} "
+                        f"(attempt {attempt}/{config.AI_RETRIES})..."
+                    )
+                    raw_text = client.chat_completion(
+                        model=selected_model,
+                        messages=_build_messages(prompt),
+                        temperature=selected_temperature,
+                        max_tokens=selected_max_tokens,
+                        timeout=selected_timeout,
+                    )
+
+                    if raw_text:
+                        logger.info(
+                            f"AI response completed for provider={provider_name}, "
+                            f"model={selected_model}"
+                        )
+                        return raw_text
+
+                    logger.warning(
+                        f"{provider_name} returned empty response "
+                        f"(attempt {attempt}/{config.AI_RETRIES})"
+                    )
+
+                except AIProviderError as e:
+                    level = logger.warning if e.retryable else logger.error
+                    level(
+                        f"{provider_name} model={selected_model} failed "
+                        f"(attempt {attempt}/{config.AI_RETRIES}): {e}"
+                    )
+                    if not e.retryable:
+                        break
+                except Exception as e:
+                    logger.error(f"{provider_name} unexpected error: {e}")
+
+                if attempt < config.AI_RETRIES:
+                    wait = 2 ** attempt
+                    logger.info(
+                        f"Waiting {wait}s before retrying provider={provider_name}, "
+                        f"model={selected_model}..."
+                    )
+                    time.sleep(wait)
+
+            logger.warning(f"AI provider {provider_name} failed. Trying fallback if available...")
 
     return None
+
+
+def _provider_has_credentials(provider: str) -> bool:
+    provider = str(provider or "").strip().lower()
+    if provider == "openrouter":
+        return bool(config.OPENROUTER_API_KEY and config.OPENROUTER_API_KEY != "CHANGE_ME")
+    if provider in ("huggingface", "hf"):
+        return bool(config.HF_TOKEN and config.HF_TOKEN != "CHANGE_ME")
+    return False
+
+
+def check_ai_health(provider: str = None, role: str = "main") -> bool:
+    provider_name = provider or config.AI_PROVIDER
+    model = get_model_for_role(provider_name, role)
+
+    if not _provider_has_credentials(provider_name):
+        logger.warning(f"Missing API key for AI provider={provider_name}")
+        return False
+
+    if not config.AI_STARTUP_HEALTHCHECK:
+        logger.info(
+            f"AI config ready for provider={provider_name}, model={model}. "
+            "Live startup request skipped to save free quota."
+        )
+        return True
+
+    raw_text = query_ai_provider(
+        "Reply with OK only.",
+        provider=provider_name,
+        role=role,
+        timeout=min(config.AI_TIMEOUT, 45),
+        temperature=0.0,
+        max_tokens=8,
+    )
+    return bool(raw_text)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -331,14 +368,14 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
         logger.error(f"Failed to build prompt: {e}")
         return default_response
 
-    raw_text = query_ollama(
+    raw_text = query_ai_provider(
         prompt,
-        model=config.OLLAMA_MODEL,
-        temperature=config.OLLAMA_TEMPERATURE,
-        num_predict=config.OLLAMA_NUM_PREDICT,
+        role="main",
+        temperature=config.AI_TEMPERATURE,
+        max_tokens=config.AI_MAX_TOKENS,
     )
     if not raw_text:
-        return {**default_response, "reason": "Ollama unreachable or timed out"}
+        return {**default_response, "reason": "Cloud AI provider unreachable or timed out"}
 
     parsed = _extract_json(raw_text)
     if not parsed:
@@ -405,18 +442,18 @@ def review_trade_risk(signal: Dict, indicators: Dict, trade_params: Dict, symbol
             "raw_response": None,
         }
 
-    raw_text = query_ollama(
+    raw_text = query_ai_provider(
         prompt,
-        model=config.OLLAMA_RISK_MODEL,
-        timeout=config.OLLAMA_TIMEOUT,
+        role="risk",
+        timeout=config.AI_TIMEOUT,
         temperature=0.0,
-        num_predict=192,
+        max_tokens=min(config.AI_MAX_TOKENS, 192),
     )
     if not raw_text:
         return {
             "approved": False,
             "confidence": 0.0,
-            "reason": "Risk review model unreachable or timed out",
+            "reason": "Risk review provider unreachable or timed out",
             "raw_response": None,
         }
 
@@ -445,16 +482,3 @@ def review_trade_risk(signal: Dict, indicators: Dict, trade_params: Dict, symbol
         f"Reason: {result['reason']}"
     )
     return result
-
-
-def check_ollama_health(model: str = None) -> bool:
-    selected_model = model or config.OLLAMA_MODEL
-    try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if resp.status_code != 200:
-            return False
-
-        models = resp.json().get("models", [])
-        return any(selected_model in m.get("name", "") for m in models)
-    except:
-        return False

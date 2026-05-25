@@ -8,7 +8,7 @@ MetaTrader5>=5.0.45        # MT5 Python API (Windows only)
 pandas>=2.0.0
 numpy>=1.26.0
 
-# ── HTTP requests (Ollama API) ────────────────────────────────
+# ── HTTP requests (cloud AI APIs) ──────────────────────────────
 requests>=2.31.0
 
 # ── Logging helpers ──────────────────────────────────────────

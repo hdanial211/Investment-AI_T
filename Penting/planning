@@ -1,7 +1,7 @@
 # Planning: Migrasi AI dari Ollama ke OpenRouter / Hugging Face + Deploy
 
 Tarikh: 2026-05-25
-Status: Draft untuk dibahas dahulu sebelum ubah code besar.
+Status: Phase 2-5 sedang diimplement: config cloud AI, provider client, ai_engine refactor, dan launcher tanpa Ollama.
 
 Matlamat utama:
 - Buang dependency Ollama local.
@@ -51,10 +51,12 @@ Yang saya perlukan daripada awak:
 - `HF_TOKEN` jika mahu Hugging Face fallback aktif.
 - Pilihan model untuk `AI_MAIN_MODEL` dan `AI_RISK_MODEL`, atau izinkan saya guna default sementara.
 
-Default sementara yang boleh saya set kalau awak belum pilih model:
+Default sementara yang sudah diuji untuk mula:
 ```ini
-AI_MAIN_MODEL=qwen/qwen-2.5-7b-instruct
-AI_RISK_MODEL=deepseek/deepseek-r1
+AI_MAIN_MODEL=openai/gpt-oss-20b:free
+AI_RISK_MODEL=openai/gpt-oss-120b:free
+AI_FALLBACK_MODEL=qwen/qwen3-next-80b-a3b-instruct:free
+HF_MAIN_MODEL=Qwen/Qwen3-4B-Instruct-2507
 ```
 
 Nota:
@@ -711,8 +713,11 @@ HF_TOKEN=CHANGE_ME
 HF_BASE_URL=https://router.huggingface.co/v1
 
 # Models
-AI_MAIN_MODEL=CHANGE_AFTER_MODEL_SELECTION
-AI_RISK_MODEL=CHANGE_AFTER_MODEL_SELECTION
+AI_MAIN_MODEL=openai/gpt-oss-20b:free
+AI_RISK_MODEL=openai/gpt-oss-120b:free
+AI_FALLBACK_MODEL=qwen/qwen3-next-80b-a3b-instruct:free
+HF_MAIN_MODEL=Qwen/Qwen3-4B-Instruct-2507
+HF_RISK_MODEL=deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
 ENABLE_RISK_REVIEW=True
 
 # Request behavior
@@ -972,21 +977,25 @@ Phase 2: Config migration
 - Add `AI_PROVIDER`, `OPENROUTER_API_KEY`, `HF_TOKEN`, `AI_MAIN_MODEL`, `AI_RISK_MODEL`.
 - Deprecate `OLLAMA_*`.
 - Update `.env.example`.
+- Status: DONE in code. Old `OLLAMA_*` only remains as backward-compatible fallback for existing local `.env`.
 
 Phase 3: Provider client
 - Add `ai_clients/`.
 - Implement OpenRouter first.
 - Implement Hugging Face second/fallback.
+- Status: DONE in code for OpenRouter + Hugging Face chat completions.
 
 Phase 4: Refactor `ai_engine.py`
 - Keep prompt builder.
 - Replace `query_ollama()` with `query_ai_provider()`.
 - Keep JSON validation.
 - Keep single AI lock.
+- Status: DONE in code. `query_ollama()` remains only as compatibility alias.
 
 Phase 5: Launcher cleanup
 - Remove Ollama startup logic.
 - `start_bot.bat` only checks Python, `.env`, API key, then starts bot + dashboard.
+- Status: DONE in code. No Ollama serve/pull/warm-up in launcher.
 
 Phase 6: Active trade management
 - Add virtual exit engine.

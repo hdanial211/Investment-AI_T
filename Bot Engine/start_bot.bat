@@ -31,94 +31,67 @@ if not exist ".env" (
     echo.
 )
 
-:: Read selected Ollama model from .env, fallback to repo default
-set "AI_MODEL=qwen2.5:7b"
-set "AI_KEEP_ALIVE=10m"
-set "RISK_REVIEW=False"
-set "RISK_MODEL=deepseek-r1:8b"
+:: Read cloud AI settings from .env
+set "AI_PROVIDER=openrouter"
+set "AI_FALLBACK_PROVIDER=huggingface"
+set "AI_MAIN_MODEL=openai/gpt-oss-20b:free"
+set "AI_RISK_MODEL=openai/gpt-oss-120b:free"
+set "ENABLE_RISK_REVIEW=True"
+set "OPENROUTER_API_KEY="
+set "HF_TOKEN="
+
 if exist ".env" (
     for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
-        if /I "%%A"=="OLLAMA_MODEL" set "AI_MODEL=%%B"
-        if /I "%%A"=="OLLAMA_KEEP_ALIVE" set "AI_KEEP_ALIVE=%%B"
-        if /I "%%A"=="ENABLE_RISK_REVIEW" set "RISK_REVIEW=%%B"
-        if /I "%%A"=="OLLAMA_RISK_MODEL" set "RISK_MODEL=%%B"
+        if /I "%%A"=="AI_PROVIDER" set "AI_PROVIDER=%%~B"
+        if /I "%%A"=="AI_FALLBACK_PROVIDER" set "AI_FALLBACK_PROVIDER=%%~B"
+        if /I "%%A"=="AI_MAIN_MODEL" set "AI_MAIN_MODEL=%%~B"
+        if /I "%%A"=="AI_RISK_MODEL" set "AI_RISK_MODEL=%%~B"
+        if /I "%%A"=="ENABLE_RISK_REVIEW" set "ENABLE_RISK_REVIEW=%%~B"
+        if /I "%%A"=="OPENROUTER_API_KEY" set "OPENROUTER_API_KEY=%%~B"
+        if /I "%%A"=="HF_TOKEN" set "HF_TOKEN=%%~B"
     )
 )
-if /I "%AI_KEEP_ALIVE%"=="2m" set "AI_KEEP_ALIVE=10m"
-if "%AI_KEEP_ALIVE%"=="" set "AI_KEEP_ALIVE=10m"
 
-:: Step 1: Start Ollama in background if not already running
-echo  [1/5] Checking Ollama...
-where ollama >NUL 2>&1
-if errorlevel 1 (
-    echo.
-    echo  [ERROR] Ollama command not found. Please install Ollama first.
-    pause
-    exit /b 1
-)
-tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
-if errorlevel 1 (
-    echo        Ollama not running - starting now...
-    :: Set env vars BEFORE starting Ollama so the server reads them
-    set "OLLAMA_KEEP_ALIVE=%AI_KEEP_ALIVE%"
-    set OLLAMA_MAX_LOADED_MODELS=1
-    start /MIN "" ollama serve
-    echo        Waiting for Ollama API to be ready...
-    timeout /t 12 /nobreak >NUL
-    
-    :: Verify Ollama is responding
-    curl -s http://localhost:11434/api/tags >NUL 2>&1
-    if errorlevel 1 (
-        echo        Still waiting... giving Ollama more time...
-        timeout /t 10 /nobreak >NUL
-    )
-    echo        Ollama started.
-) else (
-    echo        Ollama already running. OK.
-)
-
-:: Step 2: Pull and warm up the selected Ollama model
-echo  [2/5] Loading Ollama model: %AI_MODEL%
-ollama show "%AI_MODEL%" >NUL 2>&1
-if errorlevel 1 (
-    echo        Model not found locally - pulling %AI_MODEL%...
-    ollama pull "%AI_MODEL%"
-    if errorlevel 1 (
+:: Step 1: Validate cloud AI config. No model warm-up needed.
+echo  [1/5] Checking cloud AI config...
+if /I "%AI_PROVIDER%"=="openrouter" (
+    if "%OPENROUTER_API_KEY%"=="" (
         echo.
-        echo  [ERROR] Failed to pull Ollama model: %AI_MODEL%
+        echo  [ERROR] OPENROUTER_API_KEY missing in Bot Engine\.env
+        echo          Run Setup\setup_env.bat or edit Bot Engine\.env locally.
+        pause
+        exit /b 1
+    )
+    if /I "%OPENROUTER_API_KEY%"=="CHANGE_ME" (
+        echo.
+        echo  [ERROR] OPENROUTER_API_KEY still set to CHANGE_ME.
         pause
         exit /b 1
     )
 )
 
-set "OLLAMA_KEEP_ALIVE=%AI_KEEP_ALIVE%"
-ollama run "%AI_MODEL%" "Reply with OK only." >NUL 2>&1
-if errorlevel 1 (
-    echo.
-    echo  [ERROR] Failed to start Ollama model: %AI_MODEL%
-    pause
-    exit /b 1
-)
-echo        Model %AI_MODEL% is ready. Idle unload after %AI_KEEP_ALIVE%. OK.
-
-if /I "%RISK_REVIEW%"=="True" (
-    echo        Risk review enabled. Checking on-demand model: %RISK_MODEL%
-    ollama show "%RISK_MODEL%" >NUL 2>&1
-    if errorlevel 1 (
-        echo        Risk model not found locally - pulling %RISK_MODEL%...
-        ollama pull "%RISK_MODEL%"
-        if errorlevel 1 (
-            echo.
-            echo  [ERROR] Failed to pull Ollama risk model: %RISK_MODEL%
-            pause
-            exit /b 1
-        )
+if /I "%AI_PROVIDER%"=="huggingface" (
+    if "%HF_TOKEN%"=="" (
+        echo.
+        echo  [ERROR] HF_TOKEN missing in Bot Engine\.env
+        pause
+        exit /b 1
     )
-    echo        Risk model %RISK_MODEL% is available on-demand. OK.
+    if /I "%HF_TOKEN%"=="CHANGE_ME" (
+        echo.
+        echo  [ERROR] HF_TOKEN still set to CHANGE_ME.
+        pause
+        exit /b 1
+    )
 )
 
-:: Step 3: Check Python
-echo  [3/5] Checking Python...
+echo        Provider: %AI_PROVIDER%
+echo        Main model: %AI_MAIN_MODEL%
+if /I "%ENABLE_RISK_REVIEW%"=="True" echo        Risk model: %AI_RISK_MODEL%
+echo        Cloud AI config OK.
+
+:: Step 2: Check Python
+echo  [2/5] Checking Python...
 python --version >NUL 2>&1
 if errorlevel 1 (
     echo.
@@ -128,6 +101,21 @@ if errorlevel 1 (
     exit /b 1
 )
 for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo        %%v found. OK.
+
+:: Step 3: Check/install Python packages
+echo  [3/5] Checking Python packages...
+python -c "import requests, pandas, numpy, dotenv, loguru, MetaTrader5" >NUL 2>&1
+if errorlevel 1 (
+    echo        Missing packages detected - installing from Setup\requirements.txt...
+    python -m pip install -r "%~dp0..\Setup\requirements.txt"
+    if errorlevel 1 (
+        echo.
+        echo  [ERROR] Failed to install Python packages.
+        pause
+        exit /b 1
+    )
+)
+echo        Python packages OK.
 
 :: Step 4: Launch the trading bot engine in background
 echo  [4/5] Starting AI Trading Bot Engine...

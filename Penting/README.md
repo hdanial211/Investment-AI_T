@@ -1,30 +1,22 @@
-# 🤖 AI Trading Bot — Ollama + MetaTrader 5
+# AI Trading Bot - Cloud AI + MetaTrader 5
 
 A production-ready algorithmic trading system that combines:
 - **MetaTrader 5** for live market data and trade execution
-- **Ollama AI** (`qwen2.5:7b`) as the main decision engine
-- Optional **DeepSeek-R1** (`deepseek-r1:8b`) risk-review model
-- Full **risk management**, **logging**, and **Streamlit dashboard**
+- **OpenRouter / Hugging Face** cloud AI for main signal and fallback
+- Optional second-model risk review after a valid signal
+- Full **risk management**, **logging**, and terminal dashboard
 
 ---
 
 ## 📁 Project Structure
 
 ```
-trading_bot/
-├── main.py              ← Entry point, trading loop
-├── config.py            ← All settings (edit this first)
-├── mt5_connector.py     ← MT5 connection & trade execution
-├── ai_engine.py         ← Ollama API integration
-├── strategy.py          ← RSI, EMA, MACD indicators
-├── risk_manager.py      ← Position sizing, risk rules
-├── logger.py            ← CSV trade journal, performance report
-├── dashboard.py         ← Streamlit live dashboard
-├── requirements.txt     ← Python dependencies
-├── .env.example         ← Environment variable template
-└── logs/
-    ├── trades.csv       ← Trade journal (auto-created)
-    └── bot.log          ← Application log (auto-created)
+Investment-AI_T-master/
+├── start_bot.bat        <- one-click launcher
+├── Bot Engine/          <- live trading engine
+├── Setup/               <- env setup + requirements
+├── Penting/             <- planning, docs, system flow
+└── TESTING DATA SETAHUN/ <- historical backtest workflow
 ```
 
 ---
@@ -36,8 +28,8 @@ trading_bot/
 | OS | **Windows 10/11** (MetaTrader5 Python package is Windows-only) |
 | Python | **3.10 or higher** |
 | MetaTrader 5 | Terminal installed and logged in |
-| Ollama | Running locally on port 11434 |
-| RAM | 8GB+ recommended (AI model uses ~10GB) |
+| Cloud AI | OpenRouter API key, optional Hugging Face token |
+| RAM | 8GB+ recommended |
 
 ---
 
@@ -45,34 +37,21 @@ trading_bot/
 
 ### Step 1 — Install Python dependencies
 
-Open a terminal in the `trading_bot/` folder:
+Open a terminal in the repo root:
 
 ```bash
-pip install -r requirements.txt
+pip install -r "Setup/requirements.txt"
 ```
 
 > **Note:** `MetaTrader5` package only works on Windows. On other OS it installs in demo mode.
 
 ---
 
-### Step 2 — Install and start Ollama
+### Step 2 — Prepare cloud AI keys
 
-1. Download Ollama from [https://ollama.com](https://ollama.com)
-2. Install and run:
-
-```bash
-# Start Ollama server (keep this terminal open)
-ollama serve
-
-# In another terminal, pull the main model
-ollama pull qwen2.5:7b
-
-# Optional: pull the second-opinion risk reviewer
-ollama pull deepseek-r1:8b
-
-# Verify model is available
-ollama list
-```
+1. Create / use an OpenRouter API key.
+2. Optional: create a Hugging Face token for fallback.
+3. Do not commit real keys. Put them in local `Bot Engine/.env` only.
 
 ---
 
@@ -92,29 +71,32 @@ ollama list
 Copy `.env.example` to `.env` and fill in your credentials:
 
 ```bash
-cp .env.example .env
+cp "Setup/.env.example" "Bot Engine/.env"
 ```
 
 Edit `.env`:
 ```ini
-MT5_LOGIN=12345678          # Your MT5 account number
-MT5_PASSWORD=YourPassword   # Your MT5 password
-MT5_SERVER=YourBroker-Live  # Your broker's server (shown in MT5 login screen)
+MT5_LOGIN=12345678           # Your MT5 account number
+MT5_PASSWORD=YourPassword    # Your MT5 password
+MT5_SERVER=YourBroker-Live   # Your broker's server (shown in MT5 login screen)
 
-SYMBOLS=XAUUSD,EURUSD       # Symbols to trade
+SYMBOLS=XAUUSD,EURUSD        # Symbols to trade
 LOOP_INTERVAL=10             # Seconds between cycles
 MAX_RISK_PERCENT=2.0         # Risk % per trade
 MIN_CONFIDENCE=0.60          # Minimum AI confidence to trade
 
-OLLAMA_MODEL=qwen2.5:7b
-OLLAMA_RISK_MODEL=deepseek-r1:8b
-ENABLE_RISK_REVIEW=True      # DeepSeek is used only for valid trade risk review
-OLLAMA_NUM_CTX=4096
-OLLAMA_TEMPERATURE=0.1
-OLLAMA_KEEP_ALIVE=10m         # Unload idle models after 10 minutes
+AI_PROVIDER=openrouter
+AI_FALLBACK_PROVIDER=huggingface
+OPENROUTER_API_KEY=local_only
+HF_TOKEN=optional_local_only
+AI_MAIN_MODEL=openai/gpt-oss-20b:free
+AI_RISK_MODEL=openai/gpt-oss-120b:free
+ENABLE_RISK_REVIEW=True       # Risk AI is used only after a valid trade signal
+AI_TEMPERATURE=0.1
+AI_MAX_TOKENS=256
 ```
 
-AI calls are blocking and protected by a single in-process lock: Qwen must finish before DeepSeek starts, and DeepSeek must finish before the bot continues to order placement.
+AI calls are blocking and protected by a single in-process lock: the main AI must finish before the risk AI starts, and the risk AI must finish before the bot continues to order placement.
 
 Or edit `config.py` directly if you prefer not using `.env`.
 
@@ -128,27 +110,27 @@ Recommended on Windows:
 start_bot.bat
 ```
 
-On first run, the launcher will create a local `.env` by asking for your MT5 login, password, server, symbols, and Ollama model. The `.env` file is ignored by Git so your trading credentials are not pushed to GitHub.
+On first run, the launcher will create a local `.env` by asking for your MT5 login, password, server, symbols, OpenRouter API key, optional Hugging Face token, and model choices. The `.env` file is ignored by Git so your trading credentials and API keys are not pushed to GitHub.
 
-After setup, the launcher will start Ollama, read `OLLAMA_MODEL` and `OLLAMA_KEEP_ALIVE` from `.env`, pull the model if needed, warm it up briefly, start the trading engine, then open the terminal dashboard. Idle models are allowed to unload automatically after the configured keep-alive time.
+After setup, the launcher validates the cloud AI config, checks Python, starts the trading engine, then opens the terminal dashboard. No Ollama server, local model pull, or local warm-up is required.
 
 You can also run the first-time setup manually:
 
 ```bat
-setup_env.bat
+Setup\setup_env.bat
 ```
 
-To enable two-model on-demand mode on an existing `.env`:
+To enable/update two-model cloud AI mode on an existing `.env`:
 
 ```bat
-enable_dual_ai.bat
+Setup\enable_dual_ai.bat
 ```
 
 Manual run:
 
 ```bash
-# Make sure you're in the trading_bot/ directory
-cd trading_bot
+# Make sure you're in the Bot Engine directory
+cd "Bot Engine"
 
 # Run the trading bot
 python main.py
@@ -161,8 +143,8 @@ Expected startup output:
 ============================================================
 Checking MT5 connection...
 ✔ MT5 connected
-Checking Ollama (qwen2.5:7b)...
-✔ Ollama AI ready
+Checking cloud AI (openrouter / openai/gpt-oss-20b:free)...
+✔ Cloud AI main model ready
 ✔ Symbol XAUUSD: Bid=1952.45000
 ✔ Account: Balance=10000.00 USD | Leverage=1:100
 ============================================================
@@ -177,13 +159,7 @@ Bot is LIVE. Press Ctrl+C to stop.
 
 ### Step 6 — Open the Dashboard (optional)
 
-In a second terminal:
-
-```bash
-streamlit run dashboard.py
-```
-
-Opens at `http://localhost:8501` — shows live P&L, trade history, AI confidence chart.
+The launcher opens `dashboard.py` automatically in the foreground.
 
 ---
 
@@ -199,7 +175,7 @@ Every 10 seconds:
 │    ├─ Trading halted? → SKIP            │
 │    ├─ Open position exists? → SKIP      │
 │    └─ Low volatility? → SKIP            │
-│ 5. Build prompt → Send to Ollama AI     │
+│ 5. Build prompt → Send to cloud AI      │
 │ 6. Parse JSON response                  │
 │    ├─ action: BUY/SELL/HOLD             │
 │    ├─ confidence: 0.0–1.0               │
@@ -239,7 +215,7 @@ Restart the bot after reviewing your configuration.
 
 ## 📡 AI Prompt Format
 
-The bot sends this to Ollama each cycle:
+The bot sends structured market context to the selected cloud AI model:
 
 ```
 Symbol: XAUUSD
@@ -266,7 +242,7 @@ Expected response (strict JSON):
 
 ## 🔧 VSCode Setup
 
-1. Open the `trading_bot/` folder in VSCode
+1. Open the repo root folder in VSCode
 2. Install the **Python extension** (ms-python.python)
 3. Select your Python interpreter: `Ctrl+Shift+P → Python: Select Interpreter`
 4. Recommended extensions:
@@ -312,9 +288,9 @@ Expected response (strict JSON):
 | Issue | Fix |
 |---|---|
 | `MT5 initialize failed` | Make sure MT5 terminal is open and logged in |
-| `Cannot connect to Ollama` | Run `ollama serve` in a terminal |
-| `Model not found` | Run `ollama pull qwen2.5:7b` |
-| `Risk review model not found` | Run `ollama pull deepseek-r1:8b` or set `ENABLE_RISK_REVIEW=False` |
+| `OPENROUTER_API_KEY missing` | Add key to local `Bot Engine/.env` |
+| `HF_TOKEN missing` | Add token or set `AI_FALLBACK_ENABLED=False` |
+| `Cloud AI provider unreachable` | Check internet/API limits/model availability |
 | `Invalid symbol` | Add symbol to MT5 Market Watch manually |
 | `Order failed: retcode=10014` | Invalid lot size — check broker's min lot |
 | `Order failed: retcode=10019` | Not enough margin/balance |

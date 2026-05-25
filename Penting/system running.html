@@ -906,8 +906,10 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 HF_TOKEN=local_only
 HF_BASE_URL=https://router.huggingface.co/v1
 
-AI_MAIN_MODEL=to_be_selected_after_test
-AI_RISK_MODEL=to_be_selected_after_test
+AI_MAIN_MODEL=openai/gpt-oss-20b:free
+AI_RISK_MODEL=openai/gpt-oss-120b:free
+AI_FALLBACK_MODEL=qwen/qwen3-next-80b-a3b-instruct:free
+HF_MAIN_MODEL=Qwen/Qwen3-4B-Instruct-2507
 ENABLE_RISK_REVIEW=True
 
 AI_TIMEOUT=300
