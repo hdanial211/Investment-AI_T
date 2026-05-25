@@ -1,7 +1,7 @@
 # Planning: Migrasi AI dari Ollama ke OpenRouter / Hugging Face + Deploy
 
 Tarikh: 2026-05-25
-Status: Phase 2-5 DONE in `v1.6.11`: config cloud AI, provider client, ai_engine refactor, dan launcher tanpa Ollama.
+Status: Phase 2-6 DONE in code: cloud AI runtime, launcher tanpa Ollama, dan active trade manager dengan virtual SL/TP asas.
 
 Matlamat utama:
 - Buang dependency Ollama local.
@@ -1003,6 +1003,7 @@ Phase 6: Active trade management
 - Stop sending fixed SL/TP to MT5 unless fail-safe mode is enabled.
 - Add close-ticket trigger logic.
 - Add trade state persistence.
+- Status: DONE in code for baseline virtual SL/TP/trailing. Supabase sync and dashboard widgets are still next.
 
 Phase 7: Supabase + Vercel
 - Add Supabase sync.

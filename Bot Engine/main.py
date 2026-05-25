@@ -27,6 +27,7 @@ from ai_engine import get_ai_signal, review_trade_risk, check_ai_health
 from risk_manager import RiskManager
 from logger import setup_logging, TradeLogger, generate_performance_report
 from trade_memory import TradeMemory
+from trade_management import ActiveTradeManager
 
 # ─────────────────────────────────────────────────────────────────────────────
 # INITIALIZE LOGGING FIRST
@@ -60,6 +61,7 @@ def run_cycle(
     risk_mgr:     RiskManager,
     trade_logger: TradeLogger,
     trade_memory: TradeMemory,
+    active_manager: ActiveTradeManager,
 ) -> Optional[str]:
     """
     Execute one complete trading cycle for a given symbol.
@@ -95,14 +97,21 @@ def run_cycle(
         trade_logger.log_skipped(symbol, "Indicator calculation failed")
         return "skipped"
 
-    # ── STEP 2.5: Update Trailing Stop ───────────────────────────────────────
-    if config.USE_TRAILING_STOP:
+    # ── STEP 2.5: Broker trailing stop only when broker-side SL/TP is enabled ─
+    if config.USE_TRAILING_STOP and config.USE_BROKER_SL_TP:
         connector.update_trailing_stop(symbol, atr=indicators.get("atr"))
 
-    # ── STEP 3: Pre-trade risk check ─────────────────────────────────────────
+    # ── STEP 3: Active trade manager checks each open ticket one-by-one ──────
     open_positions = connector.get_open_positions(symbol)
-    trade_memory.sync_with_broker([pos["ticket"] for pos in open_positions])
+    closed_positions = active_manager.manage_symbol(symbol, open_positions, indicators)
+    if closed_positions:
+        logger.info(f"[{symbol}] Active manager closed {len(closed_positions)} position(s).")
+        return "closed"
+
+    # Refresh positions after possible virtual exits.
+    open_positions = connector.get_open_positions(symbol)
     
+    # ── STEP 4: Pre-trade risk check ─────────────────────────────────────────
     open_pos_count = len(open_positions)
     can_trade, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators, trade_memory)
     if not can_trade:
@@ -110,11 +119,11 @@ def run_cycle(
         trade_logger.log_skipped(symbol, risk_reason, indicators=indicators)
         return "skipped"
 
-    # ── STEP 4: Query AI ─────────────────────────────────────────────────────
+    # ── STEP 5: Query AI ─────────────────────────────────────────────────────
     logger.info("Querying AI model...")
     signal = get_ai_signal(indicators, bid, ask, trade_memory, symbol)
 
-    # ── STEP 5: Validate AI signal ───────────────────────────────────────────
+    # ── STEP 6: Validate AI signal ───────────────────────────────────────────
     signal_valid, signal_reason = risk_mgr.validate_signal(signal)
     if not signal_valid:
         logger.info(f"Signal not actionable: {signal_reason}")
@@ -131,7 +140,7 @@ def run_cycle(
         f"Reason: {signal['reason']}"
     )
 
-    # ── STEP 5.5: AI Position Closure ────────────────────────────────────────
+    # ── STEP 6.5: AI Position Closure ────────────────────────────────────────
     # If we have open positions and the AI thesis is opposite, close them!
     if open_pos_count > 0 and action in ("BUY", "SELL"):
         closed_any = False
@@ -146,7 +155,7 @@ def run_cycle(
             logger.info(f"[{symbol}] Waiting for next cycle after closing positions.")
             return "closed"
 
-    # ── STEP 6: Calculate trade parameters ───────────────────────────────────
+    # ── STEP 7: Calculate trade parameters ───────────────────────────────────
     account   = connector.get_account_info()
     balance   = account.get("balance", 10000.0)
     pip_value = connector.get_pip_value(symbol)
@@ -164,10 +173,12 @@ def run_cycle(
 
     logger.info(
         f"Trade params: Lot={trade_params['lot']} | "
-        f"SL={trade_params['sl']:.5f} | TP={trade_params['tp']:.5f}"
+        f"Virtual SL={trade_params['sl']:.5f} | Virtual TP={trade_params['tp']:.5f}"
     )
+    if not config.USE_BROKER_SL_TP:
+        logger.info("Broker-side SL/TP disabled. Hidden virtual levels will be managed by bot memory.")
 
-    # ── STEP 6.5: Optional second-model risk review ──────────────────────────
+    # ── STEP 7.5: Optional second-model risk review ──────────────────────────
     risk_review = review_trade_risk(signal, indicators, trade_params, symbol)
     signal["risk_review"] = risk_review
     if not risk_review["approved"]:
@@ -181,7 +192,7 @@ def run_cycle(
         )
         return "skipped"
 
-    # ── STEP 7: Execute trade ─────────────────────────────────────────────────
+    # ── STEP 8: Execute trade ─────────────────────────────────────────────────
     exec_result = connector.place_order(
         symbol   = symbol,
         action   = action,
@@ -191,7 +202,7 @@ def run_cycle(
         comment  = f"AI_{signal['confidence']:.2f}",
     )
 
-    # ── STEP 8: Log result ────────────────────────────────────────────────────
+    # ── STEP 9: Log result ────────────────────────────────────────────────────
     trade_logger.log_trade(
         symbol             = symbol,
         action             = action,
@@ -204,12 +215,16 @@ def run_cycle(
     )
 
     if exec_result["success"]:
-        trade_memory.add_trade(
-            ticket=exec_result["ticket"], 
-            symbol=symbol, 
-            action=action, 
-            reason=signal["reason"], 
-            target_tp=trade_params["tp"]
+        entry_price = exec_result.get("price") or (ask if action == "BUY" else bid)
+        active_manager.register_new_trade(
+            ticket=exec_result["ticket"],
+            symbol=symbol,
+            action=action,
+            entry_price=entry_price,
+            lot=trade_params["lot"],
+            trade_params=trade_params,
+            signal=signal,
+            indicators=indicators,
         )
         logger.info(f"✅ Trade executed! Ticket: {exec_result['ticket']}")
         cycle_time = round(time.time() - cycle_start, 2)
@@ -298,6 +313,7 @@ def main():
     risk_mgr     = RiskManager()
     trade_logger = TradeLogger()
     trade_memory = TradeMemory()
+    active_manager = ActiveTradeManager(connector, trade_memory, risk_mgr)
 
     # Pre-flight checks
     if not startup_checks(connector):
@@ -332,7 +348,7 @@ def main():
             if _shutdown_requested:
                 break
             try:
-                run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory)
+                run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory, active_manager)
             except Exception as e:
                 logger.error(f"Unhandled exception in cycle [{symbol}]: {e}", exc_info=True)
 

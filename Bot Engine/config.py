@@ -97,9 +97,9 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 SUPABASE_SYNC_ENABLED     = _env_bool("SUPABASE_SYNC_ENABLED", "False")
 SUPABASE_MACHINE_ID       = os.getenv("SUPABASE_MACHINE_ID", "laptop-main").strip()
 
-USE_BROKER_SL_TP              = _env_bool("USE_BROKER_SL_TP", "True")
-USE_VIRTUAL_SL_TP             = _env_bool("USE_VIRTUAL_SL_TP", "False")
-USE_VIRTUAL_TRAILING_STOP     = _env_bool("USE_VIRTUAL_TRAILING_STOP", "False")
+USE_BROKER_SL_TP              = _env_bool("USE_BROKER_SL_TP", "False")
+USE_VIRTUAL_SL_TP             = _env_bool("USE_VIRTUAL_SL_TP", "True")
+USE_VIRTUAL_TRAILING_STOP     = _env_bool("USE_VIRTUAL_TRAILING_STOP", "True")
 VIRTUAL_EXIT_CHECK_INTERVAL   = int(os.getenv("VIRTUAL_EXIT_CHECK_INTERVAL", "10"))
 PATTERN_USAGE_SYNC_ENABLED    = _env_bool("PATTERN_USAGE_SYNC_ENABLED", "False")
 PATTERN_PRIMARY_LIMIT         = int(os.getenv("PATTERN_PRIMARY_LIMIT", "1"))
@@ -161,4 +161,6 @@ def validate():
         errors.append("HF_TOKEN is missing. Add it to local .env.")
     if AI_FALLBACK_ENABLED and AI_FALLBACK_PROVIDER in ("huggingface", "hf") and HF_TOKEN in ("", "CHANGE_ME"):
         errors.append("HF_TOKEN is missing, so Hugging Face fallback will be unavailable.")
+    if not USE_BROKER_SL_TP and not USE_VIRTUAL_SL_TP:
+        errors.append("Both broker SL/TP and virtual SL/TP are disabled. This is unsafe.")
     return errors

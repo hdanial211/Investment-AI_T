@@ -171,22 +171,25 @@ Every 10 seconds:
 │ 1. Get tick (bid/ask) from MT5          │
 │ 2. Fetch 100 OHLCV bars                 │
 │ 3. Calculate RSI, EMA9, EMA21, MACD     │
-│ 4. Pre-trade risk checks                │
+│ 4. Manage active tickets                │
+│    ├─ Virtual SL hit? → CLOSE           │
+│    ├─ Virtual TP hit? → CLOSE           │
+│    └─ Virtual trail hit? → CLOSE        │
+│ 5. Pre-trade risk checks                │
 │    ├─ Trading halted? → SKIP            │
 │    ├─ Open position exists? → SKIP      │
 │    └─ Low volatility? → SKIP            │
-│ 5. Build prompt → Send to cloud AI      │
-│ 6. Parse JSON response                  │
+│ 6. Build prompt → Send to cloud AI      │
+│ 7. Parse JSON response                  │
 │    ├─ action: BUY/SELL/HOLD             │
 │    ├─ confidence: 0.0–1.0               │
 │    └─ reason: explanation               │
-│ 7. Validate signal                      │
+│ 8. Validate signal                      │
 │    ├─ HOLD → SKIP                       │
 │    └─ confidence < 0.6 → SKIP          │
-│ 8. Calculate lot size (2% risk rule)    │
-│ 9. Calculate SL and TP prices           │
+│ 9. Calculate lot + virtual SL/TP        │
 │10. Execute market order in MT5          │
-│11. Log to trades.csv                    │
+│11. Save hidden exit plan + log          │
 └─────────────────────────────────────────┘
 ```
 
@@ -199,10 +202,20 @@ Every 10 seconds:
 | Max risk per trade | 2% of balance |
 | Max consecutive losses | 3 (then halt) |
 | Min AI confidence | 0.60 |
-| Stop Loss | 50 pips |
-| Take Profit | 100 pips |
+| Virtual Stop Loss | 50 pips default / dynamic ATR when enabled |
+| Virtual Take Profit | 100 pips default / dynamic ATR when enabled |
 | Max lot size | 1.0 |
-| One position per symbol | Enforced |
+| Max layered trades per pair | 10 |
+
+By default, broker-side SL/TP is disabled:
+
+```ini
+USE_BROKER_SL_TP=False
+USE_VIRTUAL_SL_TP=True
+USE_VIRTUAL_TRAILING_STOP=True
+```
+
+The bot stores hidden exit levels in `logs/trade_memory.json` and closes the MT5 ticket itself when a virtual trigger is hit. This means the laptop, MT5 terminal, and internet connection must stay online for virtual exits to execute.
 
 When 3 consecutive losses occur, the bot **halts automatically** and logs:
 ```

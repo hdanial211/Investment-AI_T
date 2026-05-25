@@ -394,9 +394,21 @@ class MT5Connector:
     def get_open_positions(self, symbol: str = None) -> list:
         """Get all open positions (optionally filtered by symbol)."""
         if self.demo_mode:
-            if symbol:
-                return [p for p in _demo_positions.values() if p["symbol"] == symbol]
-            return list(_demo_positions.values())
+            positions = [p for p in _demo_positions.values() if not symbol or p["symbol"] == symbol]
+            result = []
+            for pos in positions:
+                tick = self.get_tick(pos["symbol"])
+                current = tick["bid"] if pos["direction"] == "BUY" else tick["ask"]
+                if pos["direction"] == "BUY":
+                    profit = (current - pos["price_open"]) * pos["volume"]
+                else:
+                    profit = (pos["price_open"] - current) * pos["volume"]
+                result.append({
+                    **pos,
+                    "price_current": current,
+                    "profit": round(profit, 2),
+                })
+            return result
 
         if symbol:
             positions = mt5.positions_get(symbol=symbol)
@@ -518,30 +530,31 @@ class MT5Connector:
         order_type = mt5.ORDER_TYPE_BUY if action == "BUY" else mt5.ORDER_TYPE_SELL
         price      = tick.ask if action == "BUY" else tick.bid
 
-        # Validate SL/TP direction
-        if action == "BUY" and sl_price >= price:
-            sl_price = price * 0.995
-        if action == "SELL" and sl_price <= price:
-            sl_price = price * 1.005
-        if action == "BUY" and tp_price <= price:
-            tp_price = price * 1.01
-        if action == "SELL" and tp_price >= price:
-            tp_price = price * 0.99
-
         request = {
             "action":        mt5.TRADE_ACTION_DEAL,
             "symbol":        symbol,
             "volume":        float(lot),
             "type":          order_type,
             "price":         price,
-            "sl":            round(sl_price, 5),
-            "tp":            round(tp_price, 5),
             "deviation":     20,
             "magic":         123456,
             "comment":       comment,
             "type_time":     mt5.ORDER_TIME_GTC,
             "type_filling":  mt5.ORDER_FILLING_IOC,
         }
+
+        if config.USE_BROKER_SL_TP:
+            # Validate broker-visible SL/TP direction only when explicitly enabled.
+            if action == "BUY" and sl_price >= price:
+                sl_price = price * 0.995
+            if action == "SELL" and sl_price <= price:
+                sl_price = price * 1.005
+            if action == "BUY" and tp_price <= price:
+                tp_price = price * 1.01
+            if action == "SELL" and tp_price >= price:
+                tp_price = price * 0.99
+            request["sl"] = round(sl_price, 5)
+            request["tp"] = round(tp_price, 5)
 
         result = mt5.order_send(request)
 
@@ -550,7 +563,7 @@ class MT5Connector:
 
         if result.retcode == mt5.TRADE_RETCODE_DONE:
             logger.success(f"✅ Order placed: {action} {lot} {symbol} @ {price} | Ticket: {result.order}")
-            return {"success": True, "ticket": result.order, "message": "OK"}
+            return {"success": True, "ticket": result.order, "message": "OK", "price": price}
         else:
             msg = f"Order rejected (code {result.retcode}): {result.comment}"
             logger.error(f"❌ {msg}")
@@ -574,7 +587,7 @@ class MT5Connector:
             "time":       datetime.now(),
         }
         logger.info(f"[DEMO] Order placed: {action} {lot} {symbol} | Ticket: {ticket}")
-        return {"success": True, "ticket": ticket, "message": "DEMO"}
+        return {"success": True, "ticket": ticket, "message": "DEMO", "price": price}
 
     def close_trade(self, ticket: int, symbol: str) -> bool:
         """Close an open position by ticket."""

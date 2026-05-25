@@ -20,9 +20,13 @@ class TradeMemory:
         self.memory_file = os.path.join(config.LOG_DIR, "trade_memory.json")
         self.data = {
             "active_trades": {},  # ticket_id (str) -> dict(symbol, action, reason, target)
+            "closed_trades": {},
             "cooling_off": {}     # symbol -> {timestamp, duration}
         }
         self._load()
+        self.data.setdefault("active_trades", {})
+        self.data.setdefault("closed_trades", {})
+        self.data.setdefault("cooling_off", {})
         self._purge_expired_cooloffs()
 
     def _purge_expired_cooloffs(self):
@@ -64,16 +68,89 @@ class TradeMemory:
         except Exception as e:
             logger.error(f"Failed to save trade memory: {e}")
 
-    def add_trade(self, ticket: int, symbol: str, action: str, reason: str, target_tp: float):
+    def add_trade(
+        self,
+        ticket: int,
+        symbol: str,
+        action: str,
+        reason: str,
+        target_tp: float,
+        entry_price: float = None,
+        lot: float = None,
+        virtual_sl: float = None,
+        virtual_tp: float = None,
+        pattern_snapshot: Dict = None,
+    ):
         """Record the thesis/reason for a newly opened trade."""
-        self.data["active_trades"][str(ticket)] = {
+        state = {
+            "ticket": int(ticket),
             "symbol": symbol,
             "action": action,
+            "direction": action,
             "reason": reason,
             "target": target_tp,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "entry_price": entry_price,
+            "lot": lot,
+            "virtual_sl": virtual_sl,
+            "virtual_tp": virtual_tp,
+            "virtual_trailing_stop": None,
+            "profit_lock_level": None,
+            "max_favorable_price": entry_price,
+            "max_drawdown": 0.0,
+            "current_status": "OPEN",
+            "exit_reason": None,
+            "pattern_snapshot": pattern_snapshot or {},
         }
+        self.data["active_trades"][str(ticket)] = state
         self._save()
+
+    def add_trade_state(self, ticket: int, state: Dict):
+        """Store a complete active-trade state object."""
+        self.data["active_trades"][str(ticket)] = state
+        self._save()
+
+    def get_trade_state(self, ticket: int) -> Optional[Dict]:
+        """Return stored active-trade state for one ticket."""
+        return self.data["active_trades"].get(str(ticket))
+
+    def update_trade_state(self, ticket: int, updates: Dict):
+        """Merge updates into an active-trade state."""
+        key = str(ticket)
+        current = self.data["active_trades"].get(key, {})
+        current.update(updates)
+        self.data["active_trades"][key] = current
+        self._save()
+
+    def adopt_broker_position(self, position: Dict) -> Dict:
+        """
+        Create memory for a broker position that exists but was not opened by
+        this bot instance, so it can still be monitored.
+        """
+        ticket = int(position["ticket"])
+        state = {
+            "ticket": ticket,
+            "symbol": position.get("symbol"),
+            "action": position.get("direction"),
+            "direction": position.get("direction"),
+            "reason": "Adopted open broker position",
+            "target": position.get("tp") or None,
+            "timestamp": datetime.now().isoformat(),
+            "entry_price": position.get("price_open"),
+            "lot": position.get("volume"),
+            "virtual_sl": position.get("sl") or None,
+            "virtual_tp": position.get("tp") or None,
+            "virtual_trailing_stop": None,
+            "profit_lock_level": None,
+            "max_favorable_price": position.get("price_open"),
+            "max_drawdown": 0.0,
+            "current_status": "ADOPTED",
+            "exit_reason": None,
+            "pattern_snapshot": {},
+        }
+        self.data["active_trades"][str(ticket)] = state
+        self._save()
+        return state
 
     def get_trade_reason(self, ticket: int) -> Optional[str]:
         """Get the original thesis for a trade."""
@@ -87,6 +164,19 @@ class TradeMemory:
             if info["symbol"] == symbol:
                 records.append(info)
         return records
+
+    def mark_trade_closed(self, ticket: int, symbol: str, profit: float = 0.0, exit_reason: str = "closed"):
+        """Move an active trade to closed history and start cooling-off."""
+        key = str(ticket)
+        state = self.data["active_trades"].get(key, {})
+        state.update({
+            "current_status": "CLOSED",
+            "exit_reason": exit_reason,
+            "profit": round(float(profit or 0.0), 2),
+            "closed_at": datetime.now().isoformat(),
+        })
+        self.data.setdefault("closed_trades", {})[key] = state
+        self.remove_trade_and_cool_off(ticket, symbol, profit=profit)
 
     def remove_trade_and_cool_off(self, ticket: int, symbol: str, profit: float = 0.0):
         """Remove a closed trade from memory and start cooling-off period."""
@@ -134,7 +224,7 @@ class TradeMemory:
         self._save()
         return False, ""
 
-    def sync_with_broker(self, active_tickets: list):
+    def sync_with_broker(self, active_tickets: list, symbol: str = None):
         """
         Compare active broker tickets with local memory.
         If a ticket is in memory but NOT in broker, it means it closed.
@@ -144,7 +234,9 @@ class TradeMemory:
         memory_tickets = list(self.data["active_trades"].keys())
         
         for mt in memory_tickets:
+            if symbol and self.data["active_trades"][mt].get("symbol") != symbol:
+                continue
             if mt not in active_str_tickets:
                 sym = self.data["active_trades"][mt]["symbol"]
                 logger.info(f"[{sym}] Trade {mt} closed. Initiating cooling-off period.")
-                self.remove_trade_and_cool_off(int(mt), sym)
+                self.mark_trade_closed(int(mt), sym, exit_reason="broker_closed")
