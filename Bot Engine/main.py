@@ -148,7 +148,12 @@ def run_cycle(
             if pos["direction"] != action:
                 logger.warning(f"[{symbol}] AI signal ({action}) contradicts position {pos['ticket']} ({pos['direction']}). CLOSING POSITION!")
                 if connector.close_trade(pos["ticket"], symbol):
-                    trade_memory.remove_trade_and_cool_off(pos["ticket"], symbol, profit=pos["profit"])
+                    active_manager.mark_position_closed(
+                        pos["ticket"],
+                        symbol,
+                        profit=pos["profit"],
+                        reason="reverse_signal",
+                    )
                     closed_any = True
         
         if closed_any:
@@ -334,6 +339,7 @@ def main():
         logger.info(f"\n{'═'*60}")
         logger.info(f"CYCLE #{cycle_count} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info(f"{'═'*60}")
+        active_manager.sync_heartbeat(cycle_count, message="cycle_started")
 
         # Check if trading is halted
         if risk_mgr.stats.trading_halted:

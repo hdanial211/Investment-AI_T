@@ -1,7 +1,7 @@
 # Planning: Migrasi AI dari Ollama ke OpenRouter / Hugging Face + Deploy
 
 Tarikh: 2026-05-25
-Status: Phase 2-6 DONE in code: cloud AI runtime, launcher tanpa Ollama, dan active trade manager dengan virtual SL/TP asas.
+Status: Phase 1-7 DONE in code, Phase 8B/8C DONE in code. Supabase/live dashboard setup dan result live sebenar masih perlu run/test.
 
 Matlamat utama:
 - Buang dependency Ollama local.
@@ -21,30 +21,35 @@ Matlamat utama:
 Ringkasan ini untuk cepat nampak apa yang sudah siap dan apa yang belum.
 
 ### DONE
-- `v1.6.8`: Struktur folder dikemas. Root tinggal `start_bot.bat`, code masuk `Bot Engine/`, setup masuk `Setup/`, dokumen penting masuk `Penting/`, backtest masuk `TESTING DATA SETAHUN/`.
-- `v1.6.8`: Workflow testing data setahun dibuat dalam `TESTING DATA SETAHUN/`, termasuk report HTML, collector, backtester, state file, dan duplicate-run lock.
-- `v1.6.10`: `.gitignore` diketatkan supaya `.env` dan secret local tidak masuk GitHub.
-- `v1.6.11`: Runtime AI sudah migrate daripada Ollama ke cloud provider `OpenRouter` + `Hugging Face` fallback.
-- `v1.6.11`: `ai_engine.py` sudah guna `query_ai_provider()` dengan single AI lock, blocking call, JSON validation, main AI, dan risk AI.
-- `v1.6.11`: `start_bot.bat` tidak start/pull/warm-up Ollama lagi. Launcher hanya validate `.env`, Python, package, engine, dan dashboard.
-- `v1.6.11`: `Setup/.env.example` sudah guna `AI_*`, `OPENROUTER_API_KEY`, `HF_TOKEN`, dan model free default.
-- `v1.6.13`: Active Trade Manager baseline sudah dibuat. Bot monitor setiap open ticket satu-persatu.
-- `v1.6.13`: Virtual SL/TP/trailing baseline sudah dibuat. Broker-side SL/TP default `False`, virtual SL/TP/trailing default `True`.
-- `v1.6.13`: MT5 order tidak hantar fixed `sl`/`tp` bila `USE_BROKER_SL_TP=False`.
-- `v1.6.13`: Trade state disimpan dalam `logs/trade_memory.json` dengan virtual levels, floating profit, max drawdown, status, dan exit reason.
+- [x] `v1.6.8`: Struktur folder dikemas. Root tinggal `start_bot.bat`, code masuk `Bot Engine/`, setup masuk `Setup/`, dokumen penting masuk `Penting/`, backtest masuk `TESTING DATA SETAHUN/`.
+- [x] `v1.6.8`: Workflow testing data setahun dibuat dalam `TESTING DATA SETAHUN/`, termasuk report HTML, collector, backtester, state file, dan duplicate-run lock.
+- [x] `v1.6.10`: `.gitignore` diketatkan supaya `.env` dan secret local tidak masuk GitHub.
+- [x] `v1.6.11`: Runtime AI sudah migrate daripada Ollama ke cloud provider `OpenRouter` + `Hugging Face` fallback.
+- [x] `v1.6.11`: `ai_engine.py` sudah guna `query_ai_provider()` dengan single AI lock, blocking call, JSON validation, main AI, dan risk AI.
+- [x] `v1.6.11`: `start_bot.bat` tidak start/pull/warm-up Ollama lagi. Launcher hanya validate `.env`, Python, package, engine, dan dashboard.
+- [x] `v1.6.11`: `Setup/.env.example` sudah guna `AI_*`, `OPENROUTER_API_KEY`, `HF_TOKEN`, dan model free default.
+- [x] `v1.6.13`: Active Trade Manager baseline sudah dibuat. Bot monitor setiap open ticket satu-persatu.
+- [x] `v1.6.13`: Virtual SL/TP/trailing baseline sudah dibuat. Broker-side SL/TP default `False`, virtual SL/TP/trailing default `True`.
+- [x] `v1.6.13`: MT5 order tidak hantar fixed `sl`/`tp` bila `USE_BROKER_SL_TP=False`.
+- [x] `v1.6.13`: Trade state disimpan dalam `logs/trade_memory.json` dengan virtual levels, floating profit, max drawdown, status, dan exit reason.
+- [x] `v1.6.14`: Planning status mula dikemas ikut implementasi sebenar.
+- [x] Phase 7 code: Supabase sync interface, heartbeat, active trade snapshot, trade pattern usage, pattern stats, dan Vercel read-only dashboard page sudah dibuat.
+- [x] Phase 7 code: Terminal dashboard sudah tambah active pattern, virtual SL/TP/trailing, floating P/L, status, dan pattern usage ranking.
+- [x] Phase 7 setup: `Setup/supabase_schema.sql` dan `Setup/enable_supabase_sync.bat` sudah dibuat.
 
 ### PARTIAL / PERLU LIVE TEST
-- Virtual SL/TP/trailing sudah compile dan smoke-test, tetapi belum live-test lama di Windows + MT5.
-- Pattern snapshot asas disimpan dalam trade memory, tetapi belum ada `pattern_usage_tracker.py` lengkap untuk ranking realtime.
-- Backtest engine/report sudah ada, tetapi result setahun sebenar masih perlu run daripada MT5 history.
-- Cloud AI key sudah pernah diuji manual, tetapi `.env` production di laptop Windows perlu isi sendiri.
+- [ ] (partial) Virtual SL/TP/trailing sudah compile dan smoke-test, tetapi belum live-test lama di Windows + MT5.
+- [ ] (partial) Pattern snapshot + tracker sudah siap dalam code, tetapi ranking realtime perlu verify dengan trade sebenar.
+- [ ] (partial) Supabase sync sudah siap dalam code, tetapi belum disambung dengan real Supabase project/key dan belum live-test.
+- [ ] (partial) Backtest engine/report sudah ada, tetapi result setahun sebenar masih perlu run daripada MT5 history.
+- [ ] (partial) Cloud AI key sudah pernah diuji manual, tetapi `.env` production di laptop Windows perlu isi sendiri.
 
 ### NEXT
-- Phase 7: Supabase sync + Vercel dashboard realtime.
-- Tambah pattern usage tracker lengkap: pattern digunakan per trade, count A/B/C, win/loss, net profit, ranking.
-- Tambah dashboard table active trades: ticket, time, symbol, pattern, virtual SL/TP/trailing, floating P/L, exit reason.
-- Live test `start_bot.bat` di laptop Windows selepas pull latest `master`.
-- Run one-year backtest sebenar dan generate `data setahun dari 25may2026.html`.
+- [ ] Run `Setup/supabase_schema.sql` dalam Supabase SQL Editor.
+- [ ] Run `Setup/enable_supabase_sync.bat` untuk isi `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SYNC_ENABLED=True`, dan `PATTERN_USAGE_SYNC_ENABLED=True` dalam local `.env`.
+- [ ] Deploy `Dashboard/index.html` ke Vercel dan masukkan Supabase URL + anon key di browser dashboard.
+- [ ] Live test `start_bot.bat` di laptop Windows selepas pull latest `master`.
+- [ ] Run one-year backtest sebenar dan generate `data setahun dari 25may2026.html`.
 
 ---
 
@@ -228,16 +233,16 @@ TESTING DATA SETAHUN/storage/live/
 ### G. Benda Yang Saya Boleh Buat Tanpa Tunggu Awak
 
 Saya boleh proceed terus dengan:
-- Refactor config dari `OLLAMA_*` kepada `AI_*`.
-- Tambah `ai_clients/` untuk OpenRouter dan Hugging Face.
-- Update `ai_engine.py` supaya guna provider cloud.
-- Update `start_bot.bat` supaya tidak start Ollama.
-- Tambah virtual exit engine.
-- Tambah active trade manager.
-- Tambah pattern usage tracker.
-- Tambah Supabase sync interface dengan placeholder.
-- Tambah dashboard table structure.
-- Tambah `.env.example` baru tanpa secret.
+- [x] Refactor config dari `OLLAMA_*` kepada `AI_*`.
+- [x] Tambah `ai_clients/` untuk OpenRouter dan Hugging Face.
+- [x] Update `ai_engine.py` supaya guna provider cloud.
+- [x] Update `start_bot.bat` supaya tidak start Ollama.
+- [x] Tambah virtual exit engine.
+- [x] Tambah active trade manager.
+- [x] Tambah pattern usage tracker.
+- [x] Tambah Supabase sync interface dengan placeholder.
+- [x] Tambah dashboard table structure.
+- [x] Tambah `.env.example` baru tanpa secret.
 
 ### H. Benda Yang Perlu Awak Bagi / Confirm
 
@@ -999,121 +1004,119 @@ Windows Task Scheduler
 ## 14. Migration Steps
 
 Phase 1: Planning only
-- Tulis planning ini.
-- Decide OpenRouter vs Hugging Face primary.
-- Decide model candidates.
-- Confirm virtual SL/TP/trailing stop design.
-- Confirm Supabase table schema.
-- Status: DONE.
+- [x] Tulis planning ini.
+- [x] Decide OpenRouter vs Hugging Face primary.
+- [x] Decide model candidates.
+- [x] Confirm virtual SL/TP/trailing stop design.
+- [x] Draft Supabase table schema dalam planning.
 
 Phase 2: Config migration
-- Add `AI_PROVIDER`, `OPENROUTER_API_KEY`, `HF_TOKEN`, `AI_MAIN_MODEL`, `AI_RISK_MODEL`.
-- Deprecate `OLLAMA_*`.
-- Update `.env.example`.
-- Status: DONE in code. Runtime config sekarang guna `AI_*`.
+- [x] Add `AI_PROVIDER`, `OPENROUTER_API_KEY`, `HF_TOKEN`, `AI_MAIN_MODEL`, `AI_RISK_MODEL`.
+- [x] Deprecate `OLLAMA_*`.
+- [x] Update `.env.example`.
+- [x] Status: DONE in code. Runtime config sekarang guna `AI_*`.
 
 Phase 3: Provider client
-- Add `ai_clients/`.
-- Implement OpenRouter first.
-- Implement Hugging Face second/fallback.
-- Status: DONE in code for OpenRouter + Hugging Face chat completions.
+- [x] Add `ai_clients/`.
+- [x] Implement OpenRouter first.
+- [x] Implement Hugging Face second/fallback.
+- [x] Status: DONE in code for OpenRouter + Hugging Face chat completions.
 
 Phase 4: Refactor `ai_engine.py`
-- Keep prompt builder.
-- Replace `query_ollama()` with `query_ai_provider()`.
-- Keep JSON validation.
-- Keep single AI lock.
-- Status: DONE in code. Runtime call utama sekarang `query_ai_provider()`.
+- [x] Keep prompt builder.
+- [x] Replace `query_ollama()` with `query_ai_provider()`.
+- [x] Keep JSON validation.
+- [x] Keep single AI lock.
+- [x] Status: DONE in code. Runtime call utama sekarang `query_ai_provider()`.
 
 Phase 5: Launcher cleanup
-- Remove Ollama startup logic.
-- `start_bot.bat` only checks Python, `.env`, API key, then starts bot + dashboard.
-- Status: DONE in code. No Ollama serve/pull/warm-up in launcher.
+- [x] Remove Ollama startup logic.
+- [x] `start_bot.bat` only checks Python, `.env`, API key, then starts bot + dashboard.
+- [x] Status: DONE in code. No Ollama serve/pull/warm-up in launcher.
 
 Phase 6: Active trade management
-- Add virtual exit engine.
-- Add active trade manager per ticket.
-- Stop sending fixed SL/TP to MT5 unless fail-safe mode is enabled.
-- Add close-ticket trigger logic.
-- Add trade state persistence.
-- Status: DONE in code for baseline virtual SL/TP/trailing. Supabase sync and dashboard widgets are still next.
+- [x] Add virtual exit engine.
+- [x] Add active trade manager per ticket.
+- [x] Stop sending fixed SL/TP to MT5 unless fail-safe mode is enabled.
+- [x] Add close-ticket trigger logic.
+- [x] Add trade state persistence.
+- [x] Status: DONE in code for baseline virtual SL/TP/trailing. Supabase sync and dashboard widgets are still next.
 
 Phase 7: Supabase + Vercel
-- Add Supabase sync.
-- Add heartbeat.
-- Add active trades snapshot.
-- Add pattern usage tracker.
-- Add realtime pattern usage dashboard widgets.
-- Add trade timeline showing each ticket and pattern used.
-- Build Vercel dashboard/manual fallback page.
-- Status: NEXT. Belum implement dalam runtime.
+- [x] Add Supabase sync interface.
+- [x] Add heartbeat sync call.
+- [x] Add active trades snapshot sync.
+- [x] Add pattern usage tracker.
+- [x] Add realtime pattern usage dashboard widgets.
+- [x] Add trade timeline showing each ticket and pattern used.
+- [x] Build Vercel dashboard/manual fallback page.
+- [ ] Live-test Supabase write/read dengan real project keys.
+- [ ] Deploy dashboard page ke Vercel.
 
 Phase 8: Testing
-- Unit test JSON parser.
-- Dry-run AI calls with fake MT5 data.
-- Check risk review flow.
-- Confirm no trade if AI timeout/invalid JSON.
-- Test virtual SL hit.
-- Test virtual TP hit.
-- Test virtual trailing stop hit.
-- Test pattern usage saved when trade opens.
-- Test pattern stats update when trade closes.
-- Test dashboard table shows trade time + ticket + primary pattern.
-- Test laptop offline manual fallback scenario.
-- Status: PARTIAL. Compile + virtual exit smoke test sudah lulus, tetapi live MT5/Windows test belum.
+- [x] Compile + virtual exit smoke test untuk baseline Phase 6.
+- [ ] Unit test JSON parser.
+- [ ] Dry-run AI calls with fake MT5 data.
+- [ ] Check risk review flow.
+- [ ] Confirm no trade if AI timeout/invalid JSON.
+- [ ] Test virtual SL hit.
+- [ ] Test virtual TP hit.
+- [ ] Test virtual trailing stop hit.
+- [ ] Test pattern usage saved when trade opens.
+- [ ] Test pattern stats update when trade closes.
+- [ ] Test dashboard table shows trade time + ticket + primary pattern.
+- [ ] Test laptop offline manual fallback scenario.
 
 Phase 8B: One-year backtest duplicate protection
-- Semua file testing setahun disimpan dalam `TESTING DATA SETAHUN/`.
-- `TESTING DATA SETAHUN/run_yearly_backtest.py` mesti guna lock file `TESTING DATA SETAHUN/storage/backtests/yearly_backtest.lock`.
-- Jika user tertekan `TESTING DATA SETAHUN/run_yearly_backtest.bat` 2-3 kali, hanya proses pertama berjalan.
-- Proses kedua mesti stop dengan mesej `Yearly backtest already running`.
-- Backtest CSV/report ditulis secara replace, bukan append, supaya result tidak duplicate.
-- Jika laptop crash dan lock tertinggal, boleh run `cd "TESTING DATA SETAHUN"` kemudian `python run_yearly_backtest.py --force-unlock`.
-- Status: DONE in code. Actual full-year report still needs a real MT5 run.
+- [x] Semua file testing setahun disimpan dalam `TESTING DATA SETAHUN/`.
+- [x] `TESTING DATA SETAHUN/run_yearly_backtest.py` mesti guna lock file `TESTING DATA SETAHUN/storage/backtests/yearly_backtest.lock`.
+- [x] Jika user tertekan `TESTING DATA SETAHUN/run_yearly_backtest.bat` 2-3 kali, hanya proses pertama berjalan.
+- [x] Proses kedua mesti stop dengan mesej `Yearly backtest already running`.
+- [x] Backtest CSV/report ditulis secara replace, bukan append, supaya result tidak duplicate.
+- [x] Jika laptop crash dan lock tertinggal, boleh run `cd "TESTING DATA SETAHUN"` kemudian `python run_yearly_backtest.py --force-unlock`.
 
 Phase 8C: Backtest date memory / no repeat yearly test
-- First run ikut tarikh user tekan:
+- [x] First run ikut tarikh user tekan:
   - contoh run pada `2026-05-25`
   - window = `2025-05-25` sampai `2026-05-25`
-- Selepas full-year baseline siap, sistem simpan `TESTING DATA SETAHUN/storage/backtests/yearly_backtest_state.json`.
-- Sistem juga boleh baca live/realtime coverage melalui `TESTING DATA SETAHUN/storage/live/live_data_state.json`.
-- Jika user tekan lagi pada `2026-05-30` dan live bot memang running 24 jam:
+- [x] Selepas full-year baseline siap, sistem simpan `TESTING DATA SETAHUN/storage/backtests/yearly_backtest_state.json`.
+- [x] Sistem juga boleh baca live/realtime coverage melalui `TESTING DATA SETAHUN/storage/live/live_data_state.json`.
+- [x] Jika user tekan lagi pada `2026-05-30` dan live bot memang running 24 jam:
   - live data sudah cover gap selepas `2026-05-25`
   - result = `0 hari historical backtest`
   - tiada duplicate yearly test
-- Jika user lama tidak buka laptop/bot dan live data tidak cover gap:
+- [x] Jika user lama tidak buka laptop/bot dan live data tidak cover gap:
   - sistem auto sambung dari tarikh last tested/live data
   - contoh: last tested `2026-05-25`, tekan semula `2026-06-20`
   - window = `2026-05-25` sampai `2026-06-20`
   - bukan ulang `2025-06-20` sampai `2026-06-20`
-- Default auto-gap bermula bila gap melebihi `BACKTEST_AUTO_GAP_AFTER_DAYS=1`.
-- Jika user memang mahu historical gap dari last run ke hari ini, guna:
+- [x] Default auto-gap bermula bila gap melebihi `BACKTEST_AUTO_GAP_AFTER_DAYS=1`.
+- [x] Jika user memang mahu historical gap dari last run ke hari ini, guna:
   - `cd "TESTING DATA SETAHUN"`
   - `python run_yearly_backtest.py --include-gap`
-- Jika user mahu paksa full year semula, guna:
+- [x] Jika user mahu paksa full year semula, guna:
   - `python run_yearly_backtest.py --full-year`
-- Jika user mahu skip gap walaupun lama tidak buka, guna:
+- [x] Jika user mahu skip gap walaupun lama tidak buka, guna:
   - `python run_yearly_backtest.py --skip-gap`
-- Default `TESTING DATA SETAHUN/run_yearly_backtest.bat` tetap selamat: tidak duplicate, tidak ulang yearly baseline tanpa sengaja.
-- Status: DONE in code. Live coverage file still depends on future live-data sync.
+- [x] Default `TESTING DATA SETAHUN/run_yearly_backtest.bat` tetap selamat: tidak duplicate, tidak ulang yearly baseline tanpa sengaja.
+- [ ] Run verified full-year MT5 history backtest dan generate report real result.
 
 Phase 9: 24-hour laptop run
-- Disable Windows sleep.
-- Keep laptop plugged in.
-- Run bot 24 hours on demo/small lot.
-- Monitor Supabase/Vercel heartbeat.
-- Monitor manual fallback accuracy.
-- Status: PENDING. Perlu test di laptop Windows selepas pull latest.
+- [ ] Disable Windows sleep.
+- [ ] Keep laptop plugged in.
+- [ ] Run bot 24 hours on demo/small lot.
+- [ ] Monitor Supabase/Vercel heartbeat.
+- [ ] Monitor manual fallback accuracy.
 
 ---
 
 ## 15. Decision Needed Next
 
-Kita perlu pilih:
+Provider AI sudah dipilih untuk default sekarang:
 
 Option A: OpenRouter primary
 ```text
-Recommended.
+Selected / recommended.
 Fastest to implement.
 One API style for many models.
 Best for deployment.

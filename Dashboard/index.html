@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Investment-AI_T Live Dashboard</title>
+  <style>
+    :root {
+      --bg: #111814;
+      --panel: rgba(245, 236, 216, 0.92);
+      --paper: #fff7e8;
+      --ink: #1a221e;
+      --muted: #67716a;
+      --line: rgba(65, 79, 69, 0.18);
+      --gold: #c4913d;
+      --green: #2c8b67;
+      --red: #ad4f43;
+      --blue: #2f668f;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(196, 145, 61, 0.34), transparent 32rem),
+        radial-gradient(circle at 88% 16%, rgba(44, 139, 103, 0.26), transparent 30rem),
+        linear-gradient(140deg, #101713, #253229 48%, #5a442a);
+      font-family: "Trebuchet MS", "Gill Sans", Verdana, sans-serif;
+    }
+
+    .wrap {
+      width: min(1280px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(255, 247, 232, 0.96), rgba(239, 222, 191, 0.9));
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: clamp(22px, 4vw, 42px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -90px;
+      bottom: -120px;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: rgba(196, 145, 61, 0.18);
+    }
+
+    .eyebrow {
+      color: var(--gold);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 860px;
+      margin: 10px 0 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.1rem, 6vw, 5rem);
+      line-height: 0.95;
+      letter-spacing: -0.055em;
+    }
+
+    .hero p {
+      max-width: 780px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 10px;
+      margin-top: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    input, button {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+    }
+
+    input {
+      background: rgba(255, 255, 255, 0.78);
+      min-width: 0;
+    }
+
+    button {
+      background: var(--ink);
+      color: #fff7e8;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .card, section {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .card {
+      padding: 18px;
+      min-height: 112px;
+    }
+
+    .card b {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .card strong {
+      display: block;
+      margin-top: 8px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(1.3rem, 3vw, 2.2rem);
+      line-height: 1;
+    }
+
+    section {
+      margin-top: 16px;
+      padding: 22px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 14px;
+    }
+
+    h2 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(1.35rem, 3vw, 2.2rem);
+      letter-spacing: -0.035em;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 247, 232, 0.76);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 820px;
+    }
+
+    th, td {
+      padding: 12px 13px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.9rem;
+    }
+
+    th {
+      color: var(--gold);
+      background: rgba(255, 246, 225, 0.8);
+      font-size: 0.74rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .pill {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 0.76rem;
+      font-weight: 900;
+      background: rgba(47, 102, 143, 0.13);
+      color: var(--blue);
+      white-space: nowrap;
+    }
+
+    .buy { color: var(--green); font-weight: 900; }
+    .sell, .loss { color: var(--red); font-weight: 900; }
+    .profit { color: var(--green); font-weight: 900; }
+    .muted { color: var(--muted); }
+
+    @media (max-width: 900px) {
+      .grid, .controls { grid-template-columns: 1fr; }
+      .section-head { display: block; }
+      .hint { margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <div class="eyebrow">Investment-AI_T live monitor</div>
+      <h1>Dashboard read-only untuk active trades, virtual exit, dan pattern usage.</h1>
+      <p>
+        Page ini sesuai deploy ke Vercel. Ia hanya baca Supabase menggunakan anon key.
+        Jangan letak service role key di sini.
+      </p>
+      <div class="controls">
+        <input id="supabaseUrl" placeholder="Supabase URL, contoh https://xxxx.supabase.co">
+        <input id="supabaseAnon" placeholder="Supabase anon key">
+        <button id="saveConfig">Save & Refresh</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card"><b>Bot Status</b><strong id="botStatus">-</strong></div>
+      <div class="card"><b>Last Seen</b><strong id="lastSeen">-</strong></div>
+      <div class="card"><b>Active Trades</b><strong id="activeCount">0</strong></div>
+      <div class="card"><b>Top Pattern</b><strong id="topPattern">-</strong></div>
+    </div>
+
+    <section>
+      <div class="section-head">
+        <h2>Active Trades</h2>
+        <p class="hint">Ticket yang sedang dipantau bot dengan hidden virtual SL/TP/trailing.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticket</th><th>Symbol</th><th>Direction</th><th>Pattern</th><th>Combo</th>
+              <th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="activeRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Pattern Ranking</h2>
+        <p class="hint">Count pattern yang digunakan, win/loss, win rate, dan net P/L.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pattern</th><th>Symbol</th><th>TF</th><th>Used</th><th>Open</th>
+              <th>W/L</th><th>Win Rate</th><th>Net P/L</th><th>Avg Confidence</th>
+            </tr>
+          </thead>
+          <tbody id="patternRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Trade Timeline</h2>
+        <p class="hint">Event terbaru: open trade, virtual exit, close failed, broker closed.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Time</th><th>Ticket</th><th>Event</th><th>Reason</th></tr>
+          </thead>
+          <tbody id="eventRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = {
+      url: localStorage.getItem("supabaseUrl") || "",
+      anon: localStorage.getItem("supabaseAnon") || "",
+    };
+
+    $("supabaseUrl").value = state.url;
+    $("supabaseAnon").value = state.anon;
+
+    $("saveConfig").addEventListener("click", () => {
+      state.url = $("supabaseUrl").value.trim().replace(/\/$/, "");
+      state.anon = $("supabaseAnon").value.trim();
+      localStorage.setItem("supabaseUrl", state.url);
+      localStorage.setItem("supabaseAnon", state.anon);
+      refresh();
+    });
+
+    async function supabase(path) {
+      if (!state.url || !state.anon) return [];
+      const res = await fetch(`${state.url}/rest/v1/${path}`, {
+        headers: {
+          apikey: state.anon,
+          Authorization: `Bearer ${state.anon}`,
+        },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    async function refresh() {
+      try {
+        const [heartbeat, active, patterns, events] = await Promise.all([
+          supabase("bot_heartbeat?select=*&order=last_seen_at.desc&limit=1"),
+          supabase("active_trades?select=*&current_status=neq.CLOSED&order=updated_at.desc"),
+          supabase("pattern_usage_stats?select=*&order=net_profit.desc&limit=30"),
+          supabase("trade_events?select=*&order=created_at.desc&limit=20"),
+        ]);
+
+        renderHeartbeat(heartbeat[0]);
+        renderActive(active);
+        renderPatterns(patterns);
+        renderEvents(events);
+      } catch (err) {
+        $("botStatus").textContent = "Config/Error";
+        $("lastSeen").textContent = err.message.slice(0, 28);
+      }
+    }
+
+    function renderHeartbeat(row) {
+      $("botStatus").textContent = row?.status || "offline";
+      $("lastSeen").textContent = row?.last_seen_at ? new Date(row.last_seen_at).toLocaleString() : "-";
+    }
+
+    function renderActive(rows) {
+      $("activeCount").textContent = rows.length;
+      $("activeRows").innerHTML = rows.map((r) => `
+        <tr>
+          <td>${safe(r.ticket)}</td>
+          <td><span class="pill">${safe(r.symbol)}</span></td>
+          <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
+          <td>${safe(r.primary_pattern)}</td>
+          <td class="muted">${safe(r.confluence_combo)}</td>
+          <td>${price(r.virtual_sl)}</td>
+          <td>${price(r.virtual_tp)}</td>
+          <td>${price(r.virtual_trailing_stop)}</td>
+          <td class="${Number(r.floating_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.floating_profit)}</td>
+          <td>${safe(r.current_status)}</td>
+        </tr>
+      `).join("") || emptyRow(10);
+    }
+
+    function renderPatterns(rows) {
+      $("topPattern").textContent = rows[0]?.pattern_name || "-";
+      $("patternRows").innerHTML = rows.map((r) => `
+        <tr>
+          <td>${safe(r.pattern_name)}</td>
+          <td>${safe(r.symbol)}</td>
+          <td>${safe(r.timeframe)}</td>
+          <td>${safe(r.used_count)}</td>
+          <td>${safe(r.open_trade_count)}</td>
+          <td>${safe(r.win_count)}/${safe(r.loss_count)}</td>
+          <td>${Number(r.win_rate || 0).toFixed(1)}%</td>
+          <td class="${Number(r.net_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.net_profit)}</td>
+          <td>${Number(r.avg_confidence || 0).toFixed(2)}</td>
+        </tr>
+      `).join("") || emptyRow(9);
+    }
+
+    function renderEvents(rows) {
+      $("eventRows").innerHTML = rows.map((r) => `
+        <tr>
+          <td>${r.created_at ? new Date(r.created_at).toLocaleString() : "-"}</td>
+          <td>${safe(r.ticket)}</td>
+          <td>${safe(r.event_type)}</td>
+          <td class="muted">${safe(r.reason)}</td>
+        </tr>
+      `).join("") || emptyRow(4);
+    }
+
+    function safe(value) {
+      return String(value ?? "-")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function price(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n.toFixed(5) : "-";
+    }
+
+    function money(value) {
+      const n = Number(value || 0);
+      return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+    }
+
+    function emptyRow(cols) {
+      return `<tr><td colspan="${cols}" class="muted">No data yet.</td></tr>`;
+    }
+
+    refresh();
+    setInterval(refresh, 10000);
+  </script>
+</body>
+</html>

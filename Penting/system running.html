@@ -844,8 +844,9 @@ When laptop returns, bot resyncs open positions from MT5</pre>
       </div>
 
       <div class="callout" style="margin-top: 16px;">
-        Untuk fallback ini berfungsi dengan baik, bot perlu simpan snapshot active trades ke satu tempat yang Vercel boleh baca:
-        contohnya GitHub gist, Supabase, Firebase, atau simple cloud database. Bila laptop hidup semula, bot sync semula dengan MT5.
+        Untuk fallback ini berfungsi dengan baik, bot sekarang ada Supabase sync layer dan
+        <code>Dashboard/index.html</code> sebagai dashboard read-only untuk deploy ke Vercel.
+        Bila laptop hidup semula, bot sync semula dengan MT5.
       </div>
     </section>
 
@@ -869,8 +870,12 @@ When laptop returns, bot resyncs open positions from MT5</pre>
           <p>Build prompt, call provider AI, validate JSON, dan pastikan AI call jalan satu-satu.</p>
         </div>
         <div class="card">
+          <h3><code>Dashboard/index.html</code></h3>
+          <p>Dashboard read-only untuk Vercel. Ia baca Supabase anon key dan tunjuk heartbeat, active trade, virtual exit, pattern ranking, dan timeline.</p>
+        </div>
+        <div class="card">
           <h3><code>system running.html</code></h3>
-          <p>Dokumen/dashboard planning yang boleh deploy ke Vercel sebagai rujukan manual ketika laptop offline.</p>
+          <p>Dokumen planning yang menerangkan flow sistem dan manual fallback ketika laptop offline.</p>
         </div>
         <div class="card">
           <h3><code>strategy.py</code></h3>

@@ -96,6 +96,7 @@ SUPABASE_ANON_KEY         = os.getenv("SUPABASE_ANON_KEY", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 SUPABASE_SYNC_ENABLED     = _env_bool("SUPABASE_SYNC_ENABLED", "False")
 SUPABASE_MACHINE_ID       = os.getenv("SUPABASE_MACHINE_ID", "laptop-main").strip()
+SUPABASE_REQUEST_TIMEOUT  = int(os.getenv("SUPABASE_REQUEST_TIMEOUT", "10"))
 
 USE_BROKER_SL_TP              = _env_bool("USE_BROKER_SL_TP", "False")
 USE_VIRTUAL_SL_TP             = _env_bool("USE_VIRTUAL_SL_TP", "True")

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 
 import config
+from trade_management.pattern_usage_tracker import update_stats_on_close, update_stats_on_open
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +22,13 @@ class TradeMemory:
         self.data = {
             "active_trades": {},  # ticket_id (str) -> dict(symbol, action, reason, target)
             "closed_trades": {},
+            "pattern_usage_stats": {},
             "cooling_off": {}     # symbol -> {timestamp, duration}
         }
         self._load()
         self.data.setdefault("active_trades", {})
         self.data.setdefault("closed_trades", {})
+        self.data.setdefault("pattern_usage_stats", {})
         self.data.setdefault("cooling_off", {})
         self._purge_expired_cooloffs()
 
@@ -103,11 +106,25 @@ class TradeMemory:
             "pattern_snapshot": pattern_snapshot or {},
         }
         self.data["active_trades"][str(ticket)] = state
+        if pattern_snapshot:
+            self.data["pattern_usage_stats"] = update_stats_on_open(
+                self.data.get("pattern_usage_stats", {}),
+                int(ticket),
+                pattern_snapshot,
+            )
         self._save()
 
     def add_trade_state(self, ticket: int, state: Dict):
         """Store a complete active-trade state object."""
-        self.data["active_trades"][str(ticket)] = state
+        key = str(ticket)
+        is_new_trade = key not in self.data["active_trades"]
+        self.data["active_trades"][key] = state
+        if is_new_trade:
+            self.data["pattern_usage_stats"] = update_stats_on_open(
+                self.data.get("pattern_usage_stats", {}),
+                int(ticket),
+                state.get("pattern_snapshot") or {},
+            )
         self._save()
 
     def get_trade_state(self, ticket: int) -> Optional[Dict]:
@@ -169,6 +186,8 @@ class TradeMemory:
         """Move an active trade to closed history and start cooling-off."""
         key = str(ticket)
         state = self.data["active_trades"].get(key, {})
+        snapshot = state.get("pattern_snapshot") or {}
+        snapshot["ticket"] = int(ticket)
         state.update({
             "current_status": "CLOSED",
             "exit_reason": exit_reason,
@@ -176,7 +195,25 @@ class TradeMemory:
             "closed_at": datetime.now().isoformat(),
         })
         self.data.setdefault("closed_trades", {})[key] = state
+        self.data["pattern_usage_stats"] = update_stats_on_close(
+            self.data.get("pattern_usage_stats", {}),
+            snapshot,
+            profit,
+            exit_reason,
+        )
         self.remove_trade_and_cool_off(ticket, symbol, profit=profit)
+
+    def get_pattern_usage_stats(self) -> Dict:
+        return self.data.get("pattern_usage_stats", {})
+
+    def get_dashboard_snapshot(self) -> Dict:
+        """Return the current local state used by dashboard views."""
+        return {
+            "active_trades": self.data.get("active_trades", {}),
+            "closed_trades": self.data.get("closed_trades", {}),
+            "pattern_usage_stats": self.data.get("pattern_usage_stats", {}),
+            "cooling_off": self.data.get("cooling_off", {}),
+        }
 
     def remove_trade_and_cool_off(self, ticket: int, symbol: str, profit: float = 0.0):
         """Remove a closed trade from memory and start cooling-off period."""
@@ -232,6 +269,7 @@ class TradeMemory:
         """
         active_str_tickets = [str(t) for t in active_tickets]
         memory_tickets = list(self.data["active_trades"].keys())
+        closed_states = []
         
         for mt in memory_tickets:
             if symbol and self.data["active_trades"][mt].get("symbol") != symbol:
@@ -240,3 +278,8 @@ class TradeMemory:
                 sym = self.data["active_trades"][mt]["symbol"]
                 logger.info(f"[{sym}] Trade {mt} closed. Initiating cooling-off period.")
                 self.mark_trade_closed(int(mt), sym, exit_reason="broker_closed")
+                closed = self.data.get("closed_trades", {}).get(mt)
+                if closed:
+                    closed_states.append(closed)
+
+        return closed_states

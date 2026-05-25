@@ -28,7 +28,17 @@ from logger import load_trades, generate_performance_report
 class ActiveMemoryTable(DataTable):
     def on_mount(self):
         self.cursor_type = "row"
-        self.add_columns("Ticket", "Symbol", "Action", "Target TP", "Thesis (Reason)")
+        self.add_columns(
+            "Ticket",
+            "Symbol",
+            "Action",
+            "Pattern",
+            "Virtual SL",
+            "Virtual TP",
+            "Trail",
+            "P/L",
+            "Status",
+        )
         
     def refresh_data(self):
         self.clear()
@@ -39,16 +49,58 @@ class ActiveMemoryTable(DataTable):
                     data = json.load(f)
                 active = data.get("active_trades", {})
                 for tkt, info in active.items():
-                    action_color = "green" if info['action'] == "BUY" else "red"
+                    action = info.get("action") or info.get("direction") or ""
+                    action_color = "green" if action == "BUY" else "red"
+                    snapshot = info.get("pattern_snapshot") or {}
+                    profit = float(info.get("floating_profit") or 0)
+                    profit_color = "green" if profit >= 0 else "red"
                     self.add_row(
                         tkt, 
-                        info['symbol'], 
-                        f"[{action_color} bold]{info['action']}[/]", 
-                        str(info.get('target', '')),
-                        info['reason']
+                        str(info.get("symbol", "")),
+                        f"[{action_color} bold]{action}[/]",
+                        str(snapshot.get("primary_pattern", "No pattern"))[:34],
+                        _fmt_price(info.get("virtual_sl")),
+                        _fmt_price(info.get("virtual_tp")),
+                        _fmt_price(info.get("virtual_trailing_stop")),
+                        f"[{profit_color}]{profit:+.2f}[/{profit_color}]",
+                        str(info.get("current_status", "")),
                     )
             except Exception:
                 pass
+
+
+class PatternUsageTable(DataTable):
+    def on_mount(self):
+        self.cursor_type = "row"
+        self.add_columns("Pattern", "Symbol", "TF", "Used", "Open", "W/L", "Win %", "Net P/L")
+
+    def refresh_data(self):
+        self.clear()
+        memory_file = os.path.join(config.LOG_DIR, "trade_memory.json")
+        if not os.path.exists(memory_file):
+            return
+        try:
+            with open(memory_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            stats = list((data.get("pattern_usage_stats") or {}).values())
+            stats.sort(key=lambda x: float(x.get("net_profit", 0) or 0), reverse=True)
+            for item in stats[:20]:
+                net = float(item.get("net_profit", 0) or 0)
+                net_color = "green" if net >= 0 else "red"
+                wins = int(item.get("win_count", 0) or 0)
+                losses = int(item.get("loss_count", 0) or 0)
+                self.add_row(
+                    str(item.get("pattern_name", ""))[:36],
+                    str(item.get("symbol", "")),
+                    str(item.get("timeframe", "")),
+                    str(item.get("used_count", 0)),
+                    str(item.get("open_trade_count", 0)),
+                    f"{wins}/{losses}",
+                    f"{float(item.get('win_rate', 0) or 0):.1f}%",
+                    f"[{net_color}]{net:+.2f}[/{net_color}]",
+                )
+        except Exception:
+            pass
 
 class CoolingOffTable(DataTable):
     def on_mount(self):
@@ -140,6 +192,9 @@ class TradingDashboard(App):
         with Vertical(id="tables-container"):
             yield Label("🧠 [bold cyan]Active Trade Memory[/bold cyan]")
             yield ActiveMemoryTable()
+
+            yield Label("🧬 [bold green]Pattern Usage Stats[/bold green]")
+            yield PatternUsageTable()
             
             yield Label("🧊 [bold yellow]Cooling-Off Periods[/bold yellow]")
             yield CoolingOffTable()
@@ -166,10 +221,21 @@ class TradingDashboard(App):
                        f"[bold]Profit Factor:[/bold] {perf.get('profit_factor', 'N/A')}")
                        
             self.query_one(ActiveMemoryTable).refresh_data()
+            self.query_one(PatternUsageTable).refresh_data()
             self.query_one(CoolingOffTable).refresh_data()
             self.query_one(TradeHistoryTable).refresh_data(df)
         except Exception as e:
             pass
+
+
+def _fmt_price(value) -> str:
+    try:
+        if value is None or value == "":
+            return "-"
+        return f"{float(value):.5f}"
+    except (TypeError, ValueError):
+        return "-"
+
 
 if __name__ == "__main__":
     app = TradingDashboard()

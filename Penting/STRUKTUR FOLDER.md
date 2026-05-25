@@ -6,6 +6,7 @@ Root folder sengaja dibiarkan ringkas.
 Investment-AI_T-master/
   start_bot.bat
   Bot Engine/
+  Dashboard/
   Setup/
   Penting/
   TESTING DATA SETAHUN/
@@ -49,11 +50,24 @@ setup_env.bat
 setup_env.ps1
 enable_dual_ai.bat
 enable_dual_ai.ps1
+enable_supabase_sync.bat
+enable_supabase_sync.ps1
 requirements.txt
 .env.example
+supabase_schema.sql
 ```
 
 Setup akan tulis `.env` ke dalam `Bot Engine/`.
+
+## Dashboard
+
+Tempat dashboard static untuk deploy ke Vercel:
+
+```text
+index.html
+```
+
+Dashboard ini read-only. Ia baca Supabase guna anon key dan tunjuk heartbeat, active trades, virtual SL/TP, pattern usage, dan trade timeline.
 
 ## Penting
 

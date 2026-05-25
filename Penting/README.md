@@ -14,6 +14,7 @@ A production-ready algorithmic trading system that combines:
 Investment-AI_T-master/
 ├── start_bot.bat        <- one-click launcher
 ├── Bot Engine/          <- live trading engine
+├── Dashboard/           <- Supabase/Vercel read-only monitor
 ├── Setup/               <- env setup + requirements
 ├── Penting/             <- planning, docs, system flow
 └── TESTING DATA SETAHUN/ <- historical backtest workflow
@@ -160,6 +161,14 @@ Bot is LIVE. Press Ctrl+C to stop.
 ### Step 6 — Open the Dashboard (optional)
 
 The launcher opens `dashboard.py` automatically in the foreground.
+
+For remote read-only monitoring, deploy `Dashboard/index.html` to Vercel and run `Setup/supabase_schema.sql` once in Supabase. The browser dashboard uses only `SUPABASE_ANON_KEY`; never paste `SUPABASE_SERVICE_ROLE_KEY` into Vercel or frontend code.
+
+To enable bot-side Supabase writes on the laptop:
+
+```bat
+Setup\enable_supabase_sync.bat
+```
 
 ---
 
