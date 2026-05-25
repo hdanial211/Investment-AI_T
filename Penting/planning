@@ -16,6 +16,38 @@ Matlamat utama:
 
 ---
 
+## 0A. Status Implementasi Semasa
+
+Ringkasan ini untuk cepat nampak apa yang sudah siap dan apa yang belum.
+
+### DONE
+- `v1.6.8`: Struktur folder dikemas. Root tinggal `start_bot.bat`, code masuk `Bot Engine/`, setup masuk `Setup/`, dokumen penting masuk `Penting/`, backtest masuk `TESTING DATA SETAHUN/`.
+- `v1.6.8`: Workflow testing data setahun dibuat dalam `TESTING DATA SETAHUN/`, termasuk report HTML, collector, backtester, state file, dan duplicate-run lock.
+- `v1.6.10`: `.gitignore` diketatkan supaya `.env` dan secret local tidak masuk GitHub.
+- `v1.6.11`: Runtime AI sudah migrate daripada Ollama ke cloud provider `OpenRouter` + `Hugging Face` fallback.
+- `v1.6.11`: `ai_engine.py` sudah guna `query_ai_provider()` dengan single AI lock, blocking call, JSON validation, main AI, dan risk AI.
+- `v1.6.11`: `start_bot.bat` tidak start/pull/warm-up Ollama lagi. Launcher hanya validate `.env`, Python, package, engine, dan dashboard.
+- `v1.6.11`: `Setup/.env.example` sudah guna `AI_*`, `OPENROUTER_API_KEY`, `HF_TOKEN`, dan model free default.
+- `v1.6.13`: Active Trade Manager baseline sudah dibuat. Bot monitor setiap open ticket satu-persatu.
+- `v1.6.13`: Virtual SL/TP/trailing baseline sudah dibuat. Broker-side SL/TP default `False`, virtual SL/TP/trailing default `True`.
+- `v1.6.13`: MT5 order tidak hantar fixed `sl`/`tp` bila `USE_BROKER_SL_TP=False`.
+- `v1.6.13`: Trade state disimpan dalam `logs/trade_memory.json` dengan virtual levels, floating profit, max drawdown, status, dan exit reason.
+
+### PARTIAL / PERLU LIVE TEST
+- Virtual SL/TP/trailing sudah compile dan smoke-test, tetapi belum live-test lama di Windows + MT5.
+- Pattern snapshot asas disimpan dalam trade memory, tetapi belum ada `pattern_usage_tracker.py` lengkap untuk ranking realtime.
+- Backtest engine/report sudah ada, tetapi result setahun sebenar masih perlu run daripada MT5 history.
+- Cloud AI key sudah pernah diuji manual, tetapi `.env` production di laptop Windows perlu isi sendiri.
+
+### NEXT
+- Phase 7: Supabase sync + Vercel dashboard realtime.
+- Tambah pattern usage tracker lengkap: pattern digunakan per trade, count A/B/C, win/loss, net profit, ranking.
+- Tambah dashboard table active trades: ticket, time, symbol, pattern, virtual SL/TP/trailing, floating P/L, exit reason.
+- Live test `start_bot.bat` di laptop Windows selepas pull latest `master`.
+- Run one-year backtest sebenar dan generate `data setahun dari 25may2026.html`.
+
+---
+
 ## 0. Apa Yang Diperlukan Sebelum Implement
 
 Bahagian ini ialah checklist awal sebelum kita mula coding besar. Tujuan dia supaya kerja nanti tidak tersekat tengah jalan sebab API key, database, model ID, atau credential belum ada.
@@ -972,6 +1004,7 @@ Phase 1: Planning only
 - Decide model candidates.
 - Confirm virtual SL/TP/trailing stop design.
 - Confirm Supabase table schema.
+- Status: DONE.
 
 Phase 2: Config migration
 - Add `AI_PROVIDER`, `OPENROUTER_API_KEY`, `HF_TOKEN`, `AI_MAIN_MODEL`, `AI_RISK_MODEL`.
@@ -1013,6 +1046,7 @@ Phase 7: Supabase + Vercel
 - Add realtime pattern usage dashboard widgets.
 - Add trade timeline showing each ticket and pattern used.
 - Build Vercel dashboard/manual fallback page.
+- Status: NEXT. Belum implement dalam runtime.
 
 Phase 8: Testing
 - Unit test JSON parser.
@@ -1026,6 +1060,7 @@ Phase 8: Testing
 - Test pattern stats update when trade closes.
 - Test dashboard table shows trade time + ticket + primary pattern.
 - Test laptop offline manual fallback scenario.
+- Status: PARTIAL. Compile + virtual exit smoke test sudah lulus, tetapi live MT5/Windows test belum.
 
 Phase 8B: One-year backtest duplicate protection
 - Semua file testing setahun disimpan dalam `TESTING DATA SETAHUN/`.
@@ -1034,6 +1069,7 @@ Phase 8B: One-year backtest duplicate protection
 - Proses kedua mesti stop dengan mesej `Yearly backtest already running`.
 - Backtest CSV/report ditulis secara replace, bukan append, supaya result tidak duplicate.
 - Jika laptop crash dan lock tertinggal, boleh run `cd "TESTING DATA SETAHUN"` kemudian `python run_yearly_backtest.py --force-unlock`.
+- Status: DONE in code. Actual full-year report still needs a real MT5 run.
 
 Phase 8C: Backtest date memory / no repeat yearly test
 - First run ikut tarikh user tekan:
@@ -1059,6 +1095,7 @@ Phase 8C: Backtest date memory / no repeat yearly test
 - Jika user mahu skip gap walaupun lama tidak buka, guna:
   - `python run_yearly_backtest.py --skip-gap`
 - Default `TESTING DATA SETAHUN/run_yearly_backtest.bat` tetap selamat: tidak duplicate, tidak ulang yearly baseline tanpa sengaja.
+- Status: DONE in code. Live coverage file still depends on future live-data sync.
 
 Phase 9: 24-hour laptop run
 - Disable Windows sleep.
@@ -1066,10 +1103,11 @@ Phase 9: 24-hour laptop run
 - Run bot 24 hours on demo/small lot.
 - Monitor Supabase/Vercel heartbeat.
 - Monitor manual fallback accuracy.
+- Status: PENDING. Perlu test di laptop Windows selepas pull latest.
 
 ---
 
-## 15. Decision Needed Before Coding
+## 15. Decision Needed Next
 
 Kita perlu pilih:
 
@@ -1094,13 +1132,13 @@ Primary: OpenRouter
 Fallback: Hugging Face
 ```
 
-Need confirm:
+Need confirm / setup untuk next phase:
 ```text
-1. Do we fully disable broker-side SL/TP?
-2. Do we allow optional emergency broker-side SL as hidden safety fallback? (currently user prefers no broker SL/TP)
-3. Which Supabase project/table schema should be used?
-4. Should Vercel dashboard be read-only or allow manual notes/actions?
-5. How often should active trade manager check virtual exits? Suggested: every 5-10 seconds.
+1. Supabase URL, anon key, dan service role key.
+2. Dashboard Vercel read-only atau ada manual notes/actions.
+3. Confirm virtual exit check interval kekal 10s atau mahu 5s.
+4. Confirm broker symbol exact di laptop Windows selepas pull latest.
+5. Run live demo/small lot test untuk validate virtual SL/TP.
 ```
 
 ---
