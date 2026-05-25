@@ -16,6 +16,215 @@ Matlamat utama:
 
 ---
 
+## 0. Apa Yang Diperlukan Sebelum Implement
+
+Bahagian ini ialah checklist awal sebelum kita mula coding besar. Tujuan dia supaya kerja nanti tidak tersekat tengah jalan sebab API key, database, model ID, atau credential belum ada.
+
+### A. Wajib Untuk Migrasi AI Cloud
+
+Ini perlu kalau mahu buang Ollama dan guna OpenRouter / Hugging Face:
+
+```ini
+AI_PROVIDER=openrouter
+AI_FALLBACK_PROVIDER=huggingface
+
+OPENROUTER_API_KEY=isi_dalam_local_env_sahaja
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_APP_NAME=Investment-AI_T
+OPENROUTER_SITE_URL=https://github.com/hdanial211/Investment-AI_T
+
+HF_TOKEN=optional_jika_nak_huggingface_fallback
+HF_BASE_URL=https://router.huggingface.co/v1
+
+AI_MAIN_MODEL=pilih_model_main_signal
+AI_RISK_MODEL=pilih_model_risk_review
+ENABLE_RISK_REVIEW=True
+
+AI_TIMEOUT=300
+AI_RETRIES=2
+AI_TEMPERATURE=0.1
+AI_MAX_TOKENS=256
+```
+
+Yang saya perlukan daripada awak:
+- `OPENROUTER_API_KEY`.
+- `HF_TOKEN` jika mahu Hugging Face fallback aktif.
+- Pilihan model untuk `AI_MAIN_MODEL` dan `AI_RISK_MODEL`, atau izinkan saya guna default sementara.
+
+Default sementara yang boleh saya set kalau awak belum pilih model:
+```ini
+AI_MAIN_MODEL=qwen/qwen-2.5-7b-instruct
+AI_RISK_MODEL=deepseek/deepseek-r1
+```
+
+Nota:
+- API key jangan letak dalam GitHub.
+- API key hanya masuk local `.env`.
+- Dalam repo hanya boleh letak `.env.example` dengan placeholder.
+
+### B. Wajib Untuk MT5 Live Trading
+
+Ini perlu untuk bot connect MT5 dan execute order:
+
+```ini
+MT5_LOGIN=local_only
+MT5_PASSWORD=local_only
+MT5_SERVER=broker_server_name
+MT5_PATH=C:/Program Files/MetaTrader 5/terminal64.exe
+
+SYMBOLS=XAUUSD,EURUSD
+TIMEFRAME=M5
+LOOP_INTERVAL=10
+BARS_TO_FETCH=100
+```
+
+Yang saya perlukan daripada awak:
+- Confirm broker server exact name.
+- Confirm symbol broker sama ada `XAUUSD`, `XAUUSD.`, `GOLD`, atau nama lain.
+- Confirm laptop Windows ada MT5 terminal dan Python package `MetaTrader5`.
+
+Nota keselamatan:
+- `MT5_PASSWORD` jangan commit.
+- Kalau sudah ada `.env` local, kita reuse sahaja.
+
+### C. Wajib Untuk Supabase Realtime Dashboard
+
+Ini perlu jika mahu Vercel/dashboard baca active trade, virtual SL/TP, pattern usage, dan heartbeat:
+
+```ini
+SUPABASE_URL=local_only
+SUPABASE_ANON_KEY=local_only_for_frontend_read
+SUPABASE_SERVICE_ROLE_KEY=local_only_backend_only
+SUPABASE_SYNC_ENABLED=True
+SUPABASE_MACHINE_ID=laptop-main
+```
+
+Yang saya perlukan daripada awak:
+- Supabase project URL.
+- Supabase anon key.
+- Supabase service role key untuk backend bot sahaja.
+- Confirm dashboard Vercel nanti read-only atau ada manual notes/actions.
+
+Security rule:
+- `SUPABASE_SERVICE_ROLE_KEY` tidak boleh masuk frontend/Vercel public client.
+- Service role hanya dalam local `.env` bot atau server trusted.
+
+### D. Wajib Untuk Virtual SL/TP dan Active Trade Manager
+
+Ini setting penting untuk hidden/virtual exit:
+
+```ini
+USE_BROKER_SL_TP=False
+USE_VIRTUAL_SL_TP=True
+USE_VIRTUAL_TRAILING_STOP=True
+VIRTUAL_EXIT_CHECK_INTERVAL=10
+MAX_TRADES_PER_PAIR=10
+```
+
+Yang perlu confirm:
+- Broker-side SL/TP kekal disable.
+- Nak emergency broker-side fail-safe atau memang 100% virtual sahaja.
+- Active trade manager check setiap `5s`, `10s`, atau `15s`.
+
+Default saya:
+```ini
+USE_BROKER_SL_TP=False
+USE_VIRTUAL_SL_TP=True
+USE_VIRTUAL_TRAILING_STOP=True
+VIRTUAL_EXIT_CHECK_INTERVAL=10
+```
+
+### E. Wajib Untuk Pattern Usage Dashboard
+
+Ini untuk dashboard tunjuk trade mana guna pattern apa:
+
+```ini
+PATTERN_USAGE_SYNC_ENABLED=True
+PATTERN_PRIMARY_LIMIT=1
+PATTERN_CONFLUENCE_LIMIT=8
+PATTERN_STATS_UPDATE_INTERVAL=10
+```
+
+Data yang akan disimpan setiap trade:
+- `ticket`
+- `opened_at`
+- `symbol`
+- `direction`
+- `primary_pattern`
+- `pattern_names`
+- `confluence_combo`
+- `pattern_confidence`
+- `virtual_sl`
+- `virtual_tp`
+- `virtual_trailing_stop`
+- `floating_profit`
+- `trade_status`
+- `exit_reason`
+- `profit`
+
+### F. Wajib Untuk Testing Data Setahun
+
+Folder:
+```text
+TESTING DATA SETAHUN/
+```
+
+Yang diperlukan:
+- MT5 history untuk `XAUUSD` dan `EURUSD`.
+- Timeframe `M5`, `M15`, `H1`, `H4`.
+- Starting balance untuk simulation.
+- Fixed lot untuk neutral pattern quality test.
+
+Default:
+```ini
+BACKTEST_START_BALANCE=10000
+BACKTEST_FIXED_LOT=0.01
+BACKTEST_AUTO_GAP_AFTER_DAYS=1
+BACKTEST_LIVE_COVERAGE_GRACE_HOURS=6
+```
+
+Output tidak commit:
+```text
+TESTING DATA SETAHUN/storage/history/
+TESTING DATA SETAHUN/storage/features/
+TESTING DATA SETAHUN/storage/backtests/
+TESTING DATA SETAHUN/storage/live/
+```
+
+### G. Benda Yang Saya Boleh Buat Tanpa Tunggu Awak
+
+Saya boleh proceed terus dengan:
+- Refactor config dari `OLLAMA_*` kepada `AI_*`.
+- Tambah `ai_clients/` untuk OpenRouter dan Hugging Face.
+- Update `ai_engine.py` supaya guna provider cloud.
+- Update `start_bot.bat` supaya tidak start Ollama.
+- Tambah virtual exit engine.
+- Tambah active trade manager.
+- Tambah pattern usage tracker.
+- Tambah Supabase sync interface dengan placeholder.
+- Tambah dashboard table structure.
+- Tambah `.env.example` baru tanpa secret.
+
+### H. Benda Yang Perlu Awak Bagi / Confirm
+
+Sebelum live production, saya perlukan:
+```text
+1. OPENROUTER_API_KEY
+2. HF_TOKEN kalau mahu Hugging Face fallback
+3. SUPABASE_URL
+4. SUPABASE_ANON_KEY
+5. SUPABASE_SERVICE_ROLE_KEY
+6. Confirm model main AI
+7. Confirm model risk AI
+8. Confirm broker symbol exact name
+9. Confirm virtual SL/TP 100% tanpa broker-side SL/TP
+10. Confirm Vercel dashboard read-only atau ada manual notes/actions
+```
+
+Kalau benda ini belum ada, saya masih boleh coding dengan placeholder dan safe defaults. Sistem akan refuse live trade jika key wajib belum diisi.
+
+---
+
 ## 1. Keputusan Provider
 
 Cadangan utama: OpenRouter dahulu.
