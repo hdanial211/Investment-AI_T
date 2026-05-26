@@ -176,7 +176,7 @@ class AccountSettings:
             return
 
         url = config.SUPABASE_URL.rstrip("/")
-        key = config.SUPABASE_SERVICE_ROLE_KEY
+        key = config.SUPABASE_SERVICE_ROLE_KEY or config.SUPABASE_ANON_KEY
         if not url or not key:
             logger.debug("AccountSettings: No Supabase URL/key, using local defaults.")
             self._supabase_available = False
@@ -251,7 +251,7 @@ class AccountSettings:
         if not config.SUPABASE_SYNC_ENABLED:
             return
         url = config.SUPABASE_URL.rstrip("/")
-        key = config.SUPABASE_SERVICE_ROLE_KEY
+        key = config.SUPABASE_SERVICE_ROLE_KEY or config.SUPABASE_ANON_KEY
         if not url or not key:
             return
         try:
@@ -293,7 +293,7 @@ def get_all_enabled_accounts() -> list[str]:
         return [config.ACCOUNT_ID]
 
     url = config.SUPABASE_URL.rstrip("/")
-    key = config.SUPABASE_SERVICE_ROLE_KEY
+    key = config.SUPABASE_SERVICE_ROLE_KEY or config.SUPABASE_ANON_KEY
     if not url or not key:
         return [config.ACCOUNT_ID]
 
