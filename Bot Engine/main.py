@@ -474,32 +474,14 @@ def main():
     # Fetch global AI provider/keys from Supabase
     system_settings.fetch_and_apply_system_settings()
 
-    # Initialize components
-    connector    = MT5Connector()
-    risk_mgr     = RiskManager()
-    trade_logger = TradeLogger()
-    trade_memory = TradeMemory()
-    active_manager = ActiveTradeManager(connector, trade_memory, risk_mgr)
-    acct_settings  = AccountSettings(config.ACCOUNT_ID)
+    # Shared MT5 Connector
+    connector = MT5Connector()
+    
+    # State tracking per account
+    account_states = {}
+    from account_settings import get_all_enabled_accounts
 
-    # Pre-flight checks
-    if not startup_checks(connector, acct_settings):
-        logger.critical("Startup checks failed. Exiting.")
-        sys.exit(1)
-
-    # Use account-specific symbols
-    trading_symbols = acct_settings.get_symbols()
-    logger.info(f"Trading symbols: {trading_symbols}")
-    logger.info(f"Account ID:      {config.ACCOUNT_ID}")
-    logger.info(f"Loop interval:   {config.LOOP_INTERVAL}s")
-    logger.info(f"Risk per trade:  {config.MAX_RISK_PERCENT}%")
-    logger.info(f"Min confidence:  {config.MIN_CONFIDENCE}")
-
-    # Log account settings
-    acct_summary = acct_settings.get_settings_summary()
-    logger.info(f"Account settings: {acct_summary}")
-
-    logger.info("Bot is LIVE. Press Ctrl+C to stop.\n")
+    logger.info("Bot is LIVE. Auto-detecting accounts from Supabase. Press Ctrl+C to stop.\n")
 
     cycle_count = 0
 
@@ -507,39 +489,108 @@ def main():
     while not _shutdown_requested:
         cycle_count += 1
         logger.info(f"\n{'═'*60}")
-        logger.info(f"CYCLE #{cycle_count} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"GLOBAL CYCLE #{cycle_count} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info(f"{'═'*60}")
-        active_manager.sync_heartbeat(cycle_count, message="cycle_started")
+        
+        # 1. Fetch all enabled accounts
+        enabled_accounts = get_all_enabled_accounts()
+        if not enabled_accounts:
+            logger.warning("No enabled accounts found in Supabase. Waiting...")
+            time.sleep(config.LOOP_INTERVAL)
+            continue
+            
+        logger.info(f"Active accounts detected: {enabled_accounts}")
 
-        # Check if trading is halted
-        if risk_mgr.stats.trading_halted:
-            logger.critical(
-                f"🛑 Trading is HALTED: {risk_mgr.stats.halt_reason}\n"
-                "Manual intervention required. Exiting loop."
-            )
-            break
-
-        # Run cycle for each configured symbol (account-specific)
-        trading_symbols = acct_settings.get_symbols()
-        for symbol in trading_symbols:
+        for account_id in enabled_accounts:
             if _shutdown_requested:
                 break
-            try:
-                run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory, active_manager, acct_settings)
-            except Exception as e:
-                logger.error(f"Unhandled exception in cycle [{symbol}]: {e}", exc_info=True)
+                
+            # Initialize state if new
+            if account_id not in account_states:
+                acct_settings = AccountSettings(account_id)
+                risk_mgr = RiskManager()
+                trade_memory = TradeMemory()
+                trade_logger = TradeLogger()
+                active_manager = ActiveTradeManager(connector, trade_memory, risk_mgr)
+                
+                account_states[account_id] = {
+                    "acct_settings": acct_settings,
+                    "risk_mgr": risk_mgr,
+                    "trade_memory": trade_memory,
+                    "trade_logger": trade_logger,
+                    "active_manager": active_manager,
+                    "initialized": False
+                }
+            
+            state = account_states[account_id]
+            acct_settings = state["acct_settings"]
+            active_manager = state["active_manager"]
+            risk_mgr = state["risk_mgr"]
+            trade_logger = state["trade_logger"]
+            trade_memory = state["trade_memory"]
+            
+            logger.info(f"\n--- Managing Account: {account_id} ---")
+            
+            # Login to MT5 for this account
+            login_val = None
+            password_val = None
+            server_val = None
+            path_val = None
+            
+            # Use cached / fetched credentials
+            s_login = acct_settings.mt5_login
+            if s_login and s_login != "12345678" and s_login != "":
+                try:
+                    login_val = int(s_login)
+                    password_val = acct_settings.mt5_password
+                    server_val = acct_settings.mt5_server
+                    path_val = acct_settings.mt5_path
+                except ValueError:
+                    pass
+            
+            if not state["initialized"]:
+                # Pre-flight checks for new account
+                if not startup_checks(connector, acct_settings):
+                    logger.warning(f"[{account_id}] Startup checks failed. Will retry next cycle.")
+                    continue
+                state["initialized"] = True
+                
+            # Force connection switch to the current account
+            mt5_connected = connector.connect(login=login_val, password=password_val, server=server_val, path=path_val)
+            if not mt5_connected:
+                logger.warning(f"[{account_id}] MT5 connection failed. Skipping this account.")
+                continue
+                
+            active_manager.sync_heartbeat(cycle_count, message=f"cycle_started")
 
-        # Print session summary every 10 cycles
-        if cycle_count % 10 == 0:
-            summary = risk_mgr.get_session_summary()
-            logger.info(
-                f"\n📊 Session Summary (Cycle #{cycle_count}):\n"
-                f"   Trades: {summary['trades_total']} | "
-                f"Wins: {summary['trades_win']} | "
-                f"Losses: {summary['trades_loss']} | "
-                f"Win Rate: {summary['win_rate_pct']}% | "
-                f"P&L: {summary['total_pnl']:+.2f}"
-            )
+            # Check if trading is halted for this account
+            if risk_mgr.stats.trading_halted:
+                logger.critical(
+                    f"[{account_id}] 🛑 Trading is HALTED: {risk_mgr.stats.halt_reason}\n"
+                    "Manual intervention required."
+                )
+                continue
+                
+            trading_symbols = acct_settings.get_symbols()
+            for symbol in trading_symbols:
+                if _shutdown_requested:
+                    break
+                try:
+                    run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory, active_manager, acct_settings)
+                except Exception as e:
+                    logger.error(f"Unhandled exception in cycle [{symbol}]: {e}", exc_info=True)
+
+            # Print session summary for this account every 10 global cycles
+            if cycle_count % 10 == 0:
+                summary = risk_mgr.get_session_summary()
+                logger.info(
+                    f"\n📊 [{account_id}] Session Summary (Cycle #{cycle_count}):\n"
+                    f"   Trades: {summary['trades_total']} | "
+                    f"Wins: {summary['trades_win']} | "
+                    f"Losses: {summary['trades_loss']} | "
+                    f"Win Rate: {summary['win_rate_pct']}% | "
+                    f"P&L: {summary['total_pnl']:+.2f}"
+                )
 
         # Sleep until next cycle
         if not _shutdown_requested:
@@ -550,12 +601,6 @@ def main():
     logger.info("\n" + "=" * 60)
     logger.info("BOT SHUTTING DOWN")
     logger.info("=" * 60)
-
-    # Final performance report
-    report = generate_performance_report()
-    logger.info("Final Performance Report:")
-    for key, val in report.items():
-        logger.info(f"  {key}: {val}")
 
     # Disconnect MT5
     connector.disconnect()

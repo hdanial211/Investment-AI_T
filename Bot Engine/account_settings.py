@@ -286,3 +286,36 @@ class AccountSettings:
     def force_refresh(self) -> None:
         """Force a refresh from Supabase on next property access."""
         self._last_fetch = 0
+
+def get_all_enabled_accounts() -> list[str]:
+    """Fetch all account IDs that are enabled from Supabase. Fallback to config.ACCOUNT_ID if failed."""
+    if not config.SUPABASE_SYNC_ENABLED:
+        return [config.ACCOUNT_ID]
+
+    url = config.SUPABASE_URL.rstrip("/")
+    key = config.SUPABASE_SERVICE_ROLE_KEY
+    if not url or not key:
+        return [config.ACCOUNT_ID]
+
+    try:
+        import requests
+        endpoint = f"{url}/rest/v1/account_settings?enabled=eq.true&select=account_id"
+        response = requests.get(
+            endpoint,
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+            },
+            timeout=config.SUPABASE_REQUEST_TIMEOUT,
+        )
+        if response.status_code >= 400:
+            return [config.ACCOUNT_ID]
+        
+        data = response.json()
+        if not data:
+            return []
+            
+        return [row["account_id"] for row in data if "account_id" in row]
+    except Exception as e:
+        logger.warning(f"Failed to fetch enabled accounts: {e}")
+        return [config.ACCOUNT_ID]
