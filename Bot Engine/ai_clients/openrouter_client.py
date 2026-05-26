@@ -2,7 +2,10 @@
 
 from typing import Dict, List
 
-import requests
+try:
+    import requests
+except ImportError:  # pragma: no cover - launcher installs it before live run.
+    requests = None
 
 import config
 from .base import AIProviderError
@@ -24,6 +27,8 @@ class OpenRouterClient:
         max_tokens: int,
         timeout: int,
     ) -> str:
+        if requests is None:
+            raise AIProviderError("requests package is not installed", retryable=False)
         if not self.api_key or self.api_key == "CHANGE_ME":
             raise AIProviderError("OPENROUTER_API_KEY is missing", retryable=False)
 

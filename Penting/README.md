@@ -170,6 +170,12 @@ To enable bot-side Supabase writes on the laptop:
 Setup\enable_supabase_sync.bat
 ```
 
+To run offline safety smoke tests before live MT5 testing:
+
+```bat
+Setup\run_smoke_tests.bat
+```
+
 ---
 
 ## 📊 Trading Logic Flow

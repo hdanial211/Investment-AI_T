@@ -1055,15 +1055,17 @@ Phase 7: Supabase + Vercel
 
 Phase 8: Testing
 - [x] Compile + virtual exit smoke test untuk baseline Phase 6.
-- [ ] Unit test JSON parser.
-- [ ] Dry-run AI calls with fake MT5 data.
-- [ ] Check risk review flow.
-- [ ] Confirm no trade if AI timeout/invalid JSON.
-- [ ] Test virtual SL hit.
-- [ ] Test virtual TP hit.
-- [ ] Test virtual trailing stop hit.
-- [ ] Test pattern usage saved when trade opens.
-- [ ] Test pattern stats update when trade closes.
+- [x] Add offline smoke test runner: `Setup/run_smoke_tests.py` dan `Setup/run_smoke_tests.bat`.
+- [x] Unit test JSON parser.
+- [x] Dry-run AI calls with fake MT5 data.
+- [x] Check risk review flow.
+- [x] Confirm no trade if AI timeout/invalid JSON.
+- [x] Test virtual SL hit.
+- [x] Test virtual TP hit.
+- [x] Test virtual trailing stop hit.
+- [x] Test pattern usage saved when trade opens.
+- [x] Test pattern stats update when trade closes.
+- [x] Test Supabase disabled mode tidak crash.
 - [ ] Test dashboard table shows trade time + ticket + primary pattern.
 - [ ] Test laptop offline manual fallback scenario.
 

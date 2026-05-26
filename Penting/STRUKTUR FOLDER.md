@@ -52,6 +52,8 @@ enable_dual_ai.bat
 enable_dual_ai.ps1
 enable_supabase_sync.bat
 enable_supabase_sync.ps1
+run_smoke_tests.bat
+run_smoke_tests.py
 requirements.txt
 .env.example
 supabase_schema.sql
