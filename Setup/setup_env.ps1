@@ -121,9 +121,9 @@ MT5_SCREENSHOT_DIR=chart_screenshots
 
 # Supabase Sync (read-only Vercel dashboard integration)
 SUPABASE_URL=https://kusyjtpcjyflxgfcqenb.supabase.co
-SUPABASE_ANON_KEY=
+SUPABASE_ANON_KEY=sb_publishable_Pdf-F-j3PH3keLsZ8ZoEZA_tbotGoxM
 SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_SYNC_ENABLED=False
+SUPABASE_SYNC_ENABLED=True
 SUPABASE_MACHINE_ID=laptop-main
 SUPABASE_REQUEST_TIMEOUT=10
 

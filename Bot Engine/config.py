@@ -115,10 +115,10 @@ VISION_CYCLE_INTERVAL    = int(os.getenv("VISION_CYCLE_INTERVAL", "1"))  # run v
 # ─────────────────────────────────────────────────────────────────────────────
 # FUTURE SYNC / VIRTUAL EXIT SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
-SUPABASE_URL              = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_ANON_KEY         = os.getenv("SUPABASE_ANON_KEY", "").strip()
+SUPABASE_URL              = os.getenv("SUPABASE_URL", "https://kusyjtpcjyflxgfcqenb.supabase.co").strip()
+SUPABASE_ANON_KEY         = os.getenv("SUPABASE_ANON_KEY", "sb_publishable_Pdf-F-j3PH3keLsZ8ZoEZA_tbotGoxM").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-SUPABASE_SYNC_ENABLED     = _env_bool("SUPABASE_SYNC_ENABLED", "False")
+SUPABASE_SYNC_ENABLED     = _env_bool("SUPABASE_SYNC_ENABLED", "True")
 SUPABASE_MACHINE_ID       = os.getenv("SUPABASE_MACHINE_ID", "laptop-main").strip()
 SUPABASE_REQUEST_TIMEOUT  = int(os.getenv("SUPABASE_REQUEST_TIMEOUT", "10"))
 
