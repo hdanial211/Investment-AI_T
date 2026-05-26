@@ -151,13 +151,13 @@ class MT5Connector:
 
     # ── CONNECTION ────────────────────────────────────────────────────────────
 
-    def connect(self) -> bool:
+    def connect(self, login: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None, path: Optional[str] = None) -> bool:
         """
         Connect to MT5 terminal.
         Flow:
           1. Auto-launch MT5 if not already running.
           2. mt5.initialize() to attach to the terminal.
-          3. Login with credentials from .env.
+          3. Login with credentials (either passed from Supabase or from .env).
           4. Fall back to DEMO only if MetaTrader5 package is missing.
         """
         if not MT5_AVAILABLE:
@@ -168,18 +168,18 @@ class MT5Connector:
 
         # ── Step 1: Auto-launch MT5 if not running ───────────────────────────
         if not _is_mt5_running():
-            exe = _find_mt5_exe()
+            exe = path if path else _find_mt5_exe()
             if exe:
                 _launch_mt5(exe)
             else:
                 logger.warning(
                     "MT5 executable not found. "
-                    "Set MT5_PATH in your .env to the full path of terminal64.exe."
+                    "Set MT5_PATH in your .env or Supabase to the full path of terminal64.exe."
                 )
 
         # ── Step 2: Initialize (attach to running terminal) ──────────────────
-        path = config.MT5_PATH if config.MT5_PATH else None
-        init_ok = mt5.initialize(path=path) if path else mt5.initialize()
+        target_path = path if path else (config.MT5_PATH if config.MT5_PATH else None)
+        init_ok = mt5.initialize(path=target_path) if target_path else mt5.initialize()
 
         if not init_ok:
             logger.error(f"MT5 initialize failed: {mt5.last_error()}")
@@ -188,15 +188,19 @@ class MT5Connector:
             return True
 
         # ── Step 3: Login with credentials ───────────────────────────────────
+        target_login = int(login) if login is not None else int(config.MT5_LOGIN)
+        target_password = password if password is not None else config.MT5_PASSWORD
+        target_server = server if server is not None else config.MT5_SERVER
+
         account = mt5.account_info()
 
-        if account is None or account.login != int(config.MT5_LOGIN):
+        if account is None or account.login != target_login:
             # Not logged in yet, or logged in as a different account
-            logger.info(f"Logging in to account #{config.MT5_LOGIN} on {config.MT5_SERVER}...")
+            logger.info(f"Logging in to account #{target_login} on {target_server}...")
             authorized = mt5.login(
-                login=int(config.MT5_LOGIN),
-                password=config.MT5_PASSWORD,
-                server=config.MT5_SERVER,
+                login=target_login,
+                password=target_password,
+                server=target_server,
             )
             if not authorized:
                 logger.error(f"MT5 login failed: {mt5.last_error()}")

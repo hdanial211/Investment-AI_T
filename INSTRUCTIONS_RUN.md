@@ -35,9 +35,9 @@ Klon atau salin folder projek `Investment-AI_T-master` ke dalam persekitaran Win
 2. Klik dua kali (double-click) fail **`start_bot.bat`** di root folder.
 3. Jika ini adalah kali pertama anda menjalankannya, skrip interaktif akan bermula secara automatik untuk membina fail `.env` tempatan anda.
 4. Anda akan diminta untuk memasukkan maklumat berikut:
-   *   **MT5 Login**: Nombor akaun MT5 anda.
-   *   **MT5 Password**: Kata laluan akaun MT5 anda.
-   *   **MT5 Server**: Nama server broker anda (cth: `RoboForex-Demo`).
+   *   **MT5 Login**: (Pilihan / Optional) **Tekan Enter sahaja untuk langkau!** Kerana ia akan diambil secara dinamik daripada **Dashboard settings.html** anda di Supabase semasa runtime.
+   *   **MT5 Password**: (Sangat Penting) **Masukkan kata laluan akaun MT5 anda.** Atas sebab keselamatan (Security), kata laluan perdagangan *tidak disimpan* dalam database Supabase supaya tiada sesiapa boleh mencurinya dari web Dashboard. Ia disimpan secara peribadi di laptop bot sahaja.
+   *   **MT5 Server**: (Pilihan / Optional) **Tekan Enter sahaja untuk langkau!** Ia juga akan diambil secara dinamik daripada Dashboard settings.html anda.
    *   **OpenRouter API Key**: Kunci API dari OpenRouter (bermula dengan `sk-or-v1...`). Anda boleh dapatkan kunci ini secara percuma/berbayar di [openrouter.ai](https://openrouter.ai).
    *   **Hugging Face Token**: (Pilihan / Optional) Boleh tekan Enter untuk langkau.
 

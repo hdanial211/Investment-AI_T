@@ -314,7 +314,7 @@ def run_cycle(
 # STARTUP CHECKS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def startup_checks(connector: MT5Connector) -> bool:
+def startup_checks(connector: MT5Connector, acct_settings: Optional[AccountSettings] = None) -> bool:
     """Run all pre-flight checks before starting the trading loop."""
     logger.info("=" * 60)
     logger.info("  AI TRADING BOT — STARTUP CHECKS")
@@ -322,12 +322,35 @@ def startup_checks(connector: MT5Connector) -> bool:
 
     all_ok = True
 
+    # Get credentials from Supabase account settings if available
+    login_val = None
+    server_val = None
+    path_val = None
+    if acct_settings:
+        # Accessing properties triggers _maybe_refresh() which pulls from Supabase
+        s_login = acct_settings.mt5_login
+        s_server = acct_settings.mt5_server
+        s_path = acct_settings.mt5_path
+        if s_login and s_login != "12345678" and s_login != "":
+            try:
+                login_val = int(s_login)
+                server_val = s_server
+                path_val = s_path
+                logger.info(f"Using dynamic MT5 credentials from Supabase: Account #{login_val} on '{server_val}'")
+            except (ValueError, TypeError):
+                pass
+
     for warning in config.validate():
+        # Skip placeholder warnings if Supabase provides valid dynamic values
+        if "MT5_LOGIN" in warning and login_val is not None:
+            continue
+        if "MT5_SERVER" in warning and server_val is not None:
+            continue
         logger.warning(f"Config warning: {warning}")
 
     # 1. MT5 connection
     logger.info("Checking MT5 connection...")
-    if connector.connect():
+    if connector.connect(login=login_val, server=server_val, path=path_val):
         logger.info("✔ MT5 connected")
     else:
         logger.critical("✘ MT5 connection failed")
@@ -392,7 +415,7 @@ def main():
     acct_settings  = AccountSettings(config.ACCOUNT_ID)
 
     # Pre-flight checks
-    if not startup_checks(connector):
+    if not startup_checks(connector, acct_settings):
         logger.critical("Startup checks failed. Exiting.")
         sys.exit(1)
 

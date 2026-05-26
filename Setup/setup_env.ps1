@@ -32,12 +32,13 @@ Write-Host "This setup creates a local .env file only."
 Write-Host "Your MT5 password will not be committed to GitHub."
 Write-Host ""
 
-$Login = Read-Host "MT5 login"
+$Login = Read-Host "MT5 login [Press Enter to pull dynamically from Supabase Dashboard]"
 if ([string]::IsNullOrWhiteSpace($Login)) {
-    throw "MT5 login is required."
+    Write-Host "[INFO] MT5 login left blank. The bot will load this dynamically from Supabase at runtime."
+    $Login = "12345678" # Default placeholder in config
 }
 
-$SecurePassword = Read-Host "MT5 password" -AsSecureString
+$SecurePassword = Read-Host "MT5 password (Required to connect to broker)" -AsSecureString
 $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
 try {
     $Password = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($PasswordPtr)
@@ -47,12 +48,15 @@ finally {
 }
 
 if ([string]::IsNullOrWhiteSpace($Password)) {
-    throw "MT5 password is required."
+    throw "MT5 password is required to connect to the broker."
 }
 
-$Server = Read-Host "MT5 server [RoboForex-Pro]"
+$Server = Read-Host "MT5 server [Press Enter to pull dynamically from Supabase Dashboard]"
 if ([string]::IsNullOrWhiteSpace($Server)) {
-    $Server = "RoboForex-Pro"
+    if ($Login -eq "12345678") {
+        Write-Host "[INFO] MT5 server left blank. The bot will load this dynamically from Supabase at runtime."
+    }
+    $Server = "Broker-Server" # Default placeholder in config
 }
 
 $Symbols = "XAUUSD,EURUSD"
