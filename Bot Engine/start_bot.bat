@@ -55,6 +55,7 @@ echo        Python packages OK.
 :: Step 3: Launch the trading bot engine
 echo  [3/3] Starting AI Trading Bot Engine...
 echo.
+cd /d "%~dp0"
 python main.py
 
 :: Bot exited
