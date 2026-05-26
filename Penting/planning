@@ -1066,8 +1066,8 @@ Phase 8: Testing
 - [x] Test pattern usage saved when trade opens.
 - [x] Test pattern stats update when trade closes.
 - [x] Test Supabase disabled mode tidak crash.
-- [ ] Test dashboard table shows trade time + ticket + primary pattern.
-- [ ] Test laptop offline manual fallback scenario.
+- [x] Test dashboard table shows trade time + ticket + primary pattern.
+- [x] Test laptop offline manual fallback scenario.
 
 Phase 8B: One-year backtest duplicate protection
 - [x] Semua file testing setahun disimpan dalam `TESTING DATA SETAHUN/`.

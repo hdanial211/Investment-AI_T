@@ -145,6 +145,28 @@ def test_supabase_disabled_never_raises():
     sync.insert_trade_event(1, "smoke", "disabled")
 
 
+def test_vercel_dashboard_contains_live_trade_and_manual_fallback_widgets():
+    html = (ROOT / "Dashboard" / "index.html").read_text(encoding="utf-8")
+
+    required_fragments = [
+        'id="manualMode"',
+        "heartbeat stale",
+        "<th>Opened</th>",
+        "${safe(r.primary_pattern)}",
+        "${safe(r.confluence_combo)}",
+        "${price(r.virtual_sl)}",
+        "${price(r.virtual_tp)}",
+        "${price(r.virtual_trailing_stop)}",
+        "formatAge(ageSeconds)",
+        "active_trades?select=*",
+        "pattern_usage_stats?select=*",
+        "trade_events?select=*",
+    ]
+
+    for fragment in required_fragments:
+        assert fragment in html, f"Dashboard missing fragment: {fragment}"
+
+
 def run_all():
     tests = [
         test_json_parser_and_signal_validation,
@@ -154,6 +176,7 @@ def run_all():
         test_virtual_exit_triggers,
         test_pattern_usage_open_close_stats,
         test_supabase_disabled_never_raises,
+        test_vercel_dashboard_contains_live_trade_and_manual_fallback_widgets,
     ]
 
     for test in tests:

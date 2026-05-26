@@ -221,6 +221,14 @@
     .sell, .loss { color: var(--red); font-weight: 900; }
     .profit { color: var(--green); font-weight: 900; }
     .muted { color: var(--muted); }
+    .manual-note {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+    .manual-note.warn { color: var(--red); }
 
     @media (max-width: 900px) {
       .grid, .controls { grid-template-columns: 1fr; }
@@ -246,7 +254,7 @@
     </header>
 
     <div class="grid">
-      <div class="card"><b>Bot Status</b><strong id="botStatus">-</strong></div>
+      <div class="card"><b>Bot Status</b><strong id="botStatus">-</strong><span id="manualMode" class="manual-note">Manual fallback not required.</span></div>
       <div class="card"><b>Last Seen</b><strong id="lastSeen">-</strong></div>
       <div class="card"><b>Active Trades</b><strong id="activeCount">0</strong></div>
       <div class="card"><b>Top Pattern</b><strong id="topPattern">-</strong></div>
@@ -261,7 +269,7 @@
         <table>
           <thead>
             <tr>
-              <th>Ticket</th><th>Symbol</th><th>Direction</th><th>Pattern</th><th>Combo</th>
+              <th>Opened</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Pattern</th><th>Combo</th>
               <th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
             </tr>
           </thead>
@@ -354,14 +362,23 @@
     }
 
     function renderHeartbeat(row) {
-      $("botStatus").textContent = row?.status || "offline";
-      $("lastSeen").textContent = row?.last_seen_at ? new Date(row.last_seen_at).toLocaleString() : "-";
+      const seen = row?.last_seen_at ? new Date(row.last_seen_at) : null;
+      const ageSeconds = seen ? Math.round((Date.now() - seen.getTime()) / 1000) : null;
+      const stale = ageSeconds === null || ageSeconds > 60;
+
+      $("botStatus").textContent = stale ? "manual mode" : (row?.status || "online");
+      $("lastSeen").textContent = seen ? `${seen.toLocaleString()} (${formatAge(ageSeconds)} ago)` : "-";
+      $("manualMode").textContent = stale
+        ? "Laptop/bot heartbeat stale. Manage active trades manually using virtual levels."
+        : "Heartbeat fresh. Bot is expected to manage virtual exits.";
+      $("manualMode").className = stale ? "manual-note warn" : "manual-note";
     }
 
     function renderActive(rows) {
       $("activeCount").textContent = rows.length;
       $("activeRows").innerHTML = rows.map((r) => `
         <tr>
+          <td>${r.opened_at ? new Date(r.opened_at).toLocaleString() : "-"}</td>
           <td>${safe(r.ticket)}</td>
           <td><span class="pill">${safe(r.symbol)}</span></td>
           <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
@@ -373,7 +390,7 @@
           <td class="${Number(r.floating_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.floating_profit)}</td>
           <td>${safe(r.current_status)}</td>
         </tr>
-      `).join("") || emptyRow(10);
+      `).join("") || emptyRow(11);
     }
 
     function renderPatterns(rows) {
@@ -419,6 +436,15 @@
     function money(value) {
       const n = Number(value || 0);
       return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+    }
+
+    function formatAge(seconds) {
+      if (!Number.isFinite(seconds)) return "unknown";
+      if (seconds < 60) return `${seconds}s`;
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m`;
+      const hours = Math.floor(minutes / 60);
+      return `${hours}h`;
     }
 
     function emptyRow(cols) {
