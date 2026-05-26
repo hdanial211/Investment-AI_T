@@ -221,6 +221,10 @@ create table if not exists public.account_settings (
   max_total_trades integer default 5,
   max_risk_percent numeric default 2.0,
 
+  -- Symbol mapping (broker-specific tick names)
+  symbol_xauusd text default 'XAUUSD',
+  symbol_eurusd text default 'EURUSD',
+
   updated_at timestamptz not null default now(),
   updated_by text default 'dashboard'
 );
@@ -233,6 +237,12 @@ begin
   end if;
   if not exists (select 1 from information_schema.columns where table_name='account_settings' and column_name='mt5_path') then
     alter table public.account_settings add column mt5_path text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='account_settings' and column_name='symbol_xauusd') then
+    alter table public.account_settings add column symbol_xauusd text default 'XAUUSD';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='account_settings' and column_name='symbol_eurusd') then
+    alter table public.account_settings add column symbol_eurusd text default 'EURUSD';
   end if;
 end $$;
 

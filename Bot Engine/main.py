@@ -380,13 +380,15 @@ def startup_checks(connector: MT5Connector, acct_settings: Optional[AccountSetti
         else:
             logger.warning("⚠ Risk review enabled but risk model is not available")
 
-    # 3. Symbol availability
-    for sym in config.SYMBOLS:
+    # 3. Symbol availability (use account-specific symbol names)
+    symbols = acct_settings.get_symbols()
+    logger.info(f"Symbols for this account: {symbols}")
+    for sym in symbols:
         tick = connector.get_tick(sym)
         if tick:
             logger.info(f"✔ Symbol {sym}: Bid={tick['bid']:.5f}")
         else:
-            logger.warning(f"⚠ Cannot get tick for {sym}")
+            logger.warning(f"⚠ Cannot get tick for {sym} — check nama tick broker anda")
 
     # 4. Account info
     account = connector.get_account_info()
@@ -424,7 +426,9 @@ def main():
         logger.critical("Startup checks failed. Exiting.")
         sys.exit(1)
 
-    logger.info(f"Trading symbols: {config.SYMBOLS}")
+    # Use account-specific symbols
+    trading_symbols = acct_settings.get_symbols()
+    logger.info(f"Trading symbols: {trading_symbols}")
     logger.info(f"Account ID:      {config.ACCOUNT_ID}")
     logger.info(f"Loop interval:   {config.LOOP_INTERVAL}s")
     logger.info(f"Risk per trade:  {config.MAX_RISK_PERCENT}%")
@@ -454,8 +458,9 @@ def main():
             )
             break
 
-        # Run cycle for each configured symbol
-        for symbol in config.SYMBOLS:
+        # Run cycle for each configured symbol (account-specific)
+        trading_symbols = acct_settings.get_symbols()
+        for symbol in trading_symbols:
             if _shutdown_requested:
                 break
             try:

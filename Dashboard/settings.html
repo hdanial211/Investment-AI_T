@@ -441,6 +441,19 @@
           </div>
         </div>
 
+        <!-- Symbol Mapping -->
+        <label style="margin-bottom:10px">Symbol Mapping <span style="color:var(--muted);font-weight:400;font-size:0.8rem">(nama tick ikut broker)</span></label>
+        <div class="form-row" style="margin-bottom:18px">
+          <div class="field-group">
+            <label>XAUUSD (Gold)</label>
+            <input id="f_sym_xauusd" value="${safe(acc.symbol_xauusd || 'XAUUSD')}" placeholder="e.g. XAUUSD, XAUUSDm, GOLD">
+          </div>
+          <div class="field-group">
+            <label>EURUSD</label>
+            <input id="f_sym_eurusd" value="${safe(acc.symbol_eurusd || 'EURUSD')}" placeholder="e.g. EURUSD, EURUSDm, EURUSD.s">
+          </div>
+        </div>
+
         <!-- Trade Style Cards -->
         <label style="margin-bottom:10px">Trade Styles</label>
         <div class="style-grid">
@@ -530,6 +543,8 @@
         mt5_password: $("f_mt5password").value,
         mt5_server: $("f_mt5server").value.trim(),
         mt5_path: $("f_mt5path").value.trim(),
+        symbol_xauusd: $("f_sym_xauusd").value.trim() || "XAUUSD",
+        symbol_eurusd: $("f_sym_eurusd").value.trim() || "EURUSD",
         enabled: $("masterSwitch").classList.contains("on"),
 
         scalping_enabled: getToggle("scalping_enabled"),

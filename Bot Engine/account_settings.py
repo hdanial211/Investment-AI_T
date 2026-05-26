@@ -37,6 +37,8 @@ _DEFAULTS = {
     "swing_max_trades": config.MAX_TRADES_PER_PAIR,
     "max_total_trades": config.MAX_TRADES_PER_PAIR * len(config.SYMBOLS),
     "max_risk_percent": config.MAX_RISK_PERCENT,
+    "symbol_xauusd": "XAUUSD",
+    "symbol_eurusd": "EURUSD",
 }
 
 
@@ -87,6 +89,13 @@ class AccountSettings:
         """Get MT5 terminal path for this account."""
         self._maybe_refresh()
         return str(self._cache.get("mt5_path", config.MT5_PATH) or config.MT5_PATH)
+
+    def get_symbols(self) -> list:
+        """Get broker-specific symbol names for this account."""
+        self._maybe_refresh()
+        xau = str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
+        eur = str(self._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
+        return [xau, eur]
 
     def is_style_enabled(self, trade_style: str) -> bool:
         """Check if SCALPING/INTRADAY/SWING is enabled for this account."""
