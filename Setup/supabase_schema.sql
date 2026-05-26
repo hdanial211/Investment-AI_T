@@ -272,6 +272,11 @@ create policy "dashboard update account settings"
   using (true)
   with check (true);
 
+create policy "dashboard delete account settings"
+  on public.account_settings for delete
+  to anon
+  using (true);
+
 -- Service role full access
 drop policy if exists "bot full access account settings" on public.account_settings;
 
