@@ -19,7 +19,7 @@ def fetch_and_apply_system_settings() -> bool:
     """
     try:
         url = config.SUPABASE_URL.rstrip("/")
-        key = config.SUPABASE_KEY
+        key = config.SUPABASE_ANON_KEY
         if not url or not key:
             logger.warning("Supabase URL or Key missing in .env. Skipping system settings load.")
             return False
