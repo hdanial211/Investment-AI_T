@@ -38,18 +38,7 @@ if ([string]::IsNullOrWhiteSpace($Login)) {
     $Login = "12345678" # Default placeholder in config
 }
 
-$SecurePassword = Read-Host "MT5 password (Required to connect to broker)" -AsSecureString
-$PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
-try {
-    $Password = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($PasswordPtr)
-}
-finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($PasswordPtr)
-}
-
-if ([string]::IsNullOrWhiteSpace($Password)) {
-    throw "MT5 password is required to connect to the broker."
-}
+$Password = ""
 
 $Server = Read-Host "MT5 server [Press Enter to pull dynamically from Supabase Dashboard]"
 if ([string]::IsNullOrWhiteSpace($Server)) {

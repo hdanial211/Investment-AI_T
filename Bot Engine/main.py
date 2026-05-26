@@ -326,14 +326,17 @@ def startup_checks(connector: MT5Connector, acct_settings: Optional[AccountSetti
     login_val = None
     server_val = None
     path_val = None
+    password_val = None
     if acct_settings:
         # Accessing properties triggers _maybe_refresh() which pulls from Supabase
         s_login = acct_settings.mt5_login
+        s_password = acct_settings.mt5_password
         s_server = acct_settings.mt5_server
         s_path = acct_settings.mt5_path
         if s_login and s_login != "12345678" and s_login != "":
             try:
                 login_val = int(s_login)
+                password_val = s_password
                 server_val = s_server
                 path_val = s_path
                 logger.info(f"Using dynamic MT5 credentials from Supabase: Account #{login_val} on '{server_val}'")
@@ -350,10 +353,12 @@ def startup_checks(connector: MT5Connector, acct_settings: Optional[AccountSetti
 
     # 1. MT5 connection
     logger.info("Checking MT5 connection...")
-    if connector.connect(login=login_val, server=server_val, path=path_val):
+    if connector.connect(login=login_val, password=password_val, server=server_val, path=path_val):
         logger.info("✔ MT5 connected")
+        acct_settings.update_connection_status(connected=True)
     else:
         logger.critical("✘ MT5 connection failed")
+        acct_settings.update_connection_status(connected=False, error_msg="Sila letak path yang betul atau check password")
         all_ok = False
 
     # 2. Cloud AI

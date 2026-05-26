@@ -362,10 +362,11 @@
 
   <script>
     const DEFAULT_SUPABASE_URL = "https://kusyjtpcjyflxgfcqenb.supabase.co";
+    const DEFAULT_SUPABASE_ANON = "sb_publishable_Pdf-F-j3PH3keLsZ8ZoEZA_tbotGoxM";
     const $ = (id) => document.getElementById(id);
     const state = {
       url: localStorage.getItem("supabaseUrl") || DEFAULT_SUPABASE_URL,
-      anon: localStorage.getItem("supabaseAnon") || "",
+      anon: localStorage.getItem("supabaseAnon") || DEFAULT_SUPABASE_ANON,
     };
 
     $("supabaseUrl").value = state.url;

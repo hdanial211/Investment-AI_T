@@ -246,11 +246,12 @@
 
   <script>
     const DEFAULT_SUPABASE_URL = "https://kusyjtpcjyflxgfcqenb.supabase.co";
+    const DEFAULT_SUPABASE_ANON = "sb_publishable_Pdf-F-j3PH3keLsZ8ZoEZA_tbotGoxM";
     const $ = (id) => document.getElementById(id);
 
     const state = {
       url: localStorage.getItem("supabaseUrl") || DEFAULT_SUPABASE_URL,
-      anon: localStorage.getItem("supabaseAnon") || "",
+      anon: localStorage.getItem("supabaseAnon") || DEFAULT_SUPABASE_ANON,
       accounts: [],
       activeTab: null,
     };
@@ -314,6 +315,18 @@
         }
       } catch (err) {
         showStatus(`Load failed: ${err.message}`, "error");
+        $("formContainer").innerHTML = `
+          <div style="padding: 20px; border: 1px solid var(--red); border-radius: 12px; background: rgba(173,79,67,0.1); margin-top: 20px;">
+            <h3 style="color: var(--red); margin-top: 0;">❌ Gagal Connect ke Supabase</h3>
+            <p>Sebab utama "Add Account" atau list akaun hilang adalah kerana dashboard gagal bersambung dengan database anda.</p>
+            <p>Sila periksa <b>Supabase URL</b> dan <b>Anon Key</b> di bahagian atas:</p>
+            <ul>
+              <li>Pastikan URL betul (tiada typo).</li>
+              <li>Pastikan Anon Key adalah betul (selalunya panjang dan bermula dengan <code>eyJ...</code>).</li>
+            </ul>
+            <p style="color: var(--muted); font-size: 0.85rem;">Error dari server: ${err.message}</p>
+          </div>
+        `;
       }
     }
 
@@ -353,6 +366,7 @@
         account_id: accId,
         account_label: `Account ${nextNum}`,
         mt5_login: "",
+        mt5_password: "",
         mt5_server: "",
         mt5_path: "",
         enabled: true,
@@ -410,12 +424,21 @@
             <input id="f_mt5server" value="${safe(acc.mt5_server || "")}" placeholder="e.g. RoboForex-Pro">
           </div>
           <div class="field-group">
+            <label>MT5 Password</label>
+            <input id="f_mt5password" type="password" value="${safe(acc.mt5_password || "")}" placeholder="Enter MT5 password">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group" style="flex:2;">
             <label>MT5 Terminal Path</label>
             <input id="f_mt5path" value="${safe(acc.mt5_path || "")}" placeholder="e.g. C:/Program Files/MetaTrader 5/terminal64.exe">
           </div>
-        </div>
-        <div style="padding:8px 12px;margin-bottom:14px;border-radius:10px;background:rgba(173,79,67,0.08);border:1px solid rgba(173,79,67,0.18);color:var(--red);font-size:0.78rem;font-weight:700">
-          🔒 MT5 Password stays in local .env on the laptop — NEVER stored in Supabase for security.
+          <div class="field-group" style="flex:1;">
+            <label>Connection Status</label>
+            <div style="padding:12px; border-radius:8px; background: rgba(0,0,0,0.03); border:1px solid var(--line); font-size:0.9rem;">
+              ${acc.mt5_status === 'Connected' ? '<span style="color:var(--green);font-weight:bold;">✅ Connected</span>' : (acc.mt5_status === 'Failed' ? '<span style="color:var(--red);font-weight:bold;">❌ Failed</span><br><span style="color:var(--red);font-size:0.8rem;display:block;margin-top:4px;">' + safe(acc.mt5_last_error) + '</span>' : '<span style="color:var(--muted)">Unknown (Bot belum run)</span>')}
+            </div>
+          </div>
         </div>
 
         <!-- Trade Style Cards -->
@@ -504,6 +527,7 @@
         account_id: accId,
         account_label: $("f_label").value.trim() || "Account",
         mt5_login: $("f_mt5login").value.trim(),
+        mt5_password: $("f_mt5password").value,
         mt5_server: $("f_mt5server").value.trim(),
         mt5_path: $("f_mt5path").value.trim(),
         enabled: $("masterSwitch").classList.contains("on"),

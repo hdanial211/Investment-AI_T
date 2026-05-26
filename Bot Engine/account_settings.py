@@ -71,6 +71,12 @@ class AccountSettings:
         return str(self._cache.get("mt5_login", config.MT5_LOGIN))
 
     @property
+    def mt5_password(self) -> str:
+        """Get MT5 password for this account."""
+        self._maybe_refresh()
+        return str(self._cache.get("mt5_password", config.MT5_PASSWORD))
+
+    @property
     def mt5_server(self) -> str:
         """Get MT5 broker server for this account."""
         self._maybe_refresh()
@@ -134,6 +140,7 @@ class AccountSettings:
             "account_id": self.account_id,
             "enabled": self.enabled,
             "mt5_login": self.mt5_login,
+            "mt5_password": "***" if self.mt5_password else "",
             "mt5_server": self.mt5_server,
             "scalping": f"{'ON' if self.is_style_enabled('SCALPING') else 'OFF'} | lot={self.get_lot_for_style('SCALPING')} | max={self.get_max_trades_for_style('SCALPING')}",
             "intraday": f"{'ON' if self.is_style_enabled('INTRADAY') else 'OFF'} | lot={self.get_lot_for_style('INTRADAY')} | max={self.get_max_trades_for_style('INTRADAY')}",
@@ -216,6 +223,38 @@ class AccountSettings:
         except Exception as e:
             logger.warning(f"AccountSettings: fetch failed: {e}. Using cached settings.")
             self._supabase_available = False
+
+    def update_connection_status(self, connected: bool, error_msg: str = "") -> None:
+        """Update the MT5 connection status in Supabase for this account."""
+        if not config.SUPABASE_SYNC_ENABLED:
+            return
+        url = config.SUPABASE_URL.rstrip("/")
+        key = config.SUPABASE_SERVICE_ROLE_KEY
+        if not url or not key:
+            return
+        try:
+            import requests
+            from datetime import datetime
+            endpoint = f"{url}/rest/v1/account_settings"
+            payload = {
+                "account_id": self.account_id,
+                "mt5_status": "Connected" if connected else "Failed",
+                "mt5_last_error": error_msg,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            requests.post(
+                endpoint,
+                headers={
+                    "apikey": key,
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                    "Prefer": "resolution=merge-duplicates"
+                },
+                json=payload,
+                timeout=config.SUPABASE_REQUEST_TIMEOUT
+            )
+        except Exception as e:
+            logger.warning(f"AccountSettings: Failed to update connection status: {e}")
 
     def force_refresh(self) -> None:
         """Force a refresh from Supabase on next property access."""

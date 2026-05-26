@@ -195,8 +195,11 @@ create table if not exists public.account_settings (
   account_id text primary key,
   account_label text default 'Account',
   mt5_login text,
+  mt5_password text,
   mt5_server text,
   mt5_path text,
+  mt5_status text,
+  mt5_last_error text,
   enabled boolean default true,
 
   -- Trade style toggles
