@@ -1,7 +1,7 @@
 # Planning: Migrasi AI dari Ollama ke OpenRouter / Hugging Face + Deploy
 
 Tarikh: 2026-05-25
-Status: Phase 1-7 DONE in code, Phase 8B/8C DONE in code. Supabase/live dashboard setup dan result live sebenar masih perlu run/test.
+Status: Phase 1-7 DONE in code, Phase 8B/8C DONE in code, Phase 9 readiness checker DONE in code. Phase 10 production cloud activation is next. Supabase/live dashboard setup dan result live sebenar masih perlu run/test.
 
 Matlamat utama:
 - Buang dependency Ollama local.
@@ -11,6 +11,11 @@ Matlamat utama:
 - Runtime utama sekarang: laptop Windows running 24 jam.
 - Vercel HTML digunakan sebagai fallback dashboard/manual guide jika laptop offline.
 - Supabase digunakan sebagai cloud sync layer untuk active trades, heartbeat, virtual SL/TP, dan manual status.
+- Supabase project production: `Investment_AI` / `https://kusyjtpcjyflxgfcqenb.supabase.co`.
+- Vercel production dashboard: `https://investment-ai-t.vercel.app` dan deploy ikut latest GitHub push.
+- Target next architecture: symbol -> H4/H1/M30/M15/M5/M1 price -> pattern engine -> chart image vision AI -> BUY/SELL/HOLD + SCALPING/INTRADAY/SWING -> MT5 order.
+- Responsibility split wajib: laptop 24 jam dapat info AI, trade dekat MT5, dan update Supabase; Vercel server hanya baca Supabase untuk dashboard website.
+- Fully automation requirement: normal runtime tidak boleh bergantung pada user upload screenshot, user tekan refresh, atau user decide entry. Manual hanya untuk setup, emergency, dan review.
 - Semua SL/TP/trailing stop adalah virtual dalam sistem, bukan fixed broker-side level dalam MT5.
 - Dashboard realtime perlu tunjuk pattern mana digunakan untuk setiap trade, termasuk count pattern A/B/C, win/loss, dan status trade semasa.
 
@@ -36,6 +41,11 @@ Ringkasan ini untuk cepat nampak apa yang sudah siap dan apa yang belum.
 - [x] Phase 7 code: Supabase sync interface, heartbeat, active trade snapshot, trade pattern usage, pattern stats, dan Vercel read-only dashboard page sudah dibuat.
 - [x] Phase 7 code: Terminal dashboard sudah tambah active pattern, virtual SL/TP/trailing, floating P/L, status, dan pattern usage ranking.
 - [x] Phase 7 setup: `Setup/supabase_schema.sql` dan `Setup/enable_supabase_sync.bat` sudah dibuat.
+- [x] Phase 9 readiness: `Setup/live_readiness_check.py` dan `Setup/live_readiness_check.bat` sudah dibuat untuk pre-flight 24-hour laptop run.
+- [x] Production Supabase URL sudah ditetapkan dalam docs/setup/dashboard: `https://kusyjtpcjyflxgfcqenb.supabase.co`.
+- [x] Production Vercel URL sudah dicatat: `https://investment-ai-t.vercel.app`.
+- [x] MTF runtime fetch sudah dinaikkan ke `H4,H1,M30,M15,M5,M1`.
+- [x] AI signal JSON sudah tambah `trade_style` untuk `SCALPING`, `INTRADAY`, atau `SWING`.
 
 ### PARTIAL / PERLU LIVE TEST
 - [ ] (partial) Virtual SL/TP/trailing sudah compile dan smoke-test, tetapi belum live-test lama di Windows + MT5.
@@ -45,11 +55,17 @@ Ringkasan ini untuk cepat nampak apa yang sudah siap dan apa yang belum.
 - [ ] (partial) Cloud AI key sudah pernah diuji manual, tetapi `.env` production di laptop Windows perlu isi sendiri.
 
 ### NEXT
-- [ ] Run `Setup/supabase_schema.sql` dalam Supabase SQL Editor.
-- [ ] Run `Setup/enable_supabase_sync.bat` untuk isi `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SYNC_ENABLED=True`, dan `PATTERN_USAGE_SYNC_ENABLED=True` dalam local `.env`.
-- [ ] Deploy `Dashboard/index.html` ke Vercel dan masukkan Supabase URL + anon key di browser dashboard.
-- [ ] Live test `start_bot.bat` di laptop Windows selepas pull latest `master`.
-- [ ] Run one-year backtest sebenar dan generate `data setahun dari 25may2026.html`.
+- [ ] Phase 10A: Run `Setup/supabase_schema.sql` dalam Supabase SQL Editor project `Investment_AI`.
+- [ ] Phase 10B: Run `Setup/enable_supabase_sync.bat` untuk isi `SUPABASE_ANON_KEY` dan `SUPABASE_SERVICE_ROLE_KEY` dalam local `.env`.
+- [ ] Phase 10C: Push latest ke GitHub supaya Vercel update `https://investment-ai-t.vercel.app`.
+- [ ] Phase 10D: Buka Vercel dashboard, paste Supabase anon key sahaja, dan confirm no frontend service role leak.
+- [ ] Phase 10E: Run `Setup/live_readiness_check.bat` di laptop Windows dan selesaikan semua `[FAIL]`.
+- [ ] Phase 10F: Live test `start_bot.bat` di laptop Windows selepas pull latest `master`.
+- [ ] Phase 10G: Run one-year backtest sebenar dan generate `data setahun dari 25may2026.html`.
+- [ ] Phase 12A: Decide sumber chart image automation: `browser_automation` atau `mt5_automation`.
+- [ ] Phase 12B: Pilih vision-capable AI provider/model dan test image prompt.
+- [ ] Phase 12C: Set `CHART_IMAGE_SOURCE=browser_automation` atau `CHART_IMAGE_SOURCE=mt5_automation`.
+- [ ] Phase 12D: Confirm no manual screenshot/upload needed during 24-hour run.
 
 ---
 
@@ -131,7 +147,7 @@ Nota keselamatan:
 Ini perlu jika mahu Vercel/dashboard baca active trade, virtual SL/TP, pattern usage, dan heartbeat:
 
 ```ini
-SUPABASE_URL=local_only
+SUPABASE_URL=https://kusyjtpcjyflxgfcqenb.supabase.co
 SUPABASE_ANON_KEY=local_only_for_frontend_read
 SUPABASE_SERVICE_ROLE_KEY=local_only_backend_only
 SUPABASE_SYNC_ENABLED=True
@@ -139,10 +155,10 @@ SUPABASE_MACHINE_ID=laptop-main
 ```
 
 Yang saya perlukan daripada awak:
-- Supabase project URL.
+- Supabase project URL sudah confirm: `https://kusyjtpcjyflxgfcqenb.supabase.co`.
 - Supabase anon key.
 - Supabase service role key untuk backend bot sahaja.
-- Confirm dashboard Vercel nanti read-only atau ada manual notes/actions.
+- Dashboard Vercel production sudah confirm: `https://investment-ai-t.vercel.app` dan read-only/manual fallback.
 
 Security rule:
 - `SUPABASE_SERVICE_ROLE_KEY` tidak boleh masuk frontend/Vercel public client.
@@ -344,10 +360,16 @@ For each symbol: XAUUSD, EURUSD
 Get tick price from MT5
   |
   v
-Get H4/H1/M15/M5 data
+Get H4/H1/M30/M15/M5/M1 data
   |
   v
 Calculate indicators + pattern engines
+  |
+  v
+Build chart context:
+  +-- price levels from H4/H1/M30/M15/M5/M1
+  +-- detected patterns
+  +-- optional chart image / screenshot in future vision phase
   |
   v
 Build pattern usage snapshot
@@ -764,7 +786,7 @@ AI_TEMPERATURE=0.1
 AI_MAX_TOKENS=256
 
 # Supabase Sync
-SUPABASE_URL=CHANGE_ME
+SUPABASE_URL=https://kusyjtpcjyflxgfcqenb.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=CHANGE_ME
 SUPABASE_ANON_KEY=CHANGE_ME
 SUPABASE_SYNC_ENABLED=True
@@ -1050,8 +1072,9 @@ Phase 7: Supabase + Vercel
 - [x] Add realtime pattern usage dashboard widgets.
 - [x] Add trade timeline showing each ticket and pattern used.
 - [x] Build Vercel dashboard/manual fallback page.
+- [x] Production Vercel URL confirmed: `https://investment-ai-t.vercel.app`.
 - [ ] Live-test Supabase write/read dengan real project keys.
-- [ ] Deploy dashboard page ke Vercel.
+- [ ] Push latest GitHub dan confirm Vercel production update.
 
 Phase 8: Testing
 - [x] Compile + virtual exit smoke test untuk baseline Phase 6.
@@ -1104,11 +1127,151 @@ Phase 8C: Backtest date memory / no repeat yearly test
 - [ ] Run verified full-year MT5 history backtest dan generate report real result.
 
 Phase 9: 24-hour laptop run
+- [x] Add `Setup/live_readiness_check.py` untuk semak file penting, package Python, `.env`, AI key, Supabase REST, virtual exit safety, lot/risk cap, dan Windows power-plan reminder.
+- [x] Add `Setup/live_readiness_check.bat` sebagai one-click pre-flight sebelum run bot live.
+- [ ] Run `Setup/live_readiness_check.bat` on Windows trading laptop.
+- [ ] Fix semua `[FAIL]`; `[WARN]` boleh diterima hanya kalau memang sengaja.
 - [ ] Disable Windows sleep.
 - [ ] Keep laptop plugged in.
+- [ ] Confirm MT5 terminal logged in kepada demo/small-lot account yang betul.
+- [ ] Confirm broker symbol exact name untuk semua `SYMBOLS`.
+- [ ] Confirm `MAX_LOT` kekal kecil untuk first 24-hour validation.
 - [ ] Run bot 24 hours on demo/small lot.
 - [ ] Monitor Supabase/Vercel heartbeat.
 - [ ] Monitor manual fallback accuracy.
+
+Phase 9 runbook:
+```text
+1. Pull latest repo di laptop Windows.
+2. Run Setup\live_readiness_check.bat.
+3. Kalau ada [FAIL], fix dahulu. Jangan start bot live.
+4. Kalau Supabase belum siap dan mahu test local sahaja, boleh run:
+   Setup\live_readiness_check.bat --skip-supabase
+5. Set Windows sleep kepada Never while plugged in.
+6. Buka MT5 dan confirm account/symbol market watch.
+7. Run start_bot.bat.
+8. Biarkan 24 jam; jangan close background Python engine.
+9. Pantau Dashboard terminal + Vercel heartbeat + logs/bot.log.
+10. Selepas 24 jam, simpan keputusan: total cycle, trade count, open/closed trade, virtual SL/TP/trailing behavior, Supabase heartbeat gap, AI timeout/invalid JSON count.
+```
+
+Phase 10: Supabase/Vercel production activation
+- [ ] 10A. Supabase schema activation:
+  - Open Supabase project `Investment_AI`.
+  - Go to SQL Editor.
+  - Paste and run `Setup/supabase_schema.sql`.
+  - Confirm tables exist: `bot_heartbeat`, `active_trades`, `trade_pattern_usage`, `pattern_usage_stats`, `trade_events`.
+  - Confirm there is no error from duplicate table/policy/index creation.
+- [ ] 10B. Local bot write credentials:
+  - Run `Setup\enable_supabase_sync.bat` on Windows laptop.
+  - Press Enter for default Supabase URL: `https://kusyjtpcjyflxgfcqenb.supabase.co`.
+  - Paste `SUPABASE_ANON_KEY`.
+  - Paste `SUPABASE_SERVICE_ROLE_KEY`.
+  - Confirm local `Bot Engine\.env` has `SUPABASE_SYNC_ENABLED=True`.
+  - Confirm local `Bot Engine\.env` has `PATTERN_USAGE_SYNC_ENABLED=True`.
+  - Never paste service role key into Vercel/browser/GitHub.
+- [ ] 10C. Vercel latest GitHub deployment:
+  - Push latest repo to GitHub.
+  - Open `https://investment-ai-t.vercel.app`.
+  - Confirm page source/latest UI contains default Supabase URL.
+  - Paste Supabase anon key only.
+  - Click `Save & Refresh`.
+  - Expected before bot runs: dashboard may show `Config/Error`, `manual mode`, or empty tables. That is acceptable until bot writes heartbeat.
+- [ ] 10D. Supabase write/read test:
+  - Run `Setup\live_readiness_check.bat` without `--skip-supabase`.
+  - If Supabase REST fails, check schema first, then service role key, then RLS/policies.
+  - Start bot for a short 5-10 minute dry live session on demo/small lot.
+  - Confirm `bot_heartbeat` updates in Supabase Table Editor.
+  - Confirm Vercel dashboard changes from stale/manual to online/fresh heartbeat.
+- [ ] 10E. Security gate:
+  - GitHub must not contain `.env`.
+  - Vercel/browser must only use anon key.
+  - Service role key exists only in local Windows `Bot Engine\.env`.
+  - Dashboard remains read-only; no close-trade executor in frontend.
+- [ ] 10F. Ready for Phase 11 only if:
+  - Supabase heartbeat updates.
+  - Vercel reads heartbeat.
+  - Active trade rows appear when there is an open MT5 position.
+  - Pattern stats update after a trade closes.
+  - Readiness checker has zero `[FAIL]`.
+
+Phase 10 command order:
+```bat
+Setup\enable_supabase_sync.bat
+Setup\live_readiness_check.bat
+start_bot.bat
+```
+
+Phase 11: Controlled 24-hour validation
+- [ ] Run only after Phase 10 passes.
+- [ ] Use demo or smallest acceptable lot.
+- [ ] Keep Windows plugged in and sleep disabled.
+- [ ] Monitor Vercel heartbeat every few hours.
+- [ ] Save final 24-hour evidence: `logs/bot.log`, `logs/trades.csv`, Supabase screenshots/export, Vercel dashboard screenshot, and MT5 account history.
+- [ ] Decide after 24 hours whether to tune `VIRTUAL_EXIT_CHECK_INTERVAL` from `10` seconds to `5` seconds.
+
+Phase 12: Vision AI chart translation
+- [ ] Current code status:
+  - Bot already reads MT5 tick price.
+  - Bot now requests `H4,H1,M30,M15,M5,M1`.
+  - Pattern engine detects structured patterns from OHLCV data.
+  - Text AI returns `BUY`, `SELL`, or `HOLD`.
+  - Text AI now also returns `trade_style`: `SCALPING`, `INTRADAY`, or `SWING`.
+- [ ] Missing for the exact target:
+  - Automatic chart screenshot source from either `browser_automation` or `mt5_automation`.
+  - Image encoding/upload pipeline.
+  - Vision-capable AI request format.
+  - Merge rule between pattern engine and image interpretation.
+- [ ] Desired final flow:
+  - `symbol`
+  - `current price`
+  - `H4/H1/M30/M15/M5/M1 candles`
+  - `pattern engine result`
+  - `chart screenshot`
+  - `vision AI translation`
+  - `decision AI`
+  - `SCALPING/INTRADAY/SWING suitability`
+  - `MT5 BUY/SELL order`
+- [ ] Allowed screenshot automation sources:
+  - `browser_automation`: bot opens TradingView/chart page in browser automation and takes screenshot. Best match with the example screenshot style, but may need login/session stability.
+  - `mt5_automation`: bot triggers or reads chart screenshot generated automatically from MT5/laptop side. Best match with execution terminal and 24-hour autonomous run.
+  - `manual`: allowed only for testing the vision prompt, not for autonomous 24-hour run.
+- [ ] Full automation rule:
+  - Bot must collect data itself.
+  - Bot must capture chart image itself.
+  - Bot must call AI itself.
+  - Bot must place MT5 order itself after risk approval.
+  - Bot must update Supabase itself.
+  - Vercel must refresh/read Supabase as dashboard only.
+  - User should only monitor, not operate the normal loop.
+- [ ] Runtime responsibility split:
+  - Laptop 24 jam:
+    - collect MT5 price/candles,
+    - get chart screenshot,
+    - call AI,
+    - place BUY/SELL in MT5,
+    - write heartbeat/trades/patterns to Supabase.
+  - Vercel server:
+    - read Supabase only,
+    - show dashboard website,
+    - never place/close MT5 trades,
+    - never store service role key.
+- [ ] Vision AI must answer in strict JSON:
+```json
+{
+  "action": "BUY|SELL|HOLD",
+  "confidence": 0.0,
+  "trade_style": "SCALPING|INTRADAY|SWING",
+  "image_bias": "bullish|bearish|sideways",
+  "support": [],
+  "resistance": [],
+  "reason": "short explanation"
+}
+```
+- [ ] Safety rule:
+  - If text pattern engine says BUY but image AI says SELL, default is `HOLD` unless confidence and risk review agree.
+  - If screenshot is stale, unreadable, or wrong symbol/timeframe, default is `HOLD`.
+  - Screenshot AI cannot override max risk, cooling-off, max trade count, or virtual exit safety.
 
 ---
 
@@ -1139,11 +1302,12 @@ Fallback: Hugging Face
 
 Need confirm / setup untuk next phase:
 ```text
-1. Supabase URL, anon key, dan service role key.
-2. Dashboard Vercel read-only atau ada manual notes/actions.
-3. Confirm virtual exit check interval kekal 10s atau mahu 5s.
+1. Run Supabase schema in project Investment_AI.
+2. Fill local Windows Supabase anon key + service role key via Setup\enable_supabase_sync.bat.
+3. Confirm Vercel production shows latest GitHub push.
 4. Confirm broker symbol exact di laptop Windows selepas pull latest.
-5. Run live demo/small lot test untuk validate virtual SL/TP.
+5. Run short Supabase heartbeat test before 24-hour validation.
+6. Decide chart image source for Phase 12 vision AI.
 ```
 
 ---

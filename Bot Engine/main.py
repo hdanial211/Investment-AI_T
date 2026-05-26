@@ -23,10 +23,12 @@ from typing import Optional
 import config
 from mt5_connector import MT5Connector
 from strategy import calculate_multi_indicators
-from ai_engine import get_ai_signal, review_trade_risk, check_ai_health
+from ai_engine import get_ai_signal, review_trade_risk, check_ai_health, merge_decisions
 from risk_manager import RiskManager
 from logger import setup_logging, TradeLogger, generate_performance_report
 from trade_memory import TradeMemory
+from chart_capture import capture_charts, cleanup_old_screenshots
+from vision_engine import get_vision_signal
 from trade_management import ActiveTradeManager
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -85,7 +87,7 @@ def run_cycle(
     # ── STEP 1.5: [Moved Trailing Stop after ATR calculation] ─────────────────
 
     # ── STEP 2: Get Multi-Timeframe OHLCV bars and calculate indicators ──────
-    mdf = connector.get_multi_timeframe(symbol, timeframes=["H4", "H1", "M15", "M5"], bars=100)
+    mdf = connector.get_multi_timeframe(symbol, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=100)
     if not mdf or len(mdf) < 4:
         logger.error(f"Failed to get multi-timeframe data for {symbol}")
         trade_logger.log_skipped(symbol, "Missing MTF data")
@@ -100,6 +102,15 @@ def run_cycle(
     # ── STEP 2.5: Broker trailing stop only when broker-side SL/TP is enabled ─
     if config.USE_TRAILING_STOP and config.USE_BROKER_SL_TP:
         connector.update_trailing_stop(symbol, atr=indicators.get("atr"))
+
+    # ── STEP 2.6: Chart screenshot capture (if vision AI enabled) ────────────
+    chart_paths = {}
+    if config.VISION_AI_ENABLED:
+        try:
+            chart_paths = capture_charts(symbol, connector, config.CHART_IMAGE_TIMEFRAMES)
+            cleanup_old_screenshots(max_age_minutes=30)
+        except Exception as e:
+            logger.warning(f"[{symbol}] Chart capture failed: {e}. Vision AI will HOLD.")
 
     # ── STEP 3: Active trade manager checks each open ticket one-by-one ──────
     open_positions = connector.get_open_positions(symbol)
@@ -119,9 +130,24 @@ def run_cycle(
         trade_logger.log_skipped(symbol, risk_reason, indicators=indicators)
         return "skipped"
 
-    # ── STEP 5: Query AI ─────────────────────────────────────────────────────
-    logger.info("Querying AI model...")
-    signal = get_ai_signal(indicators, bid, ask, trade_memory, symbol)
+    # ── STEP 5: Query Text AI ────────────────────────────────────────────────
+    logger.info("Querying text AI model...")
+    text_signal = get_ai_signal(indicators, bid, ask, trade_memory, symbol)
+
+    # ── STEP 5.5: Query Vision AI + Merge (if enabled) ───────────────────────
+    if config.VISION_AI_ENABLED and chart_paths:
+        logger.info("Querying vision AI model...")
+        vision_signal = get_vision_signal(
+            symbol=symbol,
+            current_price=(bid + ask) / 2,
+            indicators=indicators,
+            chart_paths=chart_paths,
+            trade_memory=trade_memory,
+        )
+        pattern_bias = indicators.get("pattern_bias") or {}
+        signal = merge_decisions(text_signal, vision_signal, pattern_bias)
+    else:
+        signal = text_signal
 
     # ── STEP 6: Validate AI signal ───────────────────────────────────────────
     signal_valid, signal_reason = risk_mgr.validate_signal(signal)

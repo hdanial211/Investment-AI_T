@@ -126,8 +126,15 @@ AI_RETRIES=2
 AI_TEMPERATURE=0.1
 AI_MAX_TOKENS=256
 
+# Future Vision AI / Chart Screenshot
+VISION_AI_ENABLED=False
+CHART_IMAGE_SOURCE=browser_automation
+CHART_IMAGE_TIMEFRAMES=H4,H1,M30,M15,M5,M1
+TRADINGVIEW_CHART_URL=
+MT5_SCREENSHOT_DIR=chart_screenshots
+
 # Supabase Sync (read-only Vercel dashboard integration)
-SUPABASE_URL=
+SUPABASE_URL=https://kusyjtpcjyflxgfcqenb.supabase.co
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_SYNC_ENABLED=False

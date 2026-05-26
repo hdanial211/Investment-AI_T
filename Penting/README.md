@@ -162,7 +162,13 @@ Bot is LIVE. Press Ctrl+C to stop.
 
 The launcher opens `dashboard.py` automatically in the foreground.
 
-For remote read-only monitoring, deploy `Dashboard/index.html` to Vercel and run `Setup/supabase_schema.sql` once in Supabase. The browser dashboard uses only `SUPABASE_ANON_KEY`; never paste `SUPABASE_SERVICE_ROLE_KEY` into Vercel or frontend code.
+Remote read-only monitor production URL:
+
+```text
+https://investment-ai-t.vercel.app
+```
+
+Vercel is connected to GitHub, so it should follow the latest pushed version. Run `Setup/supabase_schema.sql` once in Supabase project `Investment_AI` (`https://kusyjtpcjyflxgfcqenb.supabase.co`). The browser dashboard uses only `SUPABASE_ANON_KEY`; never paste `SUPABASE_SERVICE_ROLE_KEY` into Vercel or frontend code.
 
 To enable bot-side Supabase writes on the laptop:
 

@@ -89,6 +89,22 @@ AI_MAX_TOKENS       = int(os.getenv("AI_MAX_TOKENS", "256"))
 AI_STARTUP_HEALTHCHECK = _env_bool("AI_STARTUP_HEALTHCHECK", "False")
 
 # ─────────────────────────────────────────────────────────────────────────────
+# FUTURE VISION AI / CHART SCREENSHOT SETTINGS
+# ─────────────────────────────────────────────────────────────────────────────
+VISION_AI_ENABLED        = _env_bool("VISION_AI_ENABLED", "False")
+CHART_IMAGE_SOURCE       = os.getenv("CHART_IMAGE_SOURCE", "mt5_automation").strip().lower()
+if CHART_IMAGE_SOURCE == "mt5":
+    CHART_IMAGE_SOURCE = "mt5_automation"
+CHART_IMAGE_TIMEFRAMES   = os.getenv("CHART_IMAGE_TIMEFRAMES", "H4,H1,M30,M15,M5,M1").split(",")
+TRADINGVIEW_CHART_URL    = os.getenv("TRADINGVIEW_CHART_URL", "").strip()
+MT5_SCREENSHOT_DIR       = os.getenv("MT5_SCREENSHOT_DIR", "chart_screenshots").strip()
+VISION_AI_MODEL          = os.getenv("VISION_AI_MODEL", "google/gemini-2.0-flash-001").strip()
+VISION_AI_MAX_TOKENS     = int(os.getenv("VISION_AI_MAX_TOKENS", "512"))
+VISION_AI_TIMEOUT        = int(os.getenv("VISION_AI_TIMEOUT", "60"))
+SCREENSHOT_MAX_AGE_SECONDS = int(os.getenv("SCREENSHOT_MAX_AGE_SECONDS", "120"))
+VISION_CYCLE_INTERVAL    = int(os.getenv("VISION_CYCLE_INTERVAL", "1"))  # run vision every N cycles
+
+# ─────────────────────────────────────────────────────────────────────────────
 # FUTURE SYNC / VIRTUAL EXIT SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
 SUPABASE_URL              = os.getenv("SUPABASE_URL", "").strip()
@@ -164,4 +180,9 @@ def validate():
         errors.append("HF_TOKEN is missing, so Hugging Face fallback will be unavailable.")
     if not USE_BROKER_SL_TP and not USE_VIRTUAL_SL_TP:
         errors.append("Both broker SL/TP and virtual SL/TP are disabled. This is unsafe.")
+    if VISION_AI_ENABLED:
+        if CHART_IMAGE_SOURCE not in ("mt5_automation", "browser_automation"):
+            errors.append(f"CHART_IMAGE_SOURCE={CHART_IMAGE_SOURCE} is invalid. Use mt5_automation or browser_automation.")
+        if not VISION_AI_MODEL:
+            errors.append("VISION_AI_MODEL is empty but VISION_AI_ENABLED=True.")
     return errors

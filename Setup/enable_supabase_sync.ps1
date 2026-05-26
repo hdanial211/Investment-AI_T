@@ -58,9 +58,10 @@ Write-Host "Run Setup\supabase_schema.sql in Supabase SQL Editor first."
 Write-Host "Never paste the service role key into Vercel/frontend."
 Write-Host ""
 
-$SupabaseUrl = Read-Host "Supabase project URL"
+$DefaultSupabaseUrl = "https://kusyjtpcjyflxgfcqenb.supabase.co"
+$SupabaseUrl = Read-Host "Supabase project URL [$DefaultSupabaseUrl]"
 if ([string]::IsNullOrWhiteSpace($SupabaseUrl)) {
-    throw "SUPABASE_URL is required."
+    $SupabaseUrl = $DefaultSupabaseUrl
 }
 
 $AnonKey = Read-Host "Supabase anon key"

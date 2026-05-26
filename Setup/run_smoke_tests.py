@@ -161,10 +161,116 @@ def test_vercel_dashboard_contains_live_trade_and_manual_fallback_widgets():
         "active_trades?select=*",
         "pattern_usage_stats?select=*",
         "trade_events?select=*",
+        "styleTag(r.trade_style)",
+        "visionTag(r.vision_bias)",
+        "<th>Style</th>",
+        "<th>Vision</th>",
     ]
 
     for fragment in required_fragments:
         assert fragment in html, f"Dashboard missing fragment: {fragment}"
+
+
+def test_screenshot_failure_becomes_hold():
+    """When screenshot capture fails, vision AI should return HOLD."""
+    import vision_engine
+
+    # Empty chart_paths simulates capture failure
+    result = vision_engine.get_vision_signal(
+        symbol="XAUUSD",
+        current_price=2300.0,
+        indicators=_fake_indicators("XAUUSD"),
+        chart_paths={},
+        trade_memory=None,
+    )
+    assert result["action"] == "HOLD"
+    assert result["confidence"] == 0.0
+
+
+def test_invalid_vision_json_becomes_hold():
+    """When vision AI returns invalid JSON, extraction should return None → HOLD."""
+    import vision_engine
+
+    result = vision_engine._extract_vision_json("this is not json at all")
+    assert result is None
+
+    result = vision_engine._extract_vision_json('{"action": invalid}')
+    assert result is None
+
+    # Valid JSON but nonsense action
+    validated = vision_engine._validate_vision_signal({"action": "MOON", "confidence": 5})
+    assert validated["action"] == "HOLD"
+    assert validated["confidence"] == 1.0
+
+
+def test_conflicting_text_image_decision_becomes_hold():
+    """When text AI says BUY and vision AI says SELL, merger should HOLD."""
+    ai_engine = _reload_ai_engine()
+
+    text_signal = {
+        "action": "BUY",
+        "confidence": 0.85,
+        "trade_style": "INTRADAY",
+        "reason": "text says buy",
+    }
+    vision_signal = {
+        "action": "SELL",
+        "confidence": 0.80,
+        "trade_style": "INTRADAY",
+        "image_bias": "bearish",
+        "support": [2290.0],
+        "resistance": [2310.0],
+        "reason": "vision says sell",
+    }
+    pattern_bias = {"bias": "none"}
+
+    merged = ai_engine.merge_decisions(text_signal, vision_signal, pattern_bias)
+    assert merged["action"] == "HOLD", f"Expected HOLD but got {merged['action']}"
+    assert merged["confidence"] == 0.0
+
+
+def test_valid_merged_decision_keeps_trade_style():
+    """When text and vision agree, trade_style from text AI is preserved."""
+    ai_engine = _reload_ai_engine()
+
+    text_signal = {
+        "action": "BUY",
+        "confidence": 0.85,
+        "trade_style": "SWING",
+        "reason": "text says buy",
+    }
+    vision_signal = {
+        "action": "BUY",
+        "confidence": 0.80,
+        "trade_style": "INTRADAY",
+        "image_bias": "bullish",
+        "support": [2290.0],
+        "resistance": [2310.0],
+        "reason": "vision agrees buy",
+    }
+    pattern_bias = {"bias": "bullish"}
+
+    merged = ai_engine.merge_decisions(text_signal, vision_signal, pattern_bias)
+    assert merged["action"] == "BUY"
+    assert merged["trade_style"] == "SWING"  # from text AI
+    assert merged["image_bias"] == "bullish"
+    assert merged["confidence"] > 0
+
+
+def test_supabase_disabled_does_not_crash_with_new_fields():
+    """Supabase disabled mode should not crash with new trade_style/vision_bias fields."""
+    from trade_management.supabase_sync import SupabaseSync
+
+    sync = SupabaseSync()
+    sync.upsert_active_trade({
+        "ticket": 9999,
+        "symbol": "XAUUSD",
+        "pattern_snapshot": {},
+        "trade_style": "SCALPING",
+        "vision_bias": "bullish",
+        "image_bias": "bullish",
+    })
+    # If we get here without exception, the test passes
 
 
 def run_all():
@@ -177,13 +283,30 @@ def run_all():
         test_pattern_usage_open_close_stats,
         test_supabase_disabled_never_raises,
         test_vercel_dashboard_contains_live_trade_and_manual_fallback_widgets,
+        test_screenshot_failure_becomes_hold,
+        test_invalid_vision_json_becomes_hold,
+        test_conflicting_text_image_decision_becomes_hold,
+        test_valid_merged_decision_keeps_trade_style,
+        test_supabase_disabled_does_not_crash_with_new_fields,
     ]
 
+    passed = 0
+    failed = 0
     for test in tests:
-        test()
-        print(f"PASS {test.__name__}")
+        try:
+            test()
+            print(f"PASS {test.__name__}")
+            passed += 1
+        except Exception as e:
+            print(f"FAIL {test.__name__}: {e}")
+            failed += 1
 
-    print("\nAll offline smoke tests passed.")
+    print(f"\n{passed}/{passed + failed} tests passed.")
+    if failed:
+        print(f"{failed} test(s) FAILED.")
+        return 1
+    print("All offline smoke tests passed.")
+    return 0
 
 
 def _fake_indicators(symbol: str) -> dict:

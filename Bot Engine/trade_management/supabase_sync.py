@@ -73,6 +73,8 @@ class SupabaseSync:
             "profit_lock_level": state.get("profit_lock_level"),
             "max_drawdown": state.get("max_drawdown"),
             "exit_reason": state.get("exit_reason"),
+            "trade_style": state.get("trade_style"),
+            "vision_bias": state.get("vision_bias") or state.get("image_bias"),
             "updated_at": datetime.utcnow().isoformat(),
         }
         self._upsert("active_trades", payload, conflict="ticket")

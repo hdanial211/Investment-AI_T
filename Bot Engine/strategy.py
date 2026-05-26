@@ -2,7 +2,7 @@
 strategy.py - Advanced Technical Indicator & Pattern Calculator
 
 Calculates:
-- Multi-Timeframe Analysis (H4, H1, M15, M5)
+- Multi-Timeframe Analysis (H4, H1, M30, M15, M5, M1)
 - HTF Trend (H4 EMA/Structure)
 - S/R Zones (Swing Highs/Lows)
 - Liquidity Grabs / Stop Hunts (M15/M5)
@@ -156,7 +156,7 @@ def detect_engulfing(df: pd.DataFrame) -> str:
 
 def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Optional[Dict]:
     """
-    Given a dict of OHLCV DataFrames for different timeframes (H4, H1, M15, M5),
+    Given a dict of OHLCV DataFrames for different timeframes (H4, H1, M30, M15, M5, M1),
     compute strategy context.
     """
     # Ensure we have the base timeframes
@@ -167,8 +167,10 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
 
     df_h4 = mdf["H4"]
     df_h1 = mdf["H1"]
+    df_m30 = mdf.get("M30")
     df_m15 = mdf["M15"]
     df_m5 = mdf["M5"]
+    df_m1 = mdf.get("M1")
 
     # 1. H4 Trend Analysis (Macro bias)
     h4_ema9 = calc_ema(df_h4['close'], 9).iloc[-1]
@@ -186,6 +188,13 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     macd_line, macd_sig, macd_h = calc_macd(df_h1['close'])
     h1_macd_hist = float(macd_h.iloc[-1])
     h1_macd_trend = "bullish" if h1_macd_hist > 0 else "bearish"
+
+    # 2.25 M30 Transition Context (intraday direction bridge)
+    m30_rsi = None
+    m30_engulfing = "unavailable"
+    if df_m30 is not None and not df_m30.empty:
+        m30_rsi = float(calc_rsi(df_m30["close"], 14).iloc[-1])
+        m30_engulfing = detect_engulfing(df_m30)
     
     # 2.5 Market Regime (ADX on H1)
     adx_val = float(calc_adx(df_h1).iloc[-1])
@@ -200,9 +209,17 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     # 4. M5 Micro-Structure (Fast entry)
     m5_sweep = detect_liquidity_grab(df_m5, h1_res, h1_sup, threshold=pip_size)
     m5_engulfing = detect_engulfing(df_m5)
+
+    # 4.5 M1 Execution Context (scalping trigger only; never overrides HTF bias)
+    m1_sweep = "unavailable"
+    m1_engulfing = "unavailable"
+    if df_m1 is not None and not df_m1.empty:
+        m1_sweep = detect_liquidity_grab(df_m1, h1_res, h1_sup, threshold=pip_size)
+        m1_engulfing = detect_engulfing(df_m1)
     
-    # 5. Core Price Metrics (Using M5 as closest to real-time)
-    current_price = float(df_m5['close'].iloc[-1])
+    # 5. Core Price Metrics (Using M1 if available as closest to real-time)
+    current_df = df_m1 if df_m1 is not None and not df_m1.empty else df_m5
+    current_price = float(current_df['close'].iloc[-1])
     atr_val = float(calc_atr(df_m15).iloc[-1])
 
     symbol_upper = symbol.upper()
@@ -226,11 +243,15 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
         "h1_resistance": h1_res,
         "h1_support": h1_sup,
         "h1_macd_trend": h1_macd_trend,
+        "m30_rsi": round(m30_rsi, 2) if m30_rsi is not None else None,
+        "m30_pattern": m30_engulfing,
         "m15_rsi": round(m15_rsi, 2),
         "m15_liquidity_sweep": m15_sweep,
         "m15_pattern": m15_engulfing,
         "m5_liquidity_sweep": m5_sweep,
         "m5_pattern": m5_engulfing,
+        "m1_liquidity_sweep": m1_sweep,
+        "m1_pattern": m1_engulfing,
         "atr": round(atr_val, 5),
         "sufficient_volatility": atr_val > (config.MIN_VOLATILITY_PIPS * pip_size),
         "detected_patterns": detected_patterns,
@@ -305,6 +326,9 @@ def format_for_prompt(ind: Dict) -> str:
         f"Resistance Zone: {ind['h1_resistance']:.5f}\n"
         f"Support Zone: {ind['h1_support']:.5f}\n"
         f"MACD Momentum: {ind['h1_macd_trend'].upper()}\n"
+        f"\n--- TIMEFRAME: M30 (INTRADAY TRANSITION) ---\n"
+        f"RSI (14): {ind.get('m30_rsi', 'unavailable')}\n"
+        f"Candle Pattern: {ind.get('m30_pattern', 'unavailable')}\n"
         f"\n--- TIMEFRAME: M15 (ENTRY CONTEXT) ---\n"
         f"RSI (14): {ind['m15_rsi']}\n"
         f"Liquidity Sweep Detected: {ind['m15_liquidity_sweep']}\n"
@@ -312,6 +336,9 @@ def format_for_prompt(ind: Dict) -> str:
         f"\n--- TIMEFRAME: M5 (MICRO SCALPING) ---\n"
         f"Liquidity Sweep Detected: {ind['m5_liquidity_sweep']}\n"
         f"Candle Pattern: {ind['m5_pattern']}\n"
+        f"\n--- TIMEFRAME: M1 (EXECUTION TRIGGER) ---\n"
+        f"Liquidity Sweep Detected: {ind.get('m1_liquidity_sweep', 'unavailable')}\n"
+        f"Candle Pattern: {ind.get('m1_pattern', 'unavailable')}\n"
         f"\n--- {pattern_section_title} ---\n"
         f"Pattern Bias: {pattern_bias.get('bias', 'none').upper()} "
         f"(Bullish Score: {pattern_bias.get('bullish_score', 0)}, "

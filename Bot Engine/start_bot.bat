@@ -104,7 +104,7 @@ for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo        %%v found. O
 
 :: Step 3: Check/install Python packages
 echo  [3/5] Checking Python packages...
-python -c "import requests, pandas, numpy, dotenv, loguru, MetaTrader5" >NUL 2>&1
+python -c "import requests, pandas, numpy, dotenv, loguru, textual, rich, MetaTrader5" >NUL 2>&1
 if errorlevel 1 (
     echo        Missing packages detected - installing from Setup\requirements.txt...
     python -m pip install -r "%~dp0..\Setup\requirements.txt"

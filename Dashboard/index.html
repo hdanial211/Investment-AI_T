@@ -269,8 +269,8 @@
         <table>
           <thead>
             <tr>
-              <th>Opened</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Pattern</th><th>Combo</th>
-              <th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
+              <th>Opened</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Style</th><th>Pattern</th><th>Combo</th>
+              <th>Vision</th><th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
             </tr>
           </thead>
           <tbody id="activeRows"></tbody>
@@ -313,9 +313,10 @@
   </main>
 
   <script>
+    const DEFAULT_SUPABASE_URL = "https://kusyjtpcjyflxgfcqenb.supabase.co";
     const $ = (id) => document.getElementById(id);
     const state = {
-      url: localStorage.getItem("supabaseUrl") || "",
+      url: localStorage.getItem("supabaseUrl") || DEFAULT_SUPABASE_URL,
       anon: localStorage.getItem("supabaseAnon") || "",
     };
 
@@ -382,15 +383,17 @@
           <td>${safe(r.ticket)}</td>
           <td><span class="pill">${safe(r.symbol)}</span></td>
           <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
+          <td>${styleTag(r.trade_style)}</td>
           <td>${safe(r.primary_pattern)}</td>
           <td class="muted">${safe(r.confluence_combo)}</td>
+          <td>${visionTag(r.vision_bias)}</td>
           <td>${price(r.virtual_sl)}</td>
           <td>${price(r.virtual_tp)}</td>
           <td>${price(r.virtual_trailing_stop)}</td>
           <td class="${Number(r.floating_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.floating_profit)}</td>
           <td>${safe(r.current_status)}</td>
         </tr>
-      `).join("") || emptyRow(11);
+      `).join("") || emptyRow(13);
     }
 
     function renderPatterns(rows) {
@@ -449,6 +452,32 @@
 
     function emptyRow(cols) {
       return `<tr><td colspan="${cols}" class="muted">No data yet.</td></tr>`;
+    }
+
+    function styleTag(value) {
+      const s = String(value || "-").toUpperCase();
+      const colors = {
+        SCALPING: "rgba(47, 102, 143, 0.18)",
+        INTRADAY: "rgba(196, 145, 61, 0.18)",
+        SWING: "rgba(44, 139, 103, 0.18)",
+      };
+      const textColors = {
+        SCALPING: "var(--blue)",
+        INTRADAY: "var(--gold)",
+        SWING: "var(--green)",
+      };
+      if (s in colors) {
+        return `<span class="pill" style="background:${colors[s]};color:${textColors[s]}">${s}</span>`;
+      }
+      return `<span class="muted">${safe(value)}</span>`;
+    }
+
+    function visionTag(value) {
+      const v = String(value || "-").toLowerCase();
+      if (v === "bullish") return `<span class="buy">▲ Bullish</span>`;
+      if (v === "bearish") return `<span class="sell">▼ Bearish</span>`;
+      if (v === "sideways") return `<span class="muted">◆ Sideways</span>`;
+      return `<span class="muted">${safe(value)}</span>`;
     }
 
     refresh();

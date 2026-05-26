@@ -368,6 +368,8 @@
         Dokumen ini menerangkan flow terbaru yang kita rancang: bot tetap running di laptop,
         MetaTrader 5 menjadi execution engine, dan AI akan dipanggil melalui cloud provider
         seperti OpenRouter atau Hugging Face. Ollama local tidak lagi menjadi sasaran utama.
+        Production cloud layer sekarang guna Supabase <code>Investment_AI</code> dan Vercel dashboard.
+        Prinsip utama: semua komponen runtime mesti fully automation; manual hanya untuk setup awal dan emergency.
       </p>
 
       <div class="status-grid">
@@ -381,11 +383,11 @@
         </div>
         <div class="status">
           <b>AI</b>
-          <span>Cloud API: OpenRouter primary, Hugging Face fallback jika kita implement.</span>
+          <span>Cloud API baca data multi-timeframe + pattern. Next target: vision AI baca screenshot chart.</span>
         </div>
         <div class="status">
-          <b>Safety</b>
-          <span>AI dipanggil selepas risk filter. Jika fail JSON atau timeout, trade diskip.</span>
+          <b>Cloud Monitor</b>
+          <span>Supabase: kusyjtpcjyflxgfcqenb.supabase.co. Vercel: investment-ai-t.vercel.app.</span>
         </div>
       </div>
     </header>
@@ -431,10 +433,19 @@ For each symbol: XAUUSD, EURUSD
 Get tick price from MT5
   |
   v
-Get H4 / H1 / M15 / M5 candle data
+Get H4 / H1 / M30 / M15 / M5 / M1 candle data
   |
   v
 Calculate indicators + EURUSD/XAUUSD pattern engine
+  |
+  v
+Future Phase: attach TradingView/MT5 chart image for vision AI
+  |
+  v
+AI translate pattern + chart image into:
+  +-- BUY / SELL / HOLD
+  +-- SCALPING / INTRADAY / SWING
+  +-- support/resistance + invalidation reason
   |
   v
 Build pattern usage snapshot
@@ -471,7 +482,7 @@ Call MAIN cloud AI
 Wait until full response OR timeout
   |
   v
-Validate JSON signal
+Validate JSON signal + trade_style
   |
   +-- <span class="warn">HOLD / low confidence / invalid JSON</span>
   |       |
@@ -497,7 +508,7 @@ Wait until full response OR timeout
   |   SKIP trade
   |
   v
-Place order in MT5
+Place BUY/SELL order in MT5
   |
   v
 Save virtual exit plan + pattern usage snapshot
@@ -510,6 +521,94 @@ Log trade
   |
   v
 Sleep LOOP_INTERVAL</pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>2B. Target Baru: Pattern Engine + Vision AI</h2>
+        <p>Ini flow yang awak nak capai: data price dari semua timeframe digabungkan dengan gambar chart automation supaya AI boleh translate setup seperti ChatGPT baca screenshot TradingView.</p>
+      </div>
+
+      <pre class="diagram"><span class="good">VISION-AWARE DECISION FLOW</span>
+Symbol selected
+  |
+  v
+Current price + candles:
+H4 / H1 / M30 / M15 / M5 / M1
+  |
+  v
+Pattern engine detects:
+trend, lower high/lower low, sweep, engulfing, FVG, S/R, volume clue
+  |
+  v
+Chart image attached automatically:
+browser automation screenshot OR MT5 automation screenshot
+  |
+  v
+Vision AI translates image:
+"bearish / bullish / sideways", support, resistance, rejection, next likely move
+  |
+  v
+Decision AI combines:
+pattern engine + image translation + risk filter
+  |
+  +-- SCALPING: M1/M5 momentum, small target
+  +-- INTRADAY: M15/M30 setup, H1/H4 aligned
+  +-- SWING: H4/H1 structure, wider target
+  |
+  v
+Return strict JSON:
+BUY / SELL / HOLD + confidence + trade_style + reason
+  |
+  v
+If valid, set BUY/SELL in MT5</pre>
+
+      <div class="callout" style="margin-top: 16px;">
+        Status sekarang: code sudah guna pattern engine dan AI text prompt. Update terbaru menambah <code>M30</code>,
+        <code>M1</code>, dan output <code>trade_style</code>. Bahagian gambar masih target next phase kerana bot
+        perlukan cara automatik untuk dapatkan screenshot chart, encode image, dan hantar kepada model vision yang sesuai.
+        Sumber gambar rasmi yang dibenarkan: <code>browser_automation</code> untuk screenshot TradingView, atau
+        <code>mt5_automation</code> untuk screenshot chart dari MT5 di laptop yang sama. Dua-dua ialah automation,
+        bukan manual screenshot. Untuk normal 24-hour run, bot tidak boleh tunggu user upload gambar.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>2C. Boundary Sistem: Laptop vs Vercel</h2>
+        <p>Ini rules tetap supaya architecture tidak bercampur: laptop ialah executor, Vercel ialah monitor, dan normal runtime mesti fully automation.</p>
+      </div>
+
+      <div class="two-col">
+        <div>
+          <h3>Laptop Windows 24 Jam</h3>
+          <ul>
+            <li>Bot berjalan 24 jam di laptop.</li>
+            <li>Bot ambil price dan candle dari MT5.</li>
+            <li>Bot ambil chart screenshot secara automation dan hantar market context kepada AI.</li>
+            <li>AI pulangkan keputusan <code>BUY</code>, <code>SELL</code>, atau <code>HOLD</code>.</li>
+            <li>Bot execute trade di MT5 jika AI + risk filter lulus.</li>
+            <li>Bot update heartbeat, active trade, pattern usage, dan trade events ke Supabase.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Vercel Server / Website</h3>
+          <ul>
+            <li>Vercel tidak connect MT5.</li>
+            <li>Vercel tidak buka atau close trade.</li>
+            <li>Website hanya baca database Supabase guna anon key.</li>
+            <li>Dashboard tunjuk heartbeat, active trades, virtual SL/TP, pattern usage, dan timeline.</li>
+            <li>Kalau laptop offline, Vercel masih online tetapi data akan jadi stale/manual mode.</li>
+          </ul>
+        </div>
+      </div>
+
+      <pre class="diagram" style="margin-top: 16px;"><span class="good">FINAL RESPONSIBILITY SPLIT</span>
+Laptop 24 jam:
+price + screenshot automation -> AI info -> MT5 trade -> Supabase database update
+
+Vercel server:
+Supabase database read -> website dashboard info -> user pantau</pre>
     </section>
 
     <section>
@@ -846,6 +945,8 @@ When laptop returns, bot resyncs open positions from MT5</pre>
       <div class="callout" style="margin-top: 16px;">
         Untuk fallback ini berfungsi dengan baik, bot sekarang ada Supabase sync layer dan
         <code>Dashboard/index.html</code> sebagai dashboard read-only untuk deploy ke Vercel.
+        Production dashboard ialah <code>https://investment-ai-t.vercel.app</code> dan ia patut ikut latest
+        GitHub push. Supabase project production ialah <code>https://kusyjtpcjyflxgfcqenb.supabase.co</code>.
         Bila laptop hidup semula, bot sync semula dengan MT5.
       </div>
     </section>
@@ -871,7 +972,19 @@ When laptop returns, bot resyncs open positions from MT5</pre>
         </div>
         <div class="card">
           <h3><code>Dashboard/index.html</code></h3>
-          <p>Dashboard read-only untuk Vercel. Ia baca Supabase anon key dan tunjuk heartbeat, active trade, virtual exit, pattern ranking, dan timeline.</p>
+          <p>Dashboard read-only untuk Vercel. Ia prefill Supabase production URL, baca Supabase anon key, dan tunjuk heartbeat, active trade, virtual exit, pattern ranking, dan timeline.</p>
+        </div>
+        <div class="card">
+          <h3><code>Setup/live_readiness_check.bat</code></h3>
+          <p>Pre-flight Phase 9/10 sebelum live run. Ia check file penting, package, local <code>.env</code>, Supabase REST, risk/lot cap, virtual exit, dan Windows power reminder.</p>
+        </div>
+        <div class="card">
+          <h3><code>Setup/enable_supabase_sync.bat</code></h3>
+          <p>Isi Supabase anon key dan service role key ke local <code>Bot Engine\.env</code>. Service role key tidak boleh masuk GitHub, Vercel, atau browser.</p>
+        </div>
+        <div class="card">
+          <h3><code>Setup/supabase_schema.sql</code></h3>
+          <p>SQL schema untuk table <code>bot_heartbeat</code>, <code>active_trades</code>, <code>trade_pattern_usage</code>, <code>pattern_usage_stats</code>, dan <code>trade_events</code>.</p>
         </div>
         <div class="card">
           <h3><code>system running.html</code></h3>
@@ -914,13 +1027,25 @@ HF_BASE_URL=https://router.huggingface.co/v1
 AI_MAIN_MODEL=openai/gpt-oss-20b:free
 AI_RISK_MODEL=openai/gpt-oss-120b:free
 AI_FALLBACK_MODEL=qwen/qwen3-next-80b-a3b-instruct:free
-HF_MAIN_MODEL=Qwen/Qwen3-4B-Instruct-2507
-ENABLE_RISK_REVIEW=True
+	HF_MAIN_MODEL=Qwen/Qwen3-4B-Instruct-2507
+	ENABLE_RISK_REVIEW=True
+	
+	AI_TIMEOUT=300
+	AI_RETRIES=2
+	AI_TEMPERATURE=0.1
+	AI_MAX_TOKENS=256
 
-AI_TIMEOUT=300
-AI_RETRIES=2
-AI_TEMPERATURE=0.1
-AI_MAX_TOKENS=256
+VISION_AI_ENABLED=False
+CHART_IMAGE_SOURCE=browser_automation
+CHART_IMAGE_TIMEFRAMES=H4,H1,M30,M15,M5,M1
+TRADINGVIEW_CHART_URL=local_only_if_used
+MT5_SCREENSHOT_DIR=chart_screenshots
+	
+	SUPABASE_URL=https://kusyjtpcjyflxgfcqenb.supabase.co
+SUPABASE_ANON_KEY=local_only_for_frontend_read
+SUPABASE_SERVICE_ROLE_KEY=local_only_backend_only
+SUPABASE_SYNC_ENABLED=True
+SUPABASE_MACHINE_ID=laptop-main
 
 PATTERN_USAGE_SYNC_ENABLED=True
 PATTERN_CONFLUENCE_LIMIT=8
@@ -1006,8 +1131,79 @@ Remove lock file after finish</pre>
       </div>
     </section>
 
+    <section>
+      <div class="section-head">
+        <h2>14. Phase 10 Production Cloud Activation</h2>
+        <p>Fasa ini sambungkan code yang sudah siap kepada Supabase dan Vercel production sebenar.</p>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <span class="tag blue">Supabase</span>
+          <h3>Run schema dahulu</h3>
+          <p>Buka Supabase project <code>Investment_AI</code>, pergi SQL Editor, kemudian run <code>Setup/supabase_schema.sql</code>. Confirm table heartbeat, active trades, usage, stats, dan events wujud.</p>
+        </div>
+        <div class="card">
+          <span class="tag">Local .env</span>
+          <h3>Enable bot writes</h3>
+          <p>Di laptop Windows, run <code>Setup\enable_supabase_sync.bat</code>. Tekan Enter untuk default URL, paste anon key, kemudian paste service role key untuk backend bot sahaja.</p>
+        </div>
+        <div class="card">
+          <span class="tag red">Security</span>
+          <h3>Service role jangan expose</h3>
+          <p>Vercel/browser hanya boleh guna anon key. Service role key hanya boleh berada dalam local <code>Bot Engine\.env</code>.</p>
+        </div>
+      </div>
+
+      <pre class="diagram" style="margin-top: 16px;"><span class="good">PHASE 10 COMMAND ORDER</span>
+Setup\enable_supabase_sync.bat
+  |
+  v
+Setup\live_readiness_check.bat
+  |
+  v
+start_bot.bat
+  |
+  v
+Supabase bot_heartbeat updates
+  |
+  v
+Vercel dashboard reads fresh heartbeat</pre>
+
+      <div class="callout" style="margin-top: 16px;">
+        Sebelum bot jalan, Vercel dashboard mungkin tunjuk <code>Config/Error</code>, empty table, atau manual mode.
+        Itu normal selagi bot belum tulis heartbeat. Phase 10 dianggap lulus bila readiness checker zero
+        <code>[FAIL]</code>, Supabase heartbeat update, dan Vercel boleh baca heartbeat tersebut.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>15. Phase 11 Controlled 24-Hour Validation</h2>
+        <p>Ini hanya mula selepas Phase 10 lulus. Tujuannya bukan profit besar; tujuannya validasi operasi sebenar.</p>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <span class="tag">Scope</span>
+          <h3>Demo atau lot paling kecil</h3>
+          <p>Run pada demo/small lot dahulu. Confirm laptop plugged in, Windows sleep off, MT5 logged in, dan symbol broker exact.</p>
+        </div>
+        <div class="card">
+          <span class="tag blue">Evidence</span>
+          <h3>Simpan bukti run</h3>
+          <p>Simpan <code>logs/bot.log</code>, <code>logs/trades.csv</code>, Supabase screenshot/export, Vercel dashboard screenshot, dan MT5 account history.</p>
+        </div>
+        <div class="card">
+          <span class="tag red">Tune later</span>
+          <h3>Jangan ubah terlalu awal</h3>
+          <p>Selepas 24 jam baru decide sama ada <code>VIRTUAL_EXIT_CHECK_INTERVAL</code> kekal 10 saat atau turun ke 5 saat.</p>
+        </div>
+      </div>
+    </section>
+
     <footer>
-      Investment-AI_T system running document - latest planning version, 2026-05-25.
+      Investment-AI_T system running document - latest planning version, Phase 10 cloud activation.
     </footer>
   </main>
 </body>

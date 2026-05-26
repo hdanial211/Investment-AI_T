@@ -33,7 +33,7 @@ Your objective is to analyze multi-timeframe (MTF) market data and provide a hig
 
 CRITICAL JSON OUTPUT RULES:
 1. Respond ONLY with a valid JSON object.
-2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "reason": "brief explanation"}
+2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "brief explanation"}
 3. No markdown blocks, no extra text.
 """
 
@@ -101,8 +101,13 @@ Spread: {spread}
 Evaluate the timeframes logically:
 1. Does the trade align with the H4 Major Trend? (If not, HOLD).
 2. Is the price near H1 Support/Resistance?
-3. What is the M15/M5 pattern telling you? Is there a liquidity sweep, valid engulfing, pin bar, inside bar, SMC/FVG setup, psych-level reaction, or other high-priority pair-specific confluence?
-4. Does the detected pattern bias support the action, or is the evidence mixed enough to HOLD?
+3. What is M30/M15/M5/M1 telling you? M30/M15 define intraday direction; M5/M1 are execution triggers only.
+4. Is there a liquidity sweep, valid engulfing, pin bar, inside bar, SMC/FVG setup, psych-level reaction, or other high-priority pair-specific confluence?
+5. Decide which trade_style fits best:
+   - SCALPING: M1/M5 momentum only, small target, choppy or fast session.
+   - INTRADAY: M15/M30 setup aligned with H1/H4 context.
+   - SWING: H4/H1 structure dominates and setup can hold longer.
+6. Does the detected pattern bias support the action, or is the evidence mixed enough to HOLD?
 """
     
     if trade_memory:
@@ -218,12 +223,26 @@ def _validate_signal(data: Dict) -> Optional[Dict]:
         confidence = 0.0
 
     reason = str(data.get("reason", "No reason provided"))[:200]
+    trade_style = str(data.get("trade_style", "INTRADAY")).upper().strip()
+    if trade_style not in ("SCALPING", "INTRADAY", "SWING"):
+        trade_style = "INTRADAY"
 
-    return {
+    result = {
         "action":     action,
         "confidence": round(confidence, 4),
+        "trade_style": trade_style,
         "reason":     reason,
     }
+
+    # Preserve vision AI fields if present
+    if "image_bias" in data:
+        result["image_bias"] = str(data["image_bias"]).lower().strip()
+    if "support" in data and isinstance(data["support"], list):
+        result["support"] = data["support"]
+    if "resistance" in data and isinstance(data["resistance"], list):
+        result["resistance"] = data["resistance"]
+
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -391,6 +410,126 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
         f"AI Signal → {result['action']} | "
         f"Confidence: {result['confidence']:.2f} | "
         f"Reason: {result['reason']}"
+    )
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MERGE DECISIONS — TEXT AI + VISION AI + PATTERN ENGINE
+# ─────────────────────────────────────────────────────────────────────────────
+
+def merge_decisions(
+    text_signal: Dict,
+    vision_signal: Dict,
+    pattern_bias: Dict,
+) -> Dict:
+    """
+    Merge text AI signal, vision AI signal, and pattern engine bias
+    into a single final trading decision.
+
+    Conflict resolution:
+    1. All three agree → use action, average confidence
+    2. Text + patterns agree, vision disagrees → text action, reduce confidence
+    3. Vision + patterns agree, text disagrees → HOLD (text is primary)
+    4. Text + vision agree, patterns disagree → text action, reduce confidence
+    5. All three conflict → HOLD
+    6. If any is HOLD, need 2/3 agreement from non-HOLD sources to proceed
+
+    Vision AI fields (image_bias, support, resistance) are always preserved.
+    """
+    text_action = str(text_signal.get("action", "HOLD")).upper()
+    text_conf = float(text_signal.get("confidence", 0.0))
+    text_style = text_signal.get("trade_style", "INTRADAY")
+
+    vision_action = str(vision_signal.get("action", "HOLD")).upper()
+    vision_conf = float(vision_signal.get("confidence", 0.0))
+    vision_bias = str(vision_signal.get("image_bias", "sideways")).lower()
+
+    # Derive pattern action from bias
+    bias_str = str(pattern_bias.get("bias", "none")).lower()
+    pattern_action = "HOLD"
+    if bias_str == "bullish":
+        pattern_action = "BUY"
+    elif bias_str == "bearish":
+        pattern_action = "SELL"
+
+    actions = [text_action, vision_action, pattern_action]
+    logger.info(
+        f"Merging decisions: text={text_action}({text_conf:.2f}), "
+        f"vision={vision_action}({vision_conf:.2f}), "
+        f"pattern={pattern_action}({bias_str})"
+    )
+
+    # Count non-HOLD votes
+    non_hold = [a for a in actions if a != "HOLD"]
+    unique_non_hold = set(non_hold)
+
+    final_action = "HOLD"
+    final_confidence = 0.0
+    merge_reason_parts = []
+
+    if len(unique_non_hold) == 1 and len(non_hold) >= 2:
+        # 2 or 3 sources agree on same action
+        final_action = non_hold[0]
+        final_confidence = (text_conf + vision_conf) / 2
+
+        if len(non_hold) == 3:
+            merge_reason_parts.append("all sources agree")
+        elif text_action == final_action and pattern_action == final_action:
+            merge_reason_parts.append("text+pattern agree, vision neutral/different")
+            final_confidence *= 0.85  # slight penalty
+        elif text_action == final_action and vision_action == final_action:
+            merge_reason_parts.append("text+vision agree, pattern neutral/different")
+            final_confidence *= 0.90
+        elif vision_action == final_action and pattern_action == final_action:
+            # Vision + pattern agree but text disagrees → HOLD (text is primary)
+            final_action = "HOLD"
+            final_confidence = 0.0
+            merge_reason_parts.append("vision+pattern agree but text disagrees, defaulting HOLD")
+
+    elif len(unique_non_hold) > 1:
+        # Direct conflict between non-HOLD sources
+        final_action = "HOLD"
+        final_confidence = 0.0
+        merge_reason_parts.append(f"conflict: {', '.join(non_hold)}")
+
+    else:
+        # All HOLD or only 1 non-HOLD source
+        if text_action != "HOLD" and vision_action == "HOLD" and pattern_action == "HOLD":
+            # Only text wants to trade, vision and pattern neutral
+            final_action = text_action
+            final_confidence = text_conf * 0.75  # reduce confidence without vision/pattern support
+            merge_reason_parts.append("text only, vision+pattern neutral")
+        else:
+            final_action = "HOLD"
+            final_confidence = 0.0
+            merge_reason_parts.append("insufficient agreement")
+
+    # Build merged result
+    merge_reason = "; ".join(merge_reason_parts)
+    text_reason = text_signal.get("reason", "")
+    vision_reason = vision_signal.get("reason", "")
+    combined_reason = f"[Merged: {merge_reason}] Text: {text_reason}"
+    if vision_reason and vision_reason != "Vision AI disabled":
+        combined_reason += f" | Vision: {vision_reason}"
+
+    result = {
+        "action": final_action,
+        "confidence": round(max(0.0, min(1.0, final_confidence)), 4),
+        "trade_style": text_style,  # text AI determines trade style
+        "reason": combined_reason[:400],
+        "image_bias": vision_bias,
+        "support": vision_signal.get("support", []),
+        "resistance": vision_signal.get("resistance", []),
+        "raw_response": text_signal.get("raw_response"),
+        "vision_raw_response": vision_signal.get("raw_response"),
+        "merge_method": merge_reason,
+    }
+
+    logger.info(
+        f"Merged → {result['action']} | "
+        f"Confidence: {result['confidence']:.2f} | "
+        f"Method: {merge_reason}"
     )
     return result
 
