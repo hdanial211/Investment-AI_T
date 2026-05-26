@@ -285,3 +285,47 @@ create policy "bot full access account settings"
   to service_role
   using (true)
   with check (true);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SYSTEM SETTINGS (Global API Keys & Config)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.system_settings (
+  id text primary key default 'global',
+  openrouter_api_key text,
+  hf_token text,
+  ai_provider text default 'openrouter',
+  updated_at timestamptz not null default now(),
+  updated_by text default 'dashboard'
+);
+
+alter table public.system_settings enable row level security;
+
+drop policy if exists "dashboard read system settings" on public.system_settings;
+create policy "dashboard read system settings"
+  on public.system_settings for select
+  to anon
+  using (true);
+
+drop policy if exists "dashboard write system settings" on public.system_settings;
+create policy "dashboard write system settings"
+  on public.system_settings for insert
+  to anon
+  with check (true);
+
+drop policy if exists "dashboard update system settings" on public.system_settings;
+create policy "dashboard update system settings"
+  on public.system_settings for update
+  to anon
+  using (true)
+  with check (true);
+
+drop policy if exists "bot full access system settings" on public.system_settings;
+create policy "bot full access system settings"
+  on public.system_settings for all
+  to service_role
+  using (true)
+  with check (true);
+
+-- Insert default row if not exists
+insert into public.system_settings (id) values ('global') on conflict (id) do nothing;

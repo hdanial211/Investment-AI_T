@@ -31,6 +31,7 @@ from chart_capture import capture_charts, cleanup_old_screenshots
 from vision_engine import get_vision_signal
 from account_settings import AccountSettings
 from trade_management import ActiveTradeManager
+import system_settings
 
 # ─────────────────────────────────────────────────────────────────────────────
 # INITIALIZE LOGGING FIRST
@@ -469,6 +470,9 @@ def main():
     global _shutdown_requested
 
     logger.info("Starting AI Trading Bot...")
+
+    # Fetch global AI provider/keys from Supabase
+    system_settings.fetch_and_apply_system_settings()
 
     # Initialize components
     connector    = MT5Connector()
