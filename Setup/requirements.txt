@@ -23,6 +23,3 @@ python-dotenv>=1.0.0
 
 # ── Chart rendering (vision AI screenshot fallback) ───────────
 matplotlib>=3.8.0
-
-# ── Supabase integration ─────────────────────────────────────
-supabase>=2.3.0

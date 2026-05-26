@@ -4,9 +4,8 @@ Updates config.py dynamically at runtime.
 """
 
 import logging
+import requests
 from typing import Optional
-
-from supabase import create_client
 
 import config
 
@@ -19,15 +18,24 @@ def fetch_and_apply_system_settings() -> bool:
     Returns True if successful, False otherwise.
     """
     try:
-        if not config.SUPABASE_URL or not config.SUPABASE_KEY:
+        url = config.SUPABASE_URL.rstrip("/")
+        key = config.SUPABASE_KEY
+        if not url or not key:
             logger.warning("Supabase URL or Key missing in .env. Skipping system settings load.")
             return False
 
-        client = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
-        response = client.table("system_settings").select("*").eq("id", "global").execute()
+        endpoint = f"{url}/rest/v1/system_settings?id=eq.global&select=*"
+        response = requests.get(
+            endpoint,
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+            },
+            timeout=config.SUPABASE_REQUEST_TIMEOUT,
+        )
 
-        if response.data and len(response.data) > 0:
-            data = response.data[0]
+        if response.status_code < 400 and response.json() and len(response.json()) > 0:
+            data = response.json()[0]
             logger.info("Loaded global system settings from Supabase. Overriding config.")
 
             providers_list = data.get("providers_list", [])
@@ -56,3 +64,4 @@ def fetch_and_apply_system_settings() -> bool:
     except Exception as e:
         logger.error(f"Failed to fetch system settings from Supabase: {e}")
         return False
+
