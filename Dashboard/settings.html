@@ -436,10 +436,14 @@
           <div class="field-group" style="flex:1;">
             <label>Connection Status</label>
             <div style="padding:12px; border-radius:8px; background: rgba(0,0,0,0.03); border:1px solid var(--line); font-size:0.9rem;">
-              ${acc.mt5_status === 'Connected' ? '<span style="color:var(--green);font-weight:bold;">✅ Connected</span>' : (acc.mt5_status === 'Failed' ? '<span style="color:var(--red);font-weight:bold;">❌ Failed</span><br><span style="color:var(--red);font-size:0.8rem;display:block;margin-top:4px;">' + safe(acc.mt5_last_error) + '</span>' : '<span style="color:var(--muted)">Unknown (Bot belum run)</span>')}
+              ${acc.mt5_status === 'Connected' ? '<span style="color:var(--green);font-weight:bold;">✅ Connected</span>' : (acc.mt5_status === 'Failed' ? '<span style="color:var(--red);font-weight:bold;">❌ Failed</span>' : '<span style="color:var(--muted)">⏳ Bot belum run</span>')}
+              ${acc.mt5_checked_at ? '<br><span style="color:var(--muted);font-size:0.75rem;">Checked: ' + new Date(acc.mt5_checked_at).toLocaleString() + '</span>' : ''}
             </div>
           </div>
         </div>
+
+        <!-- MT5 Diagnostic Info Panel -->
+        ${buildDiagnosticPanel(acc)}
 
         <!-- Symbol Mapping -->
         <label style="margin-bottom:10px">Symbol Mapping <span style="color:var(--muted);font-weight:400;font-size:0.8rem">(nama tick ikut broker)</span></label>
@@ -493,6 +497,75 @@
           card.classList.toggle("disabled", !this.classList.contains("on"));
         });
       });
+    }
+
+    function buildDiagnosticPanel(acc) {
+      // No diagnostic data yet
+      if (!acc.mt5_status) return '';
+
+      let info = {};
+      let symStatus = {};
+      try { info = typeof acc.mt5_info === 'string' ? JSON.parse(acc.mt5_info || '{}') : (acc.mt5_info || {}); } catch(e) {}
+      try { symStatus = typeof acc.mt5_symbol_status === 'string' ? JSON.parse(acc.mt5_symbol_status || '{}') : (acc.mt5_symbol_status || {}); } catch(e) {}
+
+      const hasInfo = info && Object.keys(info).length > 0;
+      const hasSyms = symStatus && Object.keys(symStatus).length > 0;
+      const isConnected = acc.mt5_status === 'Connected';
+      const borderColor = isConnected ? 'var(--green)' : 'var(--red)';
+      const bgColor = isConnected ? 'rgba(44,139,103,0.06)' : 'rgba(173,79,67,0.06)';
+
+      let html = `<div style="border:1.5px solid ${borderColor}; border-radius:12px; padding:16px; margin-bottom:18px; background:${bgColor};">`;
+      html += `<div style="font-weight:700; font-size:0.95rem; margin-bottom:10px; color:${isConnected ? 'var(--green)' : 'var(--red)'}">`;
+      html += isConnected ? '🟢 MT5 Terminal Info' : '🔴 MT5 Connection Error';
+      html += '</div>';
+
+      if (isConnected && hasInfo) {
+        // Show account info in a neat grid
+        const fmt = (v) => v !== undefined && v !== null && v !== '' ? v : '—';
+        const fmtNum = (v) => typeof v === 'number' ? v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : fmt(v);
+        html += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px 16px; font-size:0.85rem;">`;
+        html += `<div><span style="color:var(--muted)">Name:</span> <b>${safe(info.name)}</b></div>`;
+        html += `<div><span style="color:var(--muted)">Server:</span> <b>${safe(info.server)}</b></div>`;
+        html += `<div><span style="color:var(--muted)">Leverage:</span> <b>1:${fmt(info.leverage)}</b></div>`;
+        html += `<div><span style="color:var(--muted)">Balance:</span> <b>${fmtNum(info.balance)} ${safe(info.currency)}</b></div>`;
+        html += `<div><span style="color:var(--muted)">Equity:</span> <b>${fmtNum(info.equity)} ${safe(info.currency)}</b></div>`;
+        html += `<div><span style="color:var(--muted)">Free Margin:</span> <b>${fmtNum(info.free_margin)} ${safe(info.currency)}</b></div>`;
+        html += `</div>`;
+      }
+
+      if (!isConnected && acc.mt5_last_error) {
+        html += `<div style="margin-top:6px; padding:10px 12px; background:rgba(173,79,67,0.1); border-radius:8px; color:var(--red); font-size:0.85rem;">`;
+        html += `<b>Error:</b> ${safe(acc.mt5_last_error)}`;
+        html += `</div>`;
+      }
+
+      if (hasSyms) {
+        html += `<div style="margin-top:12px; font-size:0.85rem;">`;
+        html += `<b style="color:var(--muted)">Symbol Check:</b>`;
+        html += `<div style="display:flex; gap:12px; margin-top:6px; flex-wrap:wrap;">`;
+        for (const [sym, status] of Object.entries(symStatus)) {
+          if (status === 'OK') {
+            html += `<span style="background:rgba(44,139,103,0.12); color:var(--green); padding:4px 10px; border-radius:6px; font-weight:600;">✅ ${safe(sym)}</span>`;
+          } else {
+            html += `<span style="background:rgba(173,79,67,0.12); color:var(--red); padding:4px 10px; border-radius:6px; font-weight:600;">❌ ${safe(sym)}</span>`;
+          }
+        }
+        html += `</div>`;
+
+        // Show error details for failed symbols
+        const failedSyms = Object.entries(symStatus).filter(([, v]) => v !== 'OK');
+        if (failedSyms.length > 0) {
+          html += `<div style="margin-top:8px; padding:8px 12px; background:rgba(173,79,67,0.08); border-radius:8px; color:var(--red); font-size:0.8rem;">`;
+          for (const [sym, err] of failedSyms) {
+            html += `<div><b>${safe(sym)}:</b> ${safe(err)}</div>`;
+          }
+          html += `</div>`;
+        }
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      return html;
     }
 
     function styleCard(key, name, acc) {

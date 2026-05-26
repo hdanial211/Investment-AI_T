@@ -233,8 +233,21 @@ class AccountSettings:
             logger.warning(f"AccountSettings: fetch failed: {e}. Using cached settings.")
             self._supabase_available = False
 
-    def update_connection_status(self, connected: bool, error_msg: str = "") -> None:
-        """Update the MT5 connection status in Supabase for this account."""
+    def update_connection_status(
+        self,
+        connected: bool,
+        error_msg: str = "",
+        account_info: dict = None,
+        symbol_status: dict = None,
+    ) -> None:
+        """Update the MT5 connection status and diagnostics in Supabase.
+
+        Args:
+            connected: True if MT5 connected successfully.
+            error_msg: Human-readable error message (Malay-friendly).
+            account_info: Dict with balance, equity, leverage, currency, server, name.
+            symbol_status: Dict with {symbol: "OK" or error string}.
+        """
         if not config.SUPABASE_SYNC_ENABLED:
             return
         url = config.SUPABASE_URL.rstrip("/")
@@ -242,14 +255,19 @@ class AccountSettings:
         if not url or not key:
             return
         try:
+            import json as _json
             import requests
             from datetime import datetime
+
             endpoint = f"{url}/rest/v1/account_settings"
             payload = {
                 "account_id": self.account_id,
                 "mt5_status": "Connected" if connected else "Failed",
                 "mt5_last_error": error_msg,
-                "updated_at": datetime.utcnow().isoformat()
+                "mt5_info": _json.dumps(account_info or {}),
+                "mt5_symbol_status": _json.dumps(symbol_status or {}),
+                "mt5_checked_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
             }
             requests.post(
                 endpoint,
@@ -257,10 +275,10 @@ class AccountSettings:
                     "apikey": key,
                     "Authorization": f"Bearer {key}",
                     "Content-Type": "application/json",
-                    "Prefer": "resolution=merge-duplicates"
+                    "Prefer": "resolution=merge-duplicates",
                 },
                 json=payload,
-                timeout=config.SUPABASE_REQUEST_TIMEOUT
+                timeout=config.SUPABASE_REQUEST_TIMEOUT,
             )
         except Exception as e:
             logger.warning(f"AccountSettings: Failed to update connection status: {e}")

@@ -200,6 +200,9 @@ create table if not exists public.account_settings (
   mt5_path text,
   mt5_status text,
   mt5_last_error text,
+  mt5_info jsonb default '{}',
+  mt5_symbol_status jsonb default '{}',
+  mt5_checked_at timestamptz,
   enabled boolean default true,
 
   -- Trade style toggles

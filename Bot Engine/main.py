@@ -351,14 +351,91 @@ def startup_checks(connector: MT5Connector, acct_settings: Optional[AccountSetti
             continue
         logger.warning(f"Config warning: {warning}")
 
-    # 1. MT5 connection
+    # 1. MT5 connection — with detailed error classification
     logger.info("Checking MT5 connection...")
-    if connector.connect(login=login_val, password=password_val, server=server_val, path=path_val):
-        logger.info("✔ MT5 connected")
-        acct_settings.update_connection_status(connected=True)
+    mt5_connected = connector.connect(
+        login=login_val, password=password_val,
+        server=server_val, path=path_val,
+    )
+
+    acct_info = {}
+    sym_status = {}
+
+    if mt5_connected and not connector.demo_mode:
+        logger.info("✔ MT5 connected (live)")
+
+        # 4. Account info (gather before symbol check)
+        account = connector.get_account_info()
+        if account:
+            acct_info = {
+                "balance": account.get("balance", 0),
+                "equity": account.get("equity", 0),
+                "leverage": account.get("leverage", "N/A"),
+                "currency": account.get("currency", ""),
+                "server": account.get("server", ""),
+                "name": account.get("name", ""),
+                "free_margin": account.get("free_margin", 0),
+            }
+            logger.info(
+                f"✔ Account: {acct_info['name']} | "
+                f"Balance={acct_info['balance']:,.2f} {acct_info['currency']} | "
+                f"Leverage=1:{acct_info['leverage']}"
+            )
+
+        # 3. Symbol availability (use account-specific symbol names)
+        symbols = acct_settings.get_symbols()
+        logger.info(f"Symbols for this account: {symbols}")
+        for sym in symbols:
+            tick = connector.get_tick(sym)
+            if tick:
+                logger.info(f"✔ Symbol {sym}: Bid={tick['bid']:.5f}")
+                sym_status[sym] = "OK"
+            else:
+                logger.warning(f"⚠ Cannot get tick for {sym} — nama tick salah untuk broker ini")
+                sym_status[sym] = "Symbol tidak dijumpai — sila check nama tick di broker anda"
+
+        # Determine final error message
+        failed_syms = [s for s, v in sym_status.items() if v != "OK"]
+        error_msg = ""
+        if failed_syms:
+            error_msg = f"Symbol error: {', '.join(failed_syms)} tidak dijumpai"
+
+        acct_settings.update_connection_status(
+            connected=True,
+            error_msg=error_msg,
+            account_info=acct_info,
+            symbol_status=sym_status,
+        )
+
+    elif mt5_connected and connector.demo_mode:
+        logger.warning("⚠ MT5 in DEMO mode — not real connection")
+        # Classify why we ended up in demo mode
+        from pathlib import Path as _Path
+        error_msg = ""
+        if path_val and not _Path(path_val).exists():
+            error_msg = f"MT5 TERMINAL PATH salah — file '{path_val}' tidak wujud"
+        elif not login_val or not password_val:
+            error_msg = "MT5 Login atau Password kosong — sila isi di Dashboard Settings"
+        elif not server_val:
+            error_msg = "MT5 BROKER SERVER kosong — sila isi di Dashboard Settings"
+        else:
+            error_msg = "MT5 login gagal — check Login/Password/Server"
+
+        acct_settings.update_connection_status(
+            connected=False,
+            error_msg=error_msg,
+            account_info={},
+            symbol_status={},
+        )
+        # Non-fatal in demo mode
     else:
-        logger.critical("✘ MT5 connection failed")
-        acct_settings.update_connection_status(connected=False, error_msg="Sila letak path yang betul atau check password")
+        logger.critical("✘ MT5 connection failed completely")
+        acct_settings.update_connection_status(
+            connected=False,
+            error_msg="MT5 tidak dapat di-initialize — check MT5 Terminal Path",
+            account_info={},
+            symbol_status={},
+        )
         all_ok = False
 
     # 2. Cloud AI
@@ -369,7 +446,6 @@ def startup_checks(connector: MT5Connector, acct_settings: Optional[AccountSetti
         logger.info("✔ Cloud AI main model ready")
     else:
         logger.warning("⚠ Cloud AI not ready — bot will run but AI signals may fail")
-        # Non-fatal: allow dashboard/demo runs without AI
 
     if config.ENABLE_RISK_REVIEW:
         logger.info(
@@ -379,25 +455,6 @@ def startup_checks(connector: MT5Connector, acct_settings: Optional[AccountSetti
             logger.info("✔ Cloud AI risk reviewer ready")
         else:
             logger.warning("⚠ Risk review enabled but risk model is not available")
-
-    # 3. Symbol availability (use account-specific symbol names)
-    symbols = acct_settings.get_symbols()
-    logger.info(f"Symbols for this account: {symbols}")
-    for sym in symbols:
-        tick = connector.get_tick(sym)
-        if tick:
-            logger.info(f"✔ Symbol {sym}: Bid={tick['bid']:.5f}")
-        else:
-            logger.warning(f"⚠ Cannot get tick for {sym} — check nama tick broker anda")
-
-    # 4. Account info
-    account = connector.get_account_info()
-    if account:
-        logger.info(
-            f"✔ Account: Balance={account.get('balance', 0):.2f} "
-            f"{account.get('currency', '')} | "
-            f"Leverage=1:{account.get('leverage', 'N/A')}"
-        )
 
     logger.info("=" * 60)
     return all_ok
