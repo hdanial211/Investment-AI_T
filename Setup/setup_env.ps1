@@ -51,16 +51,9 @@ if ([string]::IsNullOrWhiteSpace($Server)) {
 $Symbols = "XAUUSD,EURUSD"
 Write-Host "Trading symbols: $Symbols"
 
-$OpenRouterKey = Read-Host "OpenRouter API key (starts sk-or-v1)"
-if ([string]::IsNullOrWhiteSpace($OpenRouterKey)) {
-    throw "OpenRouter API key is required for cloud AI mode."
-}
-
-$HfToken = Read-Host "Hugging Face token for fallback [optional]"
-$FallbackEnabled = "True"
-if ([string]::IsNullOrWhiteSpace($HfToken)) {
-    $FallbackEnabled = "False"
-}
+$OpenRouterKey = ""
+$HfToken = ""
+$FallbackEnabled = "False"
 
 $MainModel = "openai/gpt-oss-20b:free"
 $RiskModel = "openai/gpt-oss-120b:free"
