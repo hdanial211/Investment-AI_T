@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Account Settings — Investment-AI_T</title>
+  <title>API Keys — Investment-AI_T</title>
   <style>
     :root {
       --bg: #111814;
@@ -76,7 +76,6 @@
     .eyebrow { color: var(--gold); font-size: 0.78rem; font-weight: 900; letter-spacing: 0.18em; text-transform: uppercase; }
     h1 { margin: 10px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.8rem, 5vw, 3.4rem); line-height: 0.95; letter-spacing: -0.04em; }
     .hero p { max-width: 700px; margin: 12px 0 0; color: var(--muted); font-size: 0.95rem; }
-    .warn-bar { margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: rgba(173, 79, 67, 0.1); border: 1px solid rgba(173, 79, 67, 0.25); color: var(--red); font-size: 0.82rem; font-weight: 700; }
 
     /* ── SUPABASE INPUTS ───────────────────────────────────────────────── */
     .config-row {
@@ -93,7 +92,7 @@
     button:hover { opacity: 0.85; }
     button:disabled { opacity: 0.4; cursor: default; }
 
-    /* ── TABS ──────────────────────────────────────────────────────────── */
+    /* ── SECTION ──────────────────────────────────────────────────────────── */
     section {
       background: var(--panel);
       border: 1px solid rgba(255, 255, 255, 0.45);
@@ -102,95 +101,94 @@
       margin-top: 18px;
       padding: 22px;
     }
-    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
-    .tab-btn {
-      padding: 10px 20px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.4);
-      cursor: pointer;
-      font-weight: 800;
-      font-size: 0.88rem;
-      transition: all 0.2s;
-    }
-    .tab-btn.active { background: var(--ink); color: #fff7e8; border-color: var(--ink); }
-    .tab-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.7); }
-    .tab-btn.add { background: rgba(44, 139, 103, 0.12); color: var(--green); border-color: rgba(44, 139, 103, 0.3); }
-    .tab-btn.add:hover { background: rgba(44, 139, 103, 0.22); }
 
-    /* ── FORM ──────────────────────────────────────────────────────────── */
-    .form-section { display: none; }
-    .form-section.active { display: block; }
+    /* ── DYNAMIC PROVIDERS ─────────────────────────────────────────────── */
+    .provider-card {
+      background: rgba(255, 247, 232, 0.6);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .provider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed var(--line);
+    }
+    .provider-title {
+      font-family: Georgia, serif;
+      font-size: 1.15rem;
+      font-weight: bold;
+    }
+    .provider-title span.badge {
+      font-family: sans-serif;
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-left: 10px;
+      background: rgba(44, 139, 103, 0.15);
+      color: var(--green);
+    }
+    .provider-title span.badge.fallback {
+      background: rgba(196, 145, 61, 0.15);
+      color: var(--gold);
+    }
+    .provider-controls button {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.6);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .provider-controls button:hover {
+      background: var(--ink);
+      color: #fff;
+    }
+    .provider-controls button.btn-danger {
+      color: var(--red);
+      border-color: rgba(173, 79, 67, 0.3);
+    }
+    .provider-controls button.btn-danger:hover {
+      background: var(--red);
+      color: #fff;
+    }
 
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
     .form-row.full { grid-template-columns: 1fr; }
     label { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 900; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 5px; }
 
-    .master-toggle {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-radius: 14px;
-      background: rgba(44, 139, 103, 0.08);
-      border: 1px solid rgba(44, 139, 103, 0.2);
-      margin-bottom: 16px;
-    }
-    .master-toggle.off { background: rgba(173, 79, 67, 0.08); border-color: rgba(173, 79, 67, 0.2); }
-    .master-toggle span { font-weight: 800; font-size: 0.95rem; }
+    .field-group input, .field-group select { width: 100%; }
 
-    /* ── STYLE CARDS ───────────────────────────────────────────────────── */
-    .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
-    .style-card {
-      padding: 18px;
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      background: rgba(255, 247, 232, 0.6);
-      transition: all 0.2s;
+    .add-provider-btn {
+      width: 100%;
+      background: rgba(44, 139, 103, 0.12);
+      color: var(--green);
+      border: 1px dashed rgba(44, 139, 103, 0.4);
+      padding: 16px;
+      font-size: 1rem;
     }
-    .style-card.disabled { opacity: 0.45; }
-    .style-card h3 { font-family: Georgia, serif; font-size: 1.15rem; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
-    .style-card h3 .pill { font-family: sans-serif; }
-    .pill { display: inline-flex; border-radius: 999px; padding: 4px 10px; font-size: 0.72rem; font-weight: 900; }
-    .pill.scalping { background: rgba(47, 102, 143, 0.15); color: var(--blue); }
-    .pill.intraday { background: rgba(196, 145, 61, 0.15); color: var(--gold); }
-    .pill.swing { background: rgba(44, 139, 103, 0.15); color: var(--green); }
+    .add-provider-btn:hover {
+      background: rgba(44, 139, 103, 0.22);
+    }
 
-    .field-group { margin-bottom: 12px; }
-    .field-group input { width: 100%; }
+    .save-row { display: flex; gap: 10px; align-items: center; margin-top: 24px; }
+    .save-row button { padding: 13px 28px; font-size: 1rem; }
 
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
+    .test-api-btn {
+      background: rgba(47, 102, 143, 0.12);
+      color: var(--blue);
+      border: 1px solid rgba(47, 102, 143, 0.3);
+      width: 100%;
     }
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-      border-radius: 12px;
-      background: #ccc;
-      cursor: pointer;
-      transition: background 0.2s;
-      flex-shrink: 0;
+    .test-api-btn:hover {
+      background: rgba(47, 102, 143, 0.22);
+      color: var(--blue);
     }
-    .toggle.on { background: var(--green); }
-    .toggle::after {
-      content: "";
-      position: absolute;
-      top: 3px; left: 3px;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      background: white;
-      transition: transform 0.2s;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    }
-    .toggle.on::after { transform: translateX(20px); }
-    .toggle-label { font-weight: 700; font-size: 0.88rem; }
-
-    /* ── GLOBAL LIMITS ─────────────────────────────────────────────────── */
-    .limits-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
     /* ── STATUS BAR ────────────────────────────────────────────────────── */
     .status-bar {
@@ -203,14 +201,10 @@
     }
     .status-bar.success { display: block; background: rgba(44, 139, 103, 0.12); color: var(--green); border: 1px solid rgba(44, 139, 103, 0.25); }
     .status-bar.error { display: block; background: rgba(173, 79, 67, 0.12); color: var(--red); border: 1px solid rgba(173, 79, 67, 0.25); }
-
-    .save-row { display: flex; gap: 10px; align-items: center; }
-    .save-row button { padding: 13px 28px; font-size: 1rem; }
-    .delete-btn { background: var(--red) !important; font-size: 0.85rem !important; padding: 10px 18px !important; }
+    .status-bar.info { display: block; background: rgba(47, 102, 143, 0.12); color: var(--blue); border: 1px solid rgba(47, 102, 143, 0.25); }
 
     @media (max-width: 800px) {
-      .style-grid { grid-template-columns: 1fr; }
-      .form-row, .limits-row, .config-row { grid-template-columns: 1fr; }
+      .form-row, .config-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -227,7 +221,7 @@
     <header class="hero">
       <div class="eyebrow">Investment-AI_T system config</div>
       <h1>System & API Keys</h1>
-      <p>Configure global AI providers and API keys. The bot reads this from Supabase on startup.</p>
+      <p>Configure global AI providers and API keys. The bot dynamically fails over from top to bottom.</p>
       
       <div class="config-row">
         <input id="supabaseUrl" placeholder="Supabase URL, e.g. https://xxxx.supabase.co">
@@ -238,7 +232,13 @@
 
     <!-- FORM -->
     <section id="settingsPanel">
-      <div id="formContainer"></div>
+      <div id="providersContainer"></div>
+      <button class="add-provider-btn" onclick="addProvider()">+ Add AI Provider</button>
+
+      <div class="save-row">
+        <button onclick="saveSettings()">💾 Save Config</button>
+        <span id="lastSavedTxt" style="color:var(--muted);font-size:0.8rem;margin-left:auto"></span>
+      </div>
       <div class="status-bar" id="statusBar"></div>
     </section>
   </main>
@@ -252,6 +252,7 @@
       url: localStorage.getItem("supabaseUrl") || DEFAULT_SUPABASE_URL,
       anon: localStorage.getItem("supabaseAnon") || DEFAULT_SUPABASE_ANON,
       sys: null,
+      providers: []
     };
 
     $("supabaseUrl").value = state.url;
@@ -297,89 +298,227 @@
         const rows = await sbGet("system_settings?id=eq.global");
         if (rows.length > 0) {
           state.sys = rows[0];
+          state.providers = state.sys.providers_list || [];
+          $("lastSavedTxt").innerText = `Last saved: ${state.sys.updated_at ? new Date(state.sys.updated_at).toLocaleString() : "never"}`;
+          
+          // Migrate old single provider layout to list if empty
+          if (state.providers.length === 0 && state.sys.ai_provider) {
+            state.providers.push({
+              provider: state.sys.ai_provider,
+              api_key: state.sys.ai_provider === 'openrouter' ? state.sys.openrouter_api_key : state.sys.hf_token,
+              main_model: state.sys.ai_main_model,
+              risk_model: state.sys.ai_risk_model
+            });
+          }
         } else {
-          // Defaults if empty
-          state.sys = {
-            id: 'global',
-            openrouter_api_key: '',
-            hf_token: '',
-            ai_provider: 'openrouter',
-            ai_main_model: 'openai/gpt-oss-20b:free',
-            ai_risk_model: 'openai/gpt-oss-120b:free'
-          };
+          state.sys = { id: 'global' };
+          state.providers = [{
+            provider: 'openrouter',
+            api_key: '',
+            main_model: 'openai/gpt-oss-20b:free',
+            risk_model: 'openai/gpt-oss-120b:free'
+          }];
         }
-        renderForm();
+        renderProviders();
+        showStatus(`Loaded configurations successfully.`, "success");
       } catch (err) {
         showStatus(`Load failed: ${err.message}`, "error");
-        $("formContainer").innerHTML = `<p style="color:var(--red)">❌ Error loading from Supabase. Ensure system_settings table exists.</p>`;
       }
     }
 
     // ── RENDER ───────────────────────────────────────────────────────────
-    function renderForm() {
-      const sys = state.sys;
-      $("formContainer").innerHTML = `
-        <div class="form-row">
-          <div class="field-group" style="flex:1;">
-            <label>AI Provider Selection</label>
-            <select id="f_provider" style="width:100%">
-              <option value="openrouter" ${sys.ai_provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
-              <option value="huggingface" ${sys.ai_provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
-            </select>
-          </div>
-        </div>
+    function renderProviders() {
+      const container = $("providersContainer");
+      container.innerHTML = "";
+      
+      state.providers.forEach((p, index) => {
+        const isPrimary = index === 0;
+        const badgeClass = isPrimary ? "badge" : "badge fallback";
+        const badgeText = isPrimary ? "Primary" : `Fallback #${index}`;
 
-        <div class="form-row">
-          <div class="field-group">
-            <label>OpenRouter API Key</label>
-            <input id="f_or_key" type="password" value="${safe(sys.openrouter_api_key || "")}" placeholder="sk-or-v1-...">
-          </div>
-          <div class="field-group">
-            <label>HuggingFace Token</label>
-            <input id="f_hf_key" type="password" value="${safe(sys.hf_token || "")}" placeholder="hf_...">
-          </div>
-        </div>
+        const html = `
+          <div class="provider-card">
+            <div class="provider-header">
+              <div class="provider-title">
+                Provider #${index + 1} <span class="${badgeClass}">${badgeText}</span>
+              </div>
+              <div class="provider-controls">
+                <button onclick="moveUp(${index})" ${index === 0 ? 'disabled' : ''}>▲ Up</button>
+                <button onclick="moveDown(${index})" ${index === state.providers.length - 1 ? 'disabled' : ''}>▼ Down</button>
+                <button class="btn-danger" onclick="removeProvider(${index})">✖ Remove</button>
+              </div>
+            </div>
 
-        <label style="margin-bottom:10px">AI Models</label>
-        <div class="form-row">
-          <div class="field-group">
-            <label>Main Model</label>
-            <input id="f_main_model" value="${safe(sys.ai_main_model || "")}" placeholder="e.g. openai/gpt-oss-20b:free">
-          </div>
-          <div class="field-group">
-            <label>Risk Review Model</label>
-            <input id="f_risk_model" value="${safe(sys.ai_risk_model || "")}" placeholder="e.g. openai/gpt-oss-120b:free">
-          </div>
-        </div>
+            <div class="form-row">
+              <div class="field-group">
+                <label>Provider Platform</label>
+                <select onchange="updateProvider(${index}, 'provider', this.value)">
+                  <option value="openrouter" ${p.provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
+                  <option value="openai" ${p.provider === 'openai' ? 'selected' : ''}>OpenAI (ChatGPT)</option>
+                  <option value="anthropic" ${p.provider === 'anthropic' ? 'selected' : ''}>Anthropic (Claude)</option>
+                  <option value="deepseek" ${p.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
+                  <option value="huggingface" ${p.provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label>API Key</label>
+                <input type="password" value="${safe(p.api_key)}" placeholder="sk-..." onchange="updateProvider(${index}, 'api_key', this.value)">
+              </div>
+            </div>
 
-        <div class="save-row" style="margin-top:20px;">
-          <button onclick="saveSettings()">💾 Save Config</button>
-          <span style="color:var(--muted);font-size:0.8rem;margin-left:auto">
-            Last saved: ${sys.updated_at ? new Date(sys.updated_at).toLocaleString() : "never"}
-          </span>
-        </div>
-      `;
+            <div class="form-row">
+              <div class="field-group">
+                <label>Main Model</label>
+                <input value="${safe(p.main_model)}" placeholder="Model ID..." onchange="updateProvider(${index}, 'main_model', this.value)">
+              </div>
+              <div class="field-group">
+                <label>Risk Review Model</label>
+                <input value="${safe(p.risk_model)}" placeholder="Model ID..." onchange="updateProvider(${index}, 'risk_model', this.value)">
+              </div>
+            </div>
+
+            <div class="form-row full" style="margin-top:10px;">
+              <button class="test-api-btn" onclick="testApi(${index})">⚡ Test Connection & API Key</button>
+            </div>
+            
+            <div id="testRes_${index}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;"></div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    // ── MUTATIONS ────────────────────────────────────────────────────────
+    function updateProvider(index, field, value) {
+      state.providers[index][field] = value.trim();
+    }
+
+    function addProvider() {
+      state.providers.push({
+        provider: 'openrouter',
+        api_key: '',
+        main_model: '',
+        risk_model: ''
+      });
+      renderProviders();
+    }
+
+    function removeProvider(index) {
+      state.providers.splice(index, 1);
+      renderProviders();
+    }
+
+    function moveUp(index) {
+      if (index === 0) return;
+      const temp = state.providers[index - 1];
+      state.providers[index - 1] = state.providers[index];
+      state.providers[index] = temp;
+      renderProviders();
+    }
+
+    function moveDown(index) {
+      if (index === state.providers.length - 1) return;
+      const temp = state.providers[index + 1];
+      state.providers[index + 1] = state.providers[index];
+      state.providers[index] = temp;
+      renderProviders();
     }
 
     // ── SAVE ─────────────────────────────────────────────────────────────
     async function saveSettings() {
       const payload = {
         id: 'global',
-        ai_provider: $("f_provider").value,
-        openrouter_api_key: $("f_or_key").value.trim(),
-        hf_token: $("f_hf_key").value.trim(),
-        ai_main_model: $("f_main_model").value.trim(),
-        ai_risk_model: $("f_risk_model").value.trim(),
+        providers_list: state.providers,
         updated_at: new Date().toISOString(),
         updated_by: "dashboard",
       };
 
       try {
         await sbUpsert("system_settings", payload);
-        showStatus(\`✅ API keys and settings saved at \${new Date().toLocaleTimeString()}\`, "success");
+        showStatus(`✅ Configurations saved successfully at ${new Date().toLocaleTimeString()}`, "success");
         await loadSystemSettings();
       } catch (err) {
-        showStatus(\`❌ Save failed: \${err.message}\`, "error");
+        showStatus(`❌ Save failed: ${err.message}`, "error");
+      }
+    }
+
+    // ── TEST API ──────────────────────────────────────────────────────────
+    async function testApi(index) {
+      const p = state.providers[index];
+      const resDiv = $(`testRes_${index}`);
+      resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing connection...</span>`;
+
+      if (!p.api_key) {
+        resDiv.innerHTML = `<span style="color:var(--red)">❌ Missing API Key</span>`;
+        return;
+      }
+      if (!p.main_model) {
+        resDiv.innerHTML = `<span style="color:var(--red)">❌ Missing Main Model</span>`;
+        return;
+      }
+
+      const payload = {
+        model: p.main_model,
+        messages: [{ role: "user", content: "Reply with the word OK." }],
+        max_tokens: 5,
+        temperature: 0.1
+      };
+
+      let url = "";
+      let headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${p.api_key}`
+      };
+
+      if (p.provider === 'openrouter') {
+        url = "https://openrouter.ai/api/v1/chat/completions";
+        headers["HTTP-Referer"] = "https://github.com/hdanial211/Investment-AI_T";
+        headers["X-Title"] = "Investment-AI_T";
+      } else if (p.provider === 'openai') {
+        url = "https://api.openai.com/v1/chat/completions";
+      } else if (p.provider === 'deepseek') {
+        url = "https://api.deepseek.com/v1/chat/completions";
+      } else if (p.provider === 'anthropic') {
+        url = "https://api.anthropic.com/v1/messages";
+        headers = {
+          "Content-Type": "application/json",
+          "x-api-key": p.api_key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerously-allow-browser": "true" // Needed to test from frontend
+        };
+        payload.max_tokens = 5;
+        delete payload.messages;
+        payload.messages = [{ role: "user", content: "Reply with the word OK." }];
+      } else if (p.provider === 'huggingface') {
+        url = "https://router.huggingface.co/v1/chat/completions";
+      } else {
+        resDiv.innerHTML = `<span style="color:var(--red)">❌ Unsupported provider for test</span>`;
+        return;
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error?.message || JSON.stringify(data));
+        }
+
+        let replyText = "";
+        if (p.provider === 'anthropic') {
+          replyText = data.content?.[0]?.text;
+        } else {
+          replyText = data.choices?.[0]?.message?.content;
+        }
+
+        resDiv.innerHTML = `<span style="color:var(--green)">✅ Success! Model replied: "${safe(replyText)}"</span>`;
+      } catch (err) {
+        resDiv.innerHTML = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
       }
     }
 
@@ -389,7 +528,7 @@
     function showStatus(msg, type) {
       const bar = $("statusBar");
       bar.textContent = msg;
-      bar.className = \`status-bar \${type}\`;
+      bar.className = `status-bar ${type}`;
     }
 
     // ── INIT ─────────────────────────────────────────────────────────────

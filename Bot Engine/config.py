@@ -93,6 +93,9 @@ AI_TEMPERATURE      = float(os.getenv("AI_TEMPERATURE", "0.1"))
 AI_MAX_TOKENS       = int(os.getenv("AI_MAX_TOKENS", "256"))
 AI_STARTUP_HEALTHCHECK = _env_bool("AI_STARTUP_HEALTHCHECK", "False")
 
+# Dynamic Providers Configuration injected from Supabase
+PROVIDERS_CONFIG = []
+
 # ─────────────────────────────────────────────────────────────────────────────
 # FUTURE VISION AI / CHART SCREENSHOT SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────

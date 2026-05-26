@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def fetch_and_apply_system_settings() -> bool:
     """
     Fetches the global system settings from Supabase and overwrites
-    config.py parameters (API keys, AI models).
+    config.py parameters (providers_list).
     Returns True if successful, False otherwise.
     """
     try:
@@ -28,24 +28,25 @@ def fetch_and_apply_system_settings() -> bool:
 
         if response.data and len(response.data) > 0:
             data = response.data[0]
-            
             logger.info("Loaded global system settings from Supabase. Overriding config.")
 
-            # Override API Keys if provided
-            if data.get("openrouter_api_key"):
-                config.OPENROUTER_API_KEY = data["openrouter_api_key"]
-            if data.get("hf_token"):
-                config.HF_TOKEN = data["hf_token"]
-                
-            # Override AI Provider
-            if data.get("ai_provider"):
-                config.AI_PROVIDER = data["ai_provider"].upper()
-                
-            # Override Models
-            if data.get("ai_main_model"):
-                config.AI_MAIN_MODEL = data["ai_main_model"]
-            if data.get("ai_risk_model"):
-                config.AI_RISK_MODEL = data["ai_risk_model"]
+            providers_list = data.get("providers_list", [])
+            if isinstance(providers_list, list) and len(providers_list) > 0:
+                config.PROVIDERS_CONFIG = providers_list
+                logger.info(f"Loaded {len(providers_list)} API providers.")
+            else:
+                logger.warning("No providers_list found. Will fallback to default config variables.")
+                # Fallback to old method just in case
+                if data.get("openrouter_api_key"):
+                    config.OPENROUTER_API_KEY = data["openrouter_api_key"]
+                if data.get("hf_token"):
+                    config.HF_TOKEN = data["hf_token"]
+                if data.get("ai_provider"):
+                    config.AI_PROVIDER = data["ai_provider"].upper()
+                if data.get("ai_main_model"):
+                    config.AI_MAIN_MODEL = data["ai_main_model"]
+                if data.get("ai_risk_model"):
+                    config.AI_RISK_MODEL = data["ai_risk_model"]
 
             return True
         else:

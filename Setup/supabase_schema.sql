@@ -295,6 +295,7 @@ create table if not exists public.system_settings (
   openrouter_api_key text,
   hf_token text,
   ai_provider text default 'openrouter',
+  providers_list jsonb default '[]'::jsonb,
   updated_at timestamptz not null default now(),
   updated_by text default 'dashboard'
 );

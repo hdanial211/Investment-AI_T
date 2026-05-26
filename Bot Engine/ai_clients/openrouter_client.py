@@ -14,9 +14,9 @@ from .base import AIProviderError
 class OpenRouterClient:
     name = "openrouter"
 
-    def __init__(self):
+    def __init__(self, api_key: str = None):
         self.base_url = config.OPENROUTER_BASE_URL.rstrip("/")
-        self.api_key = config.OPENROUTER_API_KEY
+        self.api_key = api_key or config.OPENROUTER_API_KEY
 
     def chat_completion(
         self,

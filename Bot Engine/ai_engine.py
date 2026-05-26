@@ -262,7 +262,8 @@ def query_ai_provider(
     temperature: float = None,
     max_tokens: int = None,
 ) -> Optional[str]:
-    providers = get_provider_sequence(provider)
+    # In the new setup, provider argument is largely ignored in favor of the configured sequence.
+    providers = get_provider_sequence()
     selected_timeout = timeout or config.AI_TIMEOUT
     selected_temperature = config.AI_TEMPERATURE if temperature is None else temperature
     selected_max_tokens = max_tokens or config.AI_MAX_TOKENS
@@ -271,10 +272,12 @@ def query_ai_provider(
         logger.info("AI busy. Waiting for current cloud AI call to finish...")
 
     with _AI_CALL_LOCK:
-        for provider_name in providers:
-            selected_model = model or get_model_for_role(provider_name, role)
+        for provider_config in providers:
+            provider_name = provider_config.get("provider", "unknown")
+            selected_model = model or get_model_for_role(provider_config, role)
+            
             try:
-                client = get_client(provider_name)
+                client = get_client(provider_config)
             except Exception as e:
                 logger.error(f"AI provider setup failed for {provider_name}: {e}")
                 continue
@@ -334,8 +337,13 @@ def query_ai_provider(
     return None
 
 
-def _provider_has_credentials(provider: str) -> bool:
-    provider = str(provider or "").strip().lower()
+def _provider_has_credentials(provider_config: dict) -> bool:
+    provider = str(provider_config.get("provider", "")).strip().lower()
+    api_key = provider_config.get("api_key")
+    if api_key and api_key != "CHANGE_ME":
+        return True
+        
+    # fallback to old config checks just in case
     if provider == "openrouter":
         return bool(config.OPENROUTER_API_KEY and config.OPENROUTER_API_KEY != "CHANGE_ME")
     if provider in ("huggingface", "hf"):
@@ -344,10 +352,16 @@ def _provider_has_credentials(provider: str) -> bool:
 
 
 def check_ai_health(provider: str = None, role: str = "main") -> bool:
-    provider_name = provider or config.AI_PROVIDER
-    model = get_model_for_role(provider_name, role)
+    providers = get_provider_sequence()
+    if not providers:
+        logger.error("No AI Providers configured.")
+        return False
+        
+    provider_config = providers[0]  # Just check the primary one for health
+    provider_name = provider_config.get("provider", "unknown")
+    model = get_model_for_role(provider_config, role)
 
-    if not _provider_has_credentials(provider_name):
+    if not _provider_has_credentials(provider_config):
         logger.warning(f"Missing API key for AI provider={provider_name}")
         return False
 
