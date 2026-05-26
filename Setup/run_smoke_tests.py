@@ -273,6 +273,74 @@ def test_supabase_disabled_does_not_crash_with_new_fields():
     # If we get here without exception, the test passes
 
 
+def test_account_settings_defaults_without_supabase():
+    """AccountSettings should return sane defaults when Supabase is disabled."""
+    from account_settings import AccountSettings
+
+    settings = AccountSettings("acc_test", fetch_interval=0)
+    assert settings.enabled is True
+    assert settings.is_style_enabled("INTRADAY") is True
+    assert settings.get_max_total_trades() >= 1
+    assert settings.get_max_risk_percent() > 0
+    summary = settings.get_settings_summary()
+    assert summary["source"] == "local_defaults"
+
+
+def test_account_settings_style_toggle():
+    """AccountSettings should respect style toggle overrides from cache."""
+    from account_settings import AccountSettings
+
+    settings = AccountSettings("acc_test", fetch_interval=9999)
+    # Manually set cache to simulate Supabase data
+    settings._cache["scalping_enabled"] = False
+    settings._cache["intraday_enabled"] = True
+    settings._cache["swing_enabled"] = True
+
+    assert settings.is_style_enabled("SCALPING") is False
+    assert settings.is_style_enabled("INTRADAY") is True
+    assert settings.is_style_enabled("SWING") is True
+
+
+def test_account_settings_lot_clamped():
+    """Lot sizes should be clamped between MIN_LOT and MAX_LOT."""
+    from account_settings import AccountSettings
+    import config
+
+    settings = AccountSettings("acc_test", fetch_interval=9999)
+    settings._cache["swing_lot"] = 999.0  # way above MAX_LOT
+    settings._cache["scalping_lot"] = 0.0001  # below MIN_LOT
+
+    swing_lot = settings.get_lot_for_style("SWING")
+    scalping_lot = settings.get_lot_for_style("SCALPING")
+
+    assert swing_lot <= config.MAX_LOT, f"swing_lot {swing_lot} > MAX_LOT {config.MAX_LOT}"
+    assert scalping_lot >= config.MIN_LOT, f"scalping_lot {scalping_lot} < MIN_LOT {config.MIN_LOT}"
+
+
+def test_settings_html_has_required_elements():
+    """settings.html should have account management elements."""
+    html = (ROOT / "Dashboard" / "settings.html").read_text(encoding="utf-8")
+
+    required = [
+        "account_settings",
+        "scalping_enabled",
+        "intraday_enabled",
+        "swing_enabled",
+        "scalping_lot",
+        "intraday_lot",
+        "swing_lot",
+        "max_total_trades",
+        "max_risk_percent",
+        "Add Account",
+        "Save Settings",
+        "Delete",
+        "Account Active",
+    ]
+
+    for fragment in required:
+        assert fragment in html, f"settings.html missing fragment: {fragment}"
+
+
 def run_all():
     tests = [
         test_json_parser_and_signal_validation,
@@ -288,6 +356,10 @@ def run_all():
         test_conflicting_text_image_decision_becomes_hold,
         test_valid_merged_decision_keeps_trade_style,
         test_supabase_disabled_does_not_crash_with_new_fields,
+        test_account_settings_defaults_without_supabase,
+        test_account_settings_style_toggle,
+        test_account_settings_lot_clamped,
+        test_settings_html_has_required_elements,
     ]
 
     passed = 0

@@ -176,5 +176,91 @@ begin
   if not exists (select 1 from information_schema.columns where table_name='active_trades' and column_name='vision_bias') then
     alter table public.active_trades add column vision_bias text;
   end if;
+  if not exists (select 1 from information_schema.columns where table_name='active_trades' and column_name='account_id') then
+    alter table public.active_trades add column account_id text default 'acc_1';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='bot_heartbeat' and column_name='account_id') then
+    alter table public.bot_heartbeat add column account_id text default 'acc_1';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='trade_events' and column_name='account_id') then
+    alter table public.trade_events add column account_id text default 'acc_1';
+  end if;
 end $$;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ACCOUNT SETTINGS (dashboard-writable, per-account trading configuration)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.account_settings (
+  account_id text primary key,
+  account_label text default 'Account',
+  mt5_login text,
+  mt5_server text,
+  mt5_path text,
+  enabled boolean default true,
+
+  -- Trade style toggles
+  scalping_enabled boolean default false,
+  intraday_enabled boolean default true,
+  swing_enabled boolean default true,
+
+  -- Lot size per trade style
+  scalping_lot numeric default 0.01,
+  intraday_lot numeric default 0.01,
+  swing_lot numeric default 0.01,
+
+  -- Max concurrent trades per style
+  scalping_max_trades integer default 0,
+  intraday_max_trades integer default 3,
+  swing_max_trades integer default 2,
+
+  -- Global limits
+  max_total_trades integer default 5,
+  max_risk_percent numeric default 2.0,
+
+  updated_at timestamptz not null default now(),
+  updated_by text default 'dashboard'
+);
+
+-- Migration for account_settings (if table already existed before new columns)
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_name='account_settings' and column_name='mt5_server') then
+    alter table public.account_settings add column mt5_server text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='account_settings' and column_name='mt5_path') then
+    alter table public.account_settings add column mt5_path text;
+  end if;
+end $$;
+
+alter table public.account_settings enable row level security;
+
+-- Anon (Vercel dashboard) can READ and WRITE account_settings ONLY
+drop policy if exists "dashboard read account settings" on public.account_settings;
+drop policy if exists "dashboard write account settings" on public.account_settings;
+drop policy if exists "dashboard update account settings" on public.account_settings;
+
+create policy "dashboard read account settings"
+  on public.account_settings for select
+  to anon
+  using (true);
+
+create policy "dashboard write account settings"
+  on public.account_settings for insert
+  to anon
+  with check (true);
+
+create policy "dashboard update account settings"
+  on public.account_settings for update
+  to anon
+  using (true)
+  with check (true);
+
+-- Service role full access
+drop policy if exists "bot full access account settings" on public.account_settings;
+
+create policy "bot full access account settings"
+  on public.account_settings for all
+  to service_role
+  using (true)
+  with check (true);

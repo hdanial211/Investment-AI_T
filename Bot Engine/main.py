@@ -29,6 +29,7 @@ from logger import setup_logging, TradeLogger, generate_performance_report
 from trade_memory import TradeMemory
 from chart_capture import capture_charts, cleanup_old_screenshots
 from vision_engine import get_vision_signal
+from account_settings import AccountSettings
 from trade_management import ActiveTradeManager
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ def run_cycle(
     trade_logger: TradeLogger,
     trade_memory: TradeMemory,
     active_manager: ActiveTradeManager,
+    acct_settings: AccountSettings = None,
 ) -> Optional[str]:
     """
     Execute one complete trading cycle for a given symbol.
@@ -160,11 +162,46 @@ def run_cycle(
         return "skipped"
 
     action = signal["action"]
+    trade_style = signal.get("trade_style", "INTRADAY").upper()
     logger.info(
         f"✔ Signal approved: {action} | "
+        f"Style: {trade_style} | "
         f"Confidence: {signal['confidence']:.2f} | "
         f"Reason: {signal['reason']}"
     )
+
+    # ── STEP 6.2: Account settings — style/lot/max-trade check ────────────────
+    if acct_settings:
+        if not acct_settings.enabled:
+            logger.info(f"[{symbol}] Account '{acct_settings.account_id}' is disabled. Skipping trade.")
+            trade_logger.log_skipped(symbol, "Account disabled via dashboard", signal=signal)
+            return "skipped"
+
+        if not acct_settings.is_style_enabled(trade_style):
+            logger.info(f"[{symbol}] Trade style '{trade_style}' is disabled for this account. Skipping.")
+            trade_logger.log_skipped(symbol, f"Style {trade_style} disabled", signal=signal)
+            return "skipped"
+
+        # Check max trades per style
+        style_max = acct_settings.get_max_trades_for_style(trade_style)
+        if style_max > 0:
+            current_style_count = sum(
+                1 for p in open_positions
+                if p.get("trade_style", "INTRADAY").upper() == trade_style
+            )
+            if current_style_count >= style_max:
+                msg = f"Max {trade_style} trades ({style_max}) reached"
+                logger.info(f"[{symbol}] {msg}. Skipping.")
+                trade_logger.log_skipped(symbol, msg, signal=signal)
+                return "skipped"
+
+        # Check max total trades
+        total_max = acct_settings.get_max_total_trades()
+        if open_pos_count >= total_max:
+            msg = f"Max total trades ({total_max}) reached across all symbols"
+            logger.info(f"[{symbol}] {msg}. Skipping.")
+            trade_logger.log_skipped(symbol, msg, signal=signal)
+            return "skipped"
 
     # ── STEP 6.5: AI Position Closure ────────────────────────────────────────
     # If we have open positions and the AI thesis is opposite, close them!
@@ -201,6 +238,13 @@ def run_cycle(
         contract_size = contract,
         indicators    = indicators,
     )
+
+    # Override lot with per-style lot from dashboard settings
+    if acct_settings:
+        style_lot = acct_settings.get_lot_for_style(trade_style)
+        if style_lot > 0:
+            trade_params["lot"] = style_lot
+            logger.info(f"Lot overridden by account settings: {style_lot} (style: {trade_style})")
 
     logger.info(
         f"Trade params: Lot={trade_params['lot']} | "
@@ -345,6 +389,7 @@ def main():
     trade_logger = TradeLogger()
     trade_memory = TradeMemory()
     active_manager = ActiveTradeManager(connector, trade_memory, risk_mgr)
+    acct_settings  = AccountSettings(config.ACCOUNT_ID)
 
     # Pre-flight checks
     if not startup_checks(connector):
@@ -352,9 +397,15 @@ def main():
         sys.exit(1)
 
     logger.info(f"Trading symbols: {config.SYMBOLS}")
+    logger.info(f"Account ID:      {config.ACCOUNT_ID}")
     logger.info(f"Loop interval:   {config.LOOP_INTERVAL}s")
     logger.info(f"Risk per trade:  {config.MAX_RISK_PERCENT}%")
     logger.info(f"Min confidence:  {config.MIN_CONFIDENCE}")
+
+    # Log account settings
+    acct_summary = acct_settings.get_settings_summary()
+    logger.info(f"Account settings: {acct_summary}")
+
     logger.info("Bot is LIVE. Press Ctrl+C to stop.\n")
 
     cycle_count = 0
@@ -380,7 +431,7 @@ def main():
             if _shutdown_requested:
                 break
             try:
-                run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory, active_manager)
+                run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory, active_manager, acct_settings)
             except Exception as e:
                 logger.error(f"Unhandled exception in cycle [{symbol}]: {e}", exc_info=True)
 

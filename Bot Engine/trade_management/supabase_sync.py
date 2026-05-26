@@ -45,6 +45,7 @@ class SupabaseSync:
             "last_seen_at": datetime.utcnow().isoformat(),
             "current_cycle": cycle,
             "message": message,
+            "account_id": getattr(config, "ACCOUNT_ID", "acc_1"),
         }
         self._upsert("bot_heartbeat", payload, conflict="machine_id")
 
@@ -75,6 +76,7 @@ class SupabaseSync:
             "exit_reason": state.get("exit_reason"),
             "trade_style": state.get("trade_style"),
             "vision_bias": state.get("vision_bias") or state.get("image_bias"),
+            "account_id": getattr(config, "ACCOUNT_ID", "acc_1"),
             "updated_at": datetime.utcnow().isoformat(),
         }
         self._upsert("active_trades", payload, conflict="ticket")

@@ -28,6 +28,11 @@ MT5_SERVER   = os.getenv("MT5_SERVER",       "Broker-Server")
 MT5_PATH     = os.getenv("MT5_PATH",         "")   # e.g. C:/Program Files/MetaTrader 5/terminal64.exe
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ACCOUNT ID (for multi-account settings via Supabase)
+# ─────────────────────────────────────────────────────────────────────────────
+ACCOUNT_ID   = os.getenv("ACCOUNT_ID",       "acc_1").strip()
+
+# ─────────────────────────────────────────────────────────────────────────────
 # TRADING SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
 SYMBOLS          = os.getenv("SYMBOLS", "XAUUSD,EURUSD").split(",")

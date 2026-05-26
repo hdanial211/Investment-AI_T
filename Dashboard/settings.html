@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account Settings — Investment-AI_T</title>
+  <style>
+    :root {
+      --bg: #111814;
+      --panel: rgba(245, 236, 216, 0.92);
+      --paper: #fff7e8;
+      --ink: #1a221e;
+      --muted: #67716a;
+      --line: rgba(65, 79, 69, 0.18);
+      --gold: #c4913d;
+      --green: #2c8b67;
+      --red: #ad4f43;
+      --blue: #2f668f;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+
+    body {
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(196, 145, 61, 0.34), transparent 32rem),
+        radial-gradient(circle at 88% 16%, rgba(44, 139, 103, 0.26), transparent 30rem),
+        linear-gradient(140deg, #101713, #253229 48%, #5a442a);
+      font-family: "Trebuchet MS", "Gill Sans", Verdana, sans-serif;
+    }
+
+    .wrap {
+      width: min(1100px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    /* ── NAV ───────────────────────────────────────────────────────────── */
+    .nav {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .nav a {
+      color: rgba(255, 247, 232, 0.7);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 8px 16px;
+      border-radius: 12px;
+      transition: all 0.2s;
+    }
+    .nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff7e8; }
+    .nav a.active { background: rgba(196, 145, 61, 0.22); color: var(--gold); }
+
+    /* ── HERO ──────────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, rgba(255, 247, 232, 0.96), rgba(239, 222, 191, 0.9));
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: clamp(22px, 4vw, 36px);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -90px; bottom: -120px;
+      width: 280px; height: 280px;
+      border-radius: 50%;
+      background: rgba(196, 145, 61, 0.18);
+    }
+    .eyebrow { color: var(--gold); font-size: 0.78rem; font-weight: 900; letter-spacing: 0.18em; text-transform: uppercase; }
+    h1 { margin: 10px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.8rem, 5vw, 3.4rem); line-height: 0.95; letter-spacing: -0.04em; }
+    .hero p { max-width: 700px; margin: 12px 0 0; color: var(--muted); font-size: 0.95rem; }
+    .warn-bar { margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: rgba(173, 79, 67, 0.1); border: 1px solid rgba(173, 79, 67, 0.25); color: var(--red); font-size: 0.82rem; font-weight: 700; }
+
+    /* ── SUPABASE INPUTS ───────────────────────────────────────────────── */
+    .config-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 10px;
+      margin-top: 18px;
+      position: relative;
+      z-index: 1;
+    }
+    input, select, button { border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; font: inherit; font-size: 0.92rem; }
+    input, select { background: rgba(255, 255, 255, 0.78); min-width: 0; }
+    button { background: var(--ink); color: #fff7e8; cursor: pointer; font-weight: 800; transition: opacity 0.15s; }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── TABS ──────────────────────────────────────────────────────────── */
+    section {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      margin-top: 18px;
+      padding: 22px;
+    }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+    .tab-btn {
+      padding: 10px 20px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 0.88rem;
+      transition: all 0.2s;
+    }
+    .tab-btn.active { background: var(--ink); color: #fff7e8; border-color: var(--ink); }
+    .tab-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.7); }
+    .tab-btn.add { background: rgba(44, 139, 103, 0.12); color: var(--green); border-color: rgba(44, 139, 103, 0.3); }
+    .tab-btn.add:hover { background: rgba(44, 139, 103, 0.22); }
+
+    /* ── FORM ──────────────────────────────────────────────────────────── */
+    .form-section { display: none; }
+    .form-section.active { display: block; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .form-row.full { grid-template-columns: 1fr; }
+    label { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 900; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 5px; }
+
+    .master-toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 14px;
+      background: rgba(44, 139, 103, 0.08);
+      border: 1px solid rgba(44, 139, 103, 0.2);
+      margin-bottom: 16px;
+    }
+    .master-toggle.off { background: rgba(173, 79, 67, 0.08); border-color: rgba(173, 79, 67, 0.2); }
+    .master-toggle span { font-weight: 800; font-size: 0.95rem; }
+
+    /* ── STYLE CARDS ───────────────────────────────────────────────────── */
+    .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+    .style-card {
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 247, 232, 0.6);
+      transition: all 0.2s;
+    }
+    .style-card.disabled { opacity: 0.45; }
+    .style-card h3 { font-family: Georgia, serif; font-size: 1.15rem; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .style-card h3 .pill { font-family: sans-serif; }
+    .pill { display: inline-flex; border-radius: 999px; padding: 4px 10px; font-size: 0.72rem; font-weight: 900; }
+    .pill.scalping { background: rgba(47, 102, 143, 0.15); color: var(--blue); }
+    .pill.intraday { background: rgba(196, 145, 61, 0.15); color: var(--gold); }
+    .pill.swing { background: rgba(44, 139, 103, 0.15); color: var(--green); }
+
+    .field-group { margin-bottom: 12px; }
+    .field-group input { width: 100%; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      border-radius: 12px;
+      background: #ccc;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--green); }
+    .toggle::after {
+      content: "";
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: white;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle.on::after { transform: translateX(20px); }
+    .toggle-label { font-weight: 700; font-size: 0.88rem; }
+
+    /* ── GLOBAL LIMITS ─────────────────────────────────────────────────── */
+    .limits-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    /* ── STATUS BAR ────────────────────────────────────────────────────── */
+    .status-bar {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: none;
+    }
+    .status-bar.success { display: block; background: rgba(44, 139, 103, 0.12); color: var(--green); border: 1px solid rgba(44, 139, 103, 0.25); }
+    .status-bar.error { display: block; background: rgba(173, 79, 67, 0.12); color: var(--red); border: 1px solid rgba(173, 79, 67, 0.25); }
+
+    .save-row { display: flex; gap: 10px; align-items: center; }
+    .save-row button { padding: 13px 28px; font-size: 1rem; }
+    .delete-btn { background: var(--red) !important; font-size: 0.85rem !important; padding: 10px 18px !important; }
+
+    @media (max-width: 800px) {
+      .style-grid { grid-template-columns: 1fr; }
+      .form-row, .limits-row, .config-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <!-- NAV -->
+    <nav class="nav">
+      <a href="index.html">📊 Dashboard</a>
+      <a href="settings.html" class="active">⚙ Account Settings</a>
+    </nav>
+
+    <!-- HERO -->
+    <header class="hero">
+      <div class="eyebrow">Investment-AI_T account manager</div>
+      <h1>Trading Settings Per Account</h1>
+      <p>Configure lot sizes, trade styles, and limits for each MT5 account. Bot reads these settings from Supabase every cycle.</p>
+      <div class="warn-bar">⚠ Settings only — this page cannot open or close trades. Execution happens on the Windows laptop bot.</div>
+
+      <div class="config-row">
+        <input id="supabaseUrl" placeholder="Supabase URL, e.g. https://xxxx.supabase.co">
+        <input id="supabaseAnon" placeholder="Supabase anon key">
+        <button id="loadBtn">Load Settings</button>
+      </div>
+    </header>
+
+    <!-- ACCOUNT TABS + FORM -->
+    <section id="settingsPanel">
+      <div class="tabs" id="accountTabs"></div>
+      <div id="formContainer"></div>
+      <div class="status-bar" id="statusBar"></div>
+    </section>
+  </main>
+
+  <script>
+    const DEFAULT_SUPABASE_URL = "https://kusyjtpcjyflxgfcqenb.supabase.co";
+    const $ = (id) => document.getElementById(id);
+
+    const state = {
+      url: localStorage.getItem("supabaseUrl") || DEFAULT_SUPABASE_URL,
+      anon: localStorage.getItem("supabaseAnon") || "",
+      accounts: [],
+      activeTab: null,
+    };
+
+    $("supabaseUrl").value = state.url;
+    $("supabaseAnon").value = state.anon;
+
+    $("loadBtn").addEventListener("click", () => {
+      state.url = $("supabaseUrl").value.trim().replace(/\/$/, "");
+      state.anon = $("supabaseAnon").value.trim();
+      localStorage.setItem("supabaseUrl", state.url);
+      localStorage.setItem("supabaseAnon", state.anon);
+      loadAccounts();
+    });
+
+    // ── SUPABASE HELPERS ─────────────────────────────────────────────────
+    async function sbGet(path) {
+      if (!state.url || !state.anon) return [];
+      const res = await fetch(`${state.url}/rest/v1/${path}`, {
+        headers: { apikey: state.anon, Authorization: `Bearer ${state.anon}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    async function sbUpsert(table, data) {
+      if (!state.url || !state.anon) throw new Error("No Supabase config");
+      const res = await fetch(`${state.url}/rest/v1/${table}`, {
+        method: "POST",
+        headers: {
+          apikey: state.anon,
+          Authorization: `Bearer ${state.anon}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates",
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    }
+
+    async function sbDelete(table, column, value) {
+      if (!state.url || !state.anon) throw new Error("No Supabase config");
+      const res = await fetch(`${state.url}/rest/v1/${table}?${column}=eq.${encodeURIComponent(value)}`, {
+        method: "DELETE",
+        headers: { apikey: state.anon, Authorization: `Bearer ${state.anon}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    }
+
+    // ── LOAD ACCOUNTS ────────────────────────────────────────────────────
+    async function loadAccounts() {
+      try {
+        state.accounts = await sbGet("account_settings?select=*&order=account_id.asc");
+        renderTabs();
+        if (state.accounts.length > 0) {
+          selectTab(state.activeTab || state.accounts[0].account_id);
+        } else {
+          $("formContainer").innerHTML = `<p style="color:var(--muted);padding:20px">Tiada account lagi. Click "+ Add Account" untuk mula.</p>`;
+        }
+      } catch (err) {
+        showStatus(`Load failed: ${err.message}`, "error");
+      }
+    }
+
+    // ── RENDER TABS ──────────────────────────────────────────────────────
+    function renderTabs() {
+      const tabs = $("accountTabs");
+      tabs.innerHTML = "";
+
+      state.accounts.forEach((acc) => {
+        const btn = document.createElement("button");
+        btn.className = `tab-btn ${acc.account_id === state.activeTab ? "active" : ""}`;
+        btn.textContent = acc.account_label || acc.account_id;
+        btn.onclick = () => selectTab(acc.account_id);
+        tabs.appendChild(btn);
+      });
+
+      const addBtn = document.createElement("button");
+      addBtn.className = "tab-btn add";
+      addBtn.textContent = "+ Add Account";
+      addBtn.onclick = addAccount;
+      tabs.appendChild(addBtn);
+    }
+
+    // ── SELECT TAB ───────────────────────────────────────────────────────
+    function selectTab(accId) {
+      state.activeTab = accId;
+      renderTabs();
+      const acc = state.accounts.find((a) => a.account_id === accId);
+      if (acc) renderForm(acc);
+    }
+
+    // ── ADD ACCOUNT ──────────────────────────────────────────────────────
+    async function addAccount() {
+      const nextNum = state.accounts.length + 1;
+      const accId = `acc_${nextNum}`;
+      const newAcc = {
+        account_id: accId,
+        account_label: `Account ${nextNum}`,
+        mt5_login: "",
+        mt5_server: "",
+        mt5_path: "",
+        enabled: true,
+        scalping_enabled: false,
+        intraday_enabled: true,
+        swing_enabled: true,
+        scalping_lot: 0.01,
+        intraday_lot: 0.01,
+        swing_lot: 0.01,
+        scalping_max_trades: 0,
+        intraday_max_trades: 3,
+        swing_max_trades: 2,
+        max_total_trades: 5,
+        max_risk_percent: 2.0,
+        updated_at: new Date().toISOString(),
+        updated_by: "dashboard",
+      };
+
+      try {
+        await sbUpsert("account_settings", newAcc);
+        showStatus(`Account "${newAcc.account_label}" created!`, "success");
+        state.activeTab = accId;
+        await loadAccounts();
+      } catch (err) {
+        showStatus(`Failed to create account: ${err.message}`, "error");
+      }
+    }
+
+    // ── RENDER FORM ──────────────────────────────────────────────────────
+    function renderForm(acc) {
+      const enabled = acc.enabled !== false;
+      $("formContainer").innerHTML = `
+        <!-- Master Toggle -->
+        <div class="master-toggle ${enabled ? "" : "off"}" id="masterToggle" onclick="toggleMaster()">
+          <div class="toggle ${enabled ? "on" : ""}" id="masterSwitch"></div>
+          <span id="masterLabel">${enabled ? "✅ Account Active" : "⛔ Account Disabled"}</span>
+        </div>
+
+        <!-- Account Info -->
+        <div class="form-row">
+          <div class="field-group">
+            <label>Account Label</label>
+            <input id="f_label" value="${safe(acc.account_label || "")}" placeholder="e.g. Main Account">
+          </div>
+          <div class="field-group">
+            <label>MT5 Login</label>
+            <input id="f_mt5login" value="${safe(acc.mt5_login || "")}" placeholder="e.g. 12345678">
+          </div>
+        </div>
+
+        <!-- MT5 Broker Info -->
+        <div class="form-row">
+          <div class="field-group">
+            <label>MT5 Broker Server</label>
+            <input id="f_mt5server" value="${safe(acc.mt5_server || "")}" placeholder="e.g. RoboForex-Pro">
+          </div>
+          <div class="field-group">
+            <label>MT5 Terminal Path</label>
+            <input id="f_mt5path" value="${safe(acc.mt5_path || "")}" placeholder="e.g. C:/Program Files/MetaTrader 5/terminal64.exe">
+          </div>
+        </div>
+        <div style="padding:8px 12px;margin-bottom:14px;border-radius:10px;background:rgba(173,79,67,0.08);border:1px solid rgba(173,79,67,0.18);color:var(--red);font-size:0.78rem;font-weight:700">
+          🔒 MT5 Password stays in local .env on the laptop — NEVER stored in Supabase for security.
+        </div>
+
+        <!-- Trade Style Cards -->
+        <label style="margin-bottom:10px">Trade Styles</label>
+        <div class="style-grid">
+          ${styleCard("scalping", "Scalping", acc)}
+          ${styleCard("intraday", "Intraday", acc)}
+          ${styleCard("swing", "Swing", acc)}
+        </div>
+
+        <!-- Global Limits -->
+        <label style="margin-bottom:10px">Global Limits</label>
+        <div class="limits-row" style="margin-bottom:18px">
+          <div class="field-group">
+            <label>Max Total Trades (all styles)</label>
+            <input id="f_max_total" type="number" min="1" max="50" step="1" value="${acc.max_total_trades ?? 5}">
+          </div>
+          <div class="field-group">
+            <label>Max Risk % Per Trade</label>
+            <input id="f_max_risk" type="number" min="0.1" max="10" step="0.1" value="${acc.max_risk_percent ?? 2.0}">
+          </div>
+        </div>
+
+        <!-- Save / Delete -->
+        <div class="save-row">
+          <button onclick="saveSettings('${acc.account_id}')">💾 Save Settings</button>
+          <button class="delete-btn" onclick="deleteAccount('${acc.account_id}', '${safe(acc.account_label)}')">🗑 Delete</button>
+          <span style="color:var(--muted);font-size:0.8rem;margin-left:auto">
+            Last saved: ${acc.updated_at ? new Date(acc.updated_at).toLocaleString() : "never"}
+          </span>
+        </div>
+      `;
+
+      // Attach toggle click handlers
+      document.querySelectorAll(".style-toggle").forEach((el) => {
+        el.addEventListener("click", function () {
+          this.classList.toggle("on");
+          const card = this.closest(".style-card");
+          card.classList.toggle("disabled", !this.classList.contains("on"));
+        });
+      });
+    }
+
+    function styleCard(key, name, acc) {
+      const enabled = acc[`${key}_enabled`] !== false;
+      const lot = acc[`${key}_lot`] ?? 0.01;
+      const maxT = acc[`${key}_max_trades`] ?? 0;
+
+      return `
+        <div class="style-card ${enabled ? "" : "disabled"}">
+          <h3>${name} <span class="pill ${key}">${key.toUpperCase()}</span></h3>
+          <div class="toggle-row">
+            <div class="toggle style-toggle ${enabled ? "on" : ""}" data-key="${key}_enabled"></div>
+            <span class="toggle-label">${enabled ? "Enabled" : "Disabled"}</span>
+          </div>
+          <div class="field-group">
+            <label>Lot Size</label>
+            <input id="f_${key}_lot" type="number" min="0.01" max="100" step="0.01" value="${lot}">
+          </div>
+          <div class="field-group">
+            <label>Max Concurrent Trades</label>
+            <input id="f_${key}_max" type="number" min="0" max="50" step="1" value="${maxT}">
+          </div>
+        </div>
+      `;
+    }
+
+    // ── TOGGLE MASTER ────────────────────────────────────────────────────
+    function toggleMaster() {
+      const sw = $("masterSwitch");
+      const lbl = $("masterLabel");
+      const wrap = $("masterToggle");
+      const isOn = sw.classList.toggle("on");
+      wrap.classList.toggle("off", !isOn);
+      lbl.textContent = isOn ? "✅ Account Active" : "⛔ Account Disabled";
+    }
+
+    // ── SAVE SETTINGS ────────────────────────────────────────────────────
+    async function saveSettings(accId) {
+      const getToggle = (key) => {
+        const el = document.querySelector(`.style-toggle[data-key="${key}"]`);
+        return el ? el.classList.contains("on") : false;
+      };
+
+      const payload = {
+        account_id: accId,
+        account_label: $("f_label").value.trim() || "Account",
+        mt5_login: $("f_mt5login").value.trim(),
+        mt5_server: $("f_mt5server").value.trim(),
+        mt5_path: $("f_mt5path").value.trim(),
+        enabled: $("masterSwitch").classList.contains("on"),
+
+        scalping_enabled: getToggle("scalping_enabled"),
+        intraday_enabled: getToggle("intraday_enabled"),
+        swing_enabled: getToggle("swing_enabled"),
+
+        scalping_lot: parseFloat($("f_scalping_lot").value) || 0.01,
+        intraday_lot: parseFloat($("f_intraday_lot").value) || 0.01,
+        swing_lot: parseFloat($("f_swing_lot").value) || 0.01,
+
+        scalping_max_trades: parseInt($("f_scalping_max").value) || 0,
+        intraday_max_trades: parseInt($("f_intraday_max").value) || 0,
+        swing_max_trades: parseInt($("f_swing_max").value) || 0,
+
+        max_total_trades: parseInt($("f_max_total").value) || 5,
+        max_risk_percent: parseFloat($("f_max_risk").value) || 2.0,
+
+        updated_at: new Date().toISOString(),
+        updated_by: "dashboard",
+      };
+
+      // Validation
+      if (payload.max_risk_percent > 5) {
+        showStatus("⚠ Max Risk % capped at 5.0 for safety.", "error");
+        return;
+      }
+
+      try {
+        await sbUpsert("account_settings", payload);
+        showStatus(`✅ Settings saved for "${payload.account_label}" at ${new Date().toLocaleTimeString()}`, "success");
+        await loadAccounts();
+      } catch (err) {
+        showStatus(`❌ Save failed: ${err.message}`, "error");
+      }
+    }
+
+    // ── DELETE ACCOUNT ───────────────────────────────────────────────────
+    async function deleteAccount(accId, label) {
+      if (!confirm(`Delete "${label}" (${accId})? This cannot be undone.`)) return;
+
+      try {
+        await sbDelete("account_settings", "account_id", accId);
+        showStatus(`Account "${label}" deleted.`, "success");
+        state.activeTab = null;
+        await loadAccounts();
+      } catch (err) {
+        showStatus(`Delete failed: ${err.message}`, "error");
+      }
+    }
+
+    // ── HELPERS ───────────────────────────────────────────────────────────
+    function safe(v) { return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+    function showStatus(msg, type) {
+      const bar = $("statusBar");
+      bar.textContent = msg;
+      bar.className = `status-bar ${type}`;
+    }
+
+    // ── INIT ─────────────────────────────────────────────────────────────
+    if (state.anon) loadAccounts();
+  </script>
+</body>
+</html>
