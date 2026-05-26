@@ -236,6 +236,61 @@
       .hint { margin-top: 8px; }
     }
 
+    /* Account Info Panel */
+    .acct-panel {
+      margin-top: 16px;
+      border-radius: 20px;
+      padding: 22px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.45);
+      box-shadow: var(--shadow);
+    }
+    .acct-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .acct-panel-header h2 { margin: 0; }
+    .acct-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .acct-info-item {
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.65);
+      border: 1px solid var(--line);
+    }
+    .acct-info-item b {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .acct-info-item strong {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.15rem;
+    }
+    .sym-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.82rem;
+      margin-right: 6px;
+      margin-top: 6px;
+    }
+    .sym-badge.ok { background: rgba(44,139,103,0.12); color: var(--green); }
+    .sym-badge.fail { background: rgba(173,79,67,0.12); color: var(--red); }
+
     .nav {
       display: flex;
       gap: 12px;
@@ -298,6 +353,23 @@
       <div class="card"><b>Last Seen</b><strong id="lastSeen">-</strong></div>
       <div class="card"><b>Active Trades</b><strong id="activeCount">0</strong></div>
       <div class="card"><b>Top Pattern</b><strong id="topPattern">-</strong></div>
+    </div>
+
+    <!-- Account Info Panel -->
+    <div class="acct-panel" id="acctPanel" style="display:none">
+      <div class="acct-panel-header">
+        <div>
+          <h2 id="acctPanelTitle">📡 Account Info</h2>
+          <p class="hint" id="acctPanelHint">Pilih account dari dropdown di bawah untuk lihat info MT5.</p>
+        </div>
+        <div class="filter-row">
+          <label>Account:</label>
+          <select id="acctSelector" onchange="onAccountSelect()">
+            <option value="">— Pilih Account —</option>
+          </select>
+        </div>
+      </div>
+      <div id="acctPanelBody"></div>
     </div>
 
     <section>
@@ -405,7 +477,8 @@
         renderActive(active);
         renderPatterns(patterns);
         renderEvents(events);
-        loadAccountFilter();
+        await loadAccountFilter();
+        await loadAccountPanel();
       } catch (err) {
         $("botStatus").textContent = "Config/Error";
         $("lastSeen").textContent = err.message.slice(0, 28);
@@ -548,6 +621,103 @@
         });
         sel.value = current || "all";
       } catch (e) { /* ignore */ }
+    }
+
+    // ── Account Info Panel ───────────────────────────────────────────────
+    let _allAccounts = [];
+
+    async function loadAccountPanel() {
+      try {
+        _allAccounts = await supabase("account_settings?select=*&order=account_id.asc");
+        const sel = $("acctSelector");
+        const current = sel.value;
+        sel.innerHTML = '<option value="">— Pilih Account —</option>';
+        _allAccounts.forEach((a) => {
+          const opt = document.createElement("option");
+          opt.value = a.account_id;
+          opt.textContent = a.account_label || a.account_id;
+          sel.appendChild(opt);
+        });
+        sel.value = current || (_allAccounts.length === 1 ? _allAccounts[0].account_id : "");
+        $("acctPanel").style.display = "";
+        if (sel.value) onAccountSelect();
+      } catch (e) { /* ignore */ }
+    }
+
+    function onAccountSelect() {
+      const accId = $("acctSelector").value;
+      if (!accId) {
+        $("acctPanelBody").innerHTML = '<p class="muted" style="padding:12px">Sila pilih account dari dropdown di atas.</p>';
+        return;
+      }
+      const acc = _allAccounts.find(a => a.account_id === accId);
+      if (!acc) return;
+      renderAccountInfo(acc);
+    }
+
+    function renderAccountInfo(acc) {
+      let info = {};
+      let symStatus = {};
+      try { info = typeof acc.mt5_info === 'string' ? JSON.parse(acc.mt5_info || '{}') : (acc.mt5_info || {}); } catch(e) {}
+      try { symStatus = typeof acc.mt5_symbol_status === 'string' ? JSON.parse(acc.mt5_symbol_status || '{}') : (acc.mt5_symbol_status || {}); } catch(e) {}
+
+      const isConn = acc.mt5_status === 'Connected';
+      const hasInfo = info && Object.keys(info).length > 0;
+      const hasSyms = symStatus && Object.keys(symStatus).length > 0;
+      const fmtNum = (v) => typeof v === 'number' ? v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+
+      $("acctPanelTitle").innerHTML = isConn
+        ? `🟢 ${safe(acc.account_label)} — Connected`
+        : (acc.mt5_status === 'Failed' ? `🔴 ${safe(acc.account_label)} — Failed` : `⏳ ${safe(acc.account_label)} — Bot belum run`);
+      $("acctPanelHint").textContent = acc.mt5_checked_at
+        ? `Last checked: ${new Date(acc.mt5_checked_at).toLocaleString()}`
+        : 'Bot belum pernah check akaun ini.';
+
+      let html = '';
+
+      if (isConn && hasInfo) {
+        html += '<div class="acct-info-grid">';
+        html += `<div class="acct-info-item"><b>Name</b><strong>${safe(info.name)}</strong></div>`;
+        html += `<div class="acct-info-item"><b>Server</b><strong>${safe(info.server)}</strong></div>`;
+        html += `<div class="acct-info-item"><b>Leverage</b><strong>1:${info.leverage ?? '—'}</strong></div>`;
+        html += `<div class="acct-info-item"><b>Balance</b><strong>${fmtNum(info.balance)} ${safe(info.currency)}</strong></div>`;
+        html += `<div class="acct-info-item"><b>Equity</b><strong>${fmtNum(info.equity)} ${safe(info.currency)}</strong></div>`;
+        html += `<div class="acct-info-item"><b>Free Margin</b><strong>${fmtNum(info.free_margin)} ${safe(info.currency)}</strong></div>`;
+        html += '</div>';
+      }
+
+      if (!isConn && acc.mt5_last_error) {
+        html += `<div style="margin-top:12px; padding:14px 16px; background:rgba(173,79,67,0.1); border-radius:12px; color:var(--red); font-size:0.9rem;">`;
+        html += `<b>❌ Error:</b> ${safe(acc.mt5_last_error)}`;
+        html += `</div>`;
+      }
+
+      if (hasSyms) {
+        html += '<div style="margin-top:14px">';
+        html += '<b style="color:var(--muted);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em">Symbol Check</b><br>';
+        for (const [sym, status] of Object.entries(symStatus)) {
+          if (status === 'OK') {
+            html += `<span class="sym-badge ok">✅ ${safe(sym)}</span>`;
+          } else {
+            html += `<span class="sym-badge fail">❌ ${safe(sym)}</span>`;
+          }
+        }
+        const failedSyms = Object.entries(symStatus).filter(([, v]) => v !== 'OK');
+        if (failedSyms.length > 0) {
+          html += `<div style="margin-top:8px; padding:10px 14px; background:rgba(173,79,67,0.08); border-radius:10px; color:var(--red); font-size:0.82rem;">`;
+          for (const [sym, err] of failedSyms) {
+            html += `<div><b>${safe(sym)}:</b> ${safe(err)}</div>`;
+          }
+          html += `</div>`;
+        }
+        html += '</div>';
+      }
+
+      if (!html) {
+        html = '<p class="muted" style="padding:8px">Bot belum pernah check akaun ini. Sila run bot terlebih dahulu.</p>';
+      }
+
+      $("acctPanelBody").innerHTML = html;
     }
 
     refresh();
