@@ -556,6 +556,9 @@ def main():
             trade_logger = state["trade_logger"]
             trade_memory = state["trade_memory"]
             
+            # Ensure Supabase syncs under the correct account
+            config.ACCOUNT_ID = account_id
+            
             logger.info(f"\n--- Managing Account: {account_id} ---")
             
             # Login to MT5 for this account
