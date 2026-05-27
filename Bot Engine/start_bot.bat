@@ -30,16 +30,8 @@ echo  [1/3] Checking Python...
 python --version >NUL 2>&1
 if errorlevel 1 (
     echo.
-    echo  [WARNING] Python not found! Starting automatic download and installation...
-    echo            Please DO NOT close this window. It may take 1-3 minutes.
-    echo.
-    powershell -Command "Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe' -OutFile 'python_installer.exe'"
-    echo  [INFO] Installing Python 3.10 silently (with PATH enabled)...
-    start /wait python_installer.exe /quiet InstallAllUsers=0 PrependPath=1 Include_test=0
-    del python_installer.exe
-    echo.
-    echo  [SUCCESS] Python has been installed successfully!
-    echo            Please CLOSE this black terminal and click start_bot.bat again.
+    echo  [ERROR] Python not found. Please install Python 3.10+
+    echo          and make sure it is added to PATH.
     pause
     exit /b 1
 )
