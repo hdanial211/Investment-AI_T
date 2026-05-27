@@ -555,9 +555,15 @@
           <td>${safe(r.lot)}</td>
           <td>${styleTag(r.trade_style)}</td>
           <td class="${Number(r.floating_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.floating_profit)}</td>
-          <td class="muted">${safe(r.exit_reason || r.reason)}</td>
+          <td class="muted">${formatReason(r.exit_reason || r.reason)}</td>
         </tr>
       `).join("") || emptyRow(9);
+    }
+
+    function formatReason(val) {
+      if (!val) return "-";
+      if (val === "broker_closed") return "Manual / MT5 SL/TP";
+      return "Auto: " + val;
     }
 
     function safe(value) {
