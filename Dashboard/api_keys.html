@@ -335,11 +335,12 @@
     const MODEL_CATALOG = {
       openrouter: {
         free: [
-          { id: "google/gemini-2.0-flash-lite-preview-02-05:free", name: "Gemini 2.0 Flash Lite", desc: "Pantas & versatil dari Google" },
-          { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B", desc: "Sesuai untuk analisis kompleks" },
-          { id: "qwen/qwen-2.5-coder-32b-instruct:free", name: "Qwen 2.5 Coder 32B", desc: "Bagus untuk logik teknikal" },
-          { id: "nvidia/llama-3.1-nemotron-70b-instruct:free", name: "Nemotron 70B", desc: "Reasoning kuat oleh NVIDIA" },
-          { id: "microsoft/phi-3-mini-128k-instruct:free", name: "Phi-3 Mini", desc: "Ringan & sangat pantas" },
+          { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B", desc: "Model versatil & stabil dari Meta" },
+          { id: "openai/gpt-oss-20b:free", name: "GPT-OSS 20B", desc: "Pantas & ringan untuk analisis" },
+          { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B", desc: "Model besar untuk logic mendalam" },
+          { id: "deepseek/deepseek-v4-flash:free", name: "DeepSeek V4 Flash", desc: "Sangat pantas, sesuai untuk log/test" },
+          { id: "google/gemma-4-26b-a4b-it:free", name: "Gemma 4 26B", desc: "Model terbaru dari Google" },
+          { id: "qwen/qwen3-next-80b-a3b-instruct:free", name: "Qwen3 Next 80B", desc: "Cemerlang untuk data teknikal" },
         ],
         paid: [
           { id: "openai/gpt-4o", name: "GPT-4o", desc: "Flagship OpenAI via OpenRouter" },
@@ -674,13 +675,13 @@
 
       // Always use a known-reliable lightweight model to test API KEY validity
       const testModel = {
-        openrouter: 'google/gemini-2.0-flash-lite-preview-02-05:free',
+        openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
         openai: 'gpt-4.1-nano',
         anthropic: 'claude-3.5-haiku-20241022',
         grok: 'grok-3-mini-fast',
         deepseek: 'deepseek-chat',
         huggingface: 'Qwen/Qwen3-4B-Instruct-2507'
-      }[p.provider] || 'google/gemini-2.0-flash-lite-preview-02-05:free';
+      }[p.provider] || 'meta-llama/llama-3.3-70b-instruct:free';
 
       const payload = {
         model: testModel,
