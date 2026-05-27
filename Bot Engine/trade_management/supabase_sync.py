@@ -141,6 +141,22 @@ class SupabaseSync:
         }
         self._insert("trade_events", payload)
 
+    def fetch_active_trades(self, account_id: str) -> List[Dict]:
+        """Fetch all trades from Supabase that are not CLOSED for this account."""
+        if not self.enabled:
+            return []
+        url = f"{self.base_url}/rest/v1/active_trades?account_id=eq.{account_id}&current_status=neq.CLOSED"
+        try:
+            import requests
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch active trades from Supabase: {response.text[:240]}")
+        except Exception as e:
+            logger.warning(f"Error fetching active trades from Supabase: {e}")
+        return []
+
     def _upsert(self, table: str, payload: Dict, conflict: str = "") -> None:
         if not self.enabled:
             return

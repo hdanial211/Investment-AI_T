@@ -583,6 +583,35 @@ def main():
                 if not startup_checks(connector, acct_settings):
                     logger.warning(f"[{account_id}] Startup checks failed. Will retry next cycle.")
                     continue
+                
+                # --- STARTUP SYNC ---
+                logger.info(f"[{account_id}] Performing Startup Sync with Supabase...")
+                try:
+                    db_active_trades = active_manager.supabase.fetch_active_trades(account_id)
+                    mt5_positions = connector.get_open_positions() # All symbols
+                    mt5_tickets = [str(p["ticket"]) for p in mt5_positions]
+                    
+                    cleaned_count = 0
+                    for db_trade in db_active_trades:
+                        ticket_str = str(db_trade["ticket"])
+                        if ticket_str not in mt5_tickets:
+                            logger.info(f"[{account_id}] Startup Sync: Trade {ticket_str} ({db_trade.get('symbol')}) not in MT5. Marking as CLOSED in Supabase.")
+                            db_trade["current_status"] = "CLOSED"
+                            db_trade["exit_reason"] = "broker_closed"
+                            active_manager.supabase.mark_trade_closed(db_trade)
+                            
+                            # Also remove from local memory if it happens to be there
+                            if ticket_str in trade_memory.data.get("active_trades", {}):
+                                trade_memory.mark_trade_closed(int(ticket_str), db_trade.get("symbol", ""), profit=0.0, exit_reason="broker_closed")
+                            cleaned_count += 1
+                            
+                    if cleaned_count > 0:
+                        logger.info(f"[{account_id}] Startup Sync: Cleaned {cleaned_count} stuck trade(s).")
+                    else:
+                        logger.info(f"[{account_id}] Startup Sync: All {len(db_active_trades)} trades are synced correctly.")
+                except Exception as e:
+                    logger.error(f"[{account_id}] Startup Sync failed: {e}")
+                
                 state["initialized"] = True
                 
             # Force connection switch to the current account
