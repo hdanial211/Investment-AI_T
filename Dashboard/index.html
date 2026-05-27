@@ -390,7 +390,7 @@
         <table>
           <thead>
             <tr>
-              <th>Opened</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Style</th><th>Pattern</th><th>Combo</th>
+              <th>Opened</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Lot</th><th>Style</th><th>Pattern</th><th>Combo</th>
               <th>Vision</th><th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
             </tr>
           </thead>
@@ -511,6 +511,7 @@
           <td>${safe(r.ticket)}</td>
           <td><span class="pill">${safe(r.symbol)}</span></td>
           <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
+          <td>${safe(r.lot)}</td>
           <td>${styleTag(r.trade_style)}</td>
           <td>${safe(r.primary_pattern)}</td>
           <td class="muted">${safe(r.confluence_combo)}</td>
