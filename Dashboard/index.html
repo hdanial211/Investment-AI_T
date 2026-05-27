@@ -562,8 +562,12 @@
 
     function formatReason(val) {
       if (!val) return "-";
-      if (val === "broker_closed") return "Manual / MT5 SL/TP";
-      return "Auto: " + val;
+      if (val === "broker_closed") return "Manual";
+      if (val === "virtual_sl") return "SL";
+      if (val === "virtual_tp") return "TP";
+      if (val === "profit_lock") return "BE";
+      if (val === "virtual_trailing_stop") return "Trailing";
+      return val;
     }
 
     function safe(value) {
