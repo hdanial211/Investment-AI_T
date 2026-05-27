@@ -67,6 +67,7 @@ def run_cycle(
     trade_memory: TradeMemory,
     active_manager: ActiveTradeManager,
     acct_settings: AccountSettings = None,
+    global_ai_cache: dict = None,
 ) -> Optional[str]:
     """
     Execute one complete trading cycle for a given symbol.
@@ -134,23 +135,31 @@ def run_cycle(
         return "skipped"
 
     # ── STEP 5: Query Text AI ────────────────────────────────────────────────
-    logger.info("Querying text AI model...")
-    text_signal = get_ai_signal(indicators, bid, ask, trade_memory, symbol)
-
-    # ── STEP 5.5: Query Vision AI + Merge (if enabled) ───────────────────────
-    if config.VISION_AI_ENABLED and chart_paths:
-        logger.info("Querying vision AI model...")
-        vision_signal = get_vision_signal(
-            symbol=symbol,
-            current_price=(bid + ask) / 2,
-            indicators=indicators,
-            chart_paths=chart_paths,
-            trade_memory=trade_memory,
-        )
-        pattern_bias = indicators.get("pattern_bias") or {}
-        signal = merge_decisions(text_signal, vision_signal, pattern_bias)
+    base_symbol = symbol[:6].upper()
+    if global_ai_cache is not None and base_symbol in global_ai_cache:
+        logger.info(f"[{symbol}] Using cached AI signal for {base_symbol} from this cycle.")
+        signal = global_ai_cache[base_symbol]["signal"].copy()
     else:
-        signal = text_signal
+        logger.info("Querying text AI model...")
+        text_signal = get_ai_signal(indicators, bid, ask, trade_memory=None, symbol=symbol)
+
+        # ── STEP 5.5: Query Vision AI + Merge (if enabled) ───────────────────────
+        if config.VISION_AI_ENABLED and chart_paths:
+            logger.info("Querying vision AI model...")
+            vision_signal = get_vision_signal(
+                symbol=symbol,
+                current_price=(bid + ask) / 2,
+                indicators=indicators,
+                chart_paths=chart_paths,
+                trade_memory=None,
+            )
+            pattern_bias = indicators.get("pattern_bias") or {}
+            signal = merge_decisions(text_signal, vision_signal, pattern_bias)
+        else:
+            signal = text_signal
+            
+        if global_ai_cache is not None:
+            global_ai_cache[base_symbol] = {"signal": signal}
 
     # ── STEP 6: Validate AI signal ───────────────────────────────────────────
     signal_valid, signal_reason = risk_mgr.validate_signal(signal)
@@ -255,8 +264,16 @@ def run_cycle(
         logger.info("Broker-side SL/TP disabled. Hidden virtual levels will be managed by bot memory.")
 
     # ── STEP 7.5: Optional second-model risk review ──────────────────────────
-    risk_review = review_trade_risk(signal, indicators, trade_params, symbol)
-    signal["risk_review"] = risk_review
+    if global_ai_cache is not None and "risk_review" in global_ai_cache.get(base_symbol, {}):
+        risk_review = global_ai_cache[base_symbol]["risk_review"].copy()
+        logger.info(f"[{symbol}] Using cached Risk Review for {base_symbol}.")
+        signal["risk_review"] = risk_review
+    else:
+        risk_review = review_trade_risk(signal, indicators, trade_params, symbol)
+        signal["risk_review"] = risk_review
+        if global_ai_cache is not None and base_symbol in global_ai_cache:
+            global_ai_cache[base_symbol]["risk_review"] = risk_review
+            
     if not risk_review["approved"]:
         reason = f"Risk review rejected: {risk_review['reason']}"
         logger.warning(reason)
@@ -488,6 +505,7 @@ def main():
     # ── INFINITE LOOP ────────────────────────────────────────────────────────
     while not _shutdown_requested:
         cycle_count += 1
+        global_ai_cache = {}
         logger.info(f"\n{'═'*60}")
         logger.info(f"GLOBAL CYCLE #{cycle_count} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info(f"{'═'*60}")
@@ -576,7 +594,7 @@ def main():
                 if _shutdown_requested:
                     break
                 try:
-                    run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory, active_manager, acct_settings)
+                    run_cycle(symbol, connector, risk_mgr, trade_logger, trade_memory, active_manager, acct_settings, global_ai_cache)
                 except Exception as e:
                     logger.error(f"Unhandled exception in cycle [{symbol}]: {e}", exc_info=True)
 
