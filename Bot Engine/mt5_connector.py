@@ -534,6 +534,17 @@ class MT5Connector:
         order_type = mt5.ORDER_TYPE_BUY if action == "BUY" else mt5.ORDER_TYPE_SELL
         price      = tick.ask if action == "BUY" else tick.bid
 
+        # Determine supported filling mode
+        filling_type = mt5.ORDER_FILLING_IOC
+        sym_info = mt5.symbol_info(symbol)
+        if sym_info:
+            if sym_info.filling_mode & mt5.SYMBOL_FILLING_FOK:
+                filling_type = mt5.ORDER_FILLING_FOK
+            elif sym_info.filling_mode & mt5.SYMBOL_FILLING_IOC:
+                filling_type = mt5.ORDER_FILLING_IOC
+            else:
+                filling_type = mt5.ORDER_FILLING_RETURN
+
         request = {
             "action":        mt5.TRADE_ACTION_DEAL,
             "symbol":        symbol,
@@ -544,7 +555,7 @@ class MT5Connector:
             "magic":         123456,
             "comment":       comment,
             "type_time":     mt5.ORDER_TIME_GTC,
-            "type_filling":  mt5.ORDER_FILLING_IOC,
+            "type_filling":  filling_type,
         }
 
         if config.USE_BROKER_SL_TP:
