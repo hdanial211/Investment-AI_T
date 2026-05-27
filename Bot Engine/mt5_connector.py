@@ -646,6 +646,18 @@ class MT5Connector:
             logger.error(f"❌ Close failed: {result.comment if result else mt5.last_error()}")
             return False
 
+    def get_position_profit(self, position_ticket: int) -> float:
+        """Get net profit of a closed position by fetching its historical deals."""
+        if self.demo_mode:
+            return 0.0
+            
+        import MetaTrader5 as mt5
+        deals = mt5.history_deals_get(position=position_ticket)
+        if not deals:
+            return 0.0
+            
+        return sum(d.profit + d.commission + d.swap for d in deals)
+
     def get_trade_history(self, days: int = 30) -> list:
         """Get closed trade history."""
         if self.demo_mode:

@@ -24,7 +24,11 @@ class ActiveTradeManager:
     def manage_symbol(self, symbol: str, positions: List[Dict], indicators: Dict) -> List[Dict]:
         closed = []
         active_tickets = [pos["ticket"] for pos in positions]
-        closed_by_broker = self.trade_memory.sync_with_broker(active_tickets, symbol=symbol)
+        closed_by_broker = self.trade_memory.sync_with_broker(
+            active_tickets, 
+            symbol=symbol,
+            get_profit_fn=self.connector.get_position_profit
+        )
         for closed_state in closed_by_broker:
             self._sync_closed_state(closed_state, event_type="broker_closed")
 

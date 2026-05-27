@@ -261,7 +261,7 @@ class TradeMemory:
         self._save()
         return False, ""
 
-    def sync_with_broker(self, active_tickets: list, symbol: str = None):
+    def sync_with_broker(self, active_tickets: list, symbol: str = None, get_profit_fn=None):
         """
         Compare active broker tickets with local memory.
         If a ticket is in memory but NOT in broker, it means it closed.
@@ -277,7 +277,14 @@ class TradeMemory:
             if mt not in active_str_tickets:
                 sym = self.data["active_trades"][mt]["symbol"]
                 logger.info(f"[{sym}] Trade {mt} closed. Initiating cooling-off period.")
-                self.mark_trade_closed(int(mt), sym, exit_reason="broker_closed")
+                profit = 0.0
+                if get_profit_fn:
+                    try:
+                        profit = get_profit_fn(int(mt))
+                    except Exception as e:
+                        logger.error(f"Failed to fetch profit for closed trade {mt}: {e}")
+                        
+                self.mark_trade_closed(int(mt), sym, profit=profit, exit_reason="broker_closed")
                 closed = self.data.get("closed_trades", {}).get(mt)
                 if closed:
                     closed_states.append(closed)
