@@ -335,20 +335,18 @@
     const MODEL_CATALOG = {
       openrouter: {
         free: [
-          { id: "openai/gpt-oss-20b:free", name: "GPT-OSS 20B", desc: "Pantas & versatil untuk analisis" },
-          { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B", desc: "Reasoning kuat, sesuai risk review" },
-          { id: "qwen/qwen3-next-80b-a3b-instruct:free", name: "Qwen3 Next 80B", desc: "Analisis & coding cemerlang" },
-          { id: "google/gemini-2.0-flash-exp:free", name: "Gemini 2.0 Flash", desc: "Model pantas dari Google" },
-          { id: "meta-llama/llama-4-maverick:free", name: "Llama 4 Maverick", desc: "Model terbaru dari Meta" },
-          { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1", desc: "Deep reasoning, ada rate limit" },
-          { id: "mistralai/mistral-small-3.1-24b-instruct:free", name: "Mistral Small 3.1", desc: "Model Eropah, cepat & efisien" },
+          { id: "google/gemini-2.0-flash-lite-preview-02-05:free", name: "Gemini 2.0 Flash Lite", desc: "Pantas & versatil dari Google" },
+          { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B", desc: "Sesuai untuk analisis kompleks" },
+          { id: "qwen/qwen-2.5-coder-32b-instruct:free", name: "Qwen 2.5 Coder 32B", desc: "Bagus untuk logik teknikal" },
+          { id: "nvidia/llama-3.1-nemotron-70b-instruct:free", name: "Nemotron 70B", desc: "Reasoning kuat oleh NVIDIA" },
+          { id: "microsoft/phi-3-mini-128k-instruct:free", name: "Phi-3 Mini", desc: "Ringan & sangat pantas" },
         ],
         paid: [
-          { id: "openai/gpt-4.1", name: "GPT-4.1", desc: "Flagship OpenAI via OpenRouter" },
-          { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", desc: "Anthropic terbaik via OpenRouter" },
+          { id: "openai/gpt-4o", name: "GPT-4o", desc: "Flagship OpenAI via OpenRouter" },
+          { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", desc: "Versi mini, pantas & murah" },
+          { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", desc: "Pengekodan & analisis cemerlang" },
           { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", desc: "Model pro Google" },
-          { id: "deepseek/deepseek-r1", name: "DeepSeek R1 (Paid)", desc: "Tiada rate limit, laju penuh" },
-          { id: "meta-llama/llama-4-behemoth", name: "Llama 4 Behemoth", desc: "Model terbesar Meta" },
+          { id: "deepseek/deepseek-r1", name: "DeepSeek R1", desc: "Reasoning mendalam, tiada rate limit" },
         ]
       },
       openai: {
@@ -676,13 +674,13 @@
 
       // Always use a known-reliable lightweight model to test API KEY validity
       const testModel = {
-        openrouter: 'openai/gpt-oss-20b:free',
+        openrouter: 'google/gemini-2.0-flash-lite-preview-02-05:free',
         openai: 'gpt-4.1-nano',
         anthropic: 'claude-3.5-haiku-20241022',
         grok: 'grok-3-mini-fast',
         deepseek: 'deepseek-chat',
         huggingface: 'Qwen/Qwen3-4B-Instruct-2507'
-      }[p.provider] || 'openai/gpt-oss-20b:free';
+      }[p.provider] || 'google/gemini-2.0-flash-lite-preview-02-05:free';
 
       const payload = {
         model: testModel,
