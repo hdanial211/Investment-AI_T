@@ -56,7 +56,7 @@ MIN_VOLATILITY_PIPS    = int(os.getenv("MIN_VOLATILITY_PIPS",      "5"))
 # Dynamic Risk Management & Cooling Off
 USE_DYNAMIC_SL         = os.getenv("USE_DYNAMIC_SL",               "True").lower() == "true"
 DYNAMIC_SL_MULTIPLIER  = float(os.getenv("DYNAMIC_SL_MULTIPLIER",  "1.5"))
-DYNAMIC_TP_MULTIPLIER  = float(os.getenv("DYNAMIC_TP_MULTIPLIER",  "4.5"))
+DYNAMIC_TP_MULTIPLIER  = float(os.getenv("DYNAMIC_TP_MULTIPLIER",  "2.5"))
 COOLING_OFF_MINUTES    = int(os.getenv("COOLING_OFF_MINUTES",      "15"))
 
 # Trade Layering & Trailing Stop

@@ -28,50 +28,39 @@ _AI_CALL_LOCK = threading.Lock()
 # PROMPT BUILDER
 # ─────────────────────────────────────────────────────────────────────────────
 
-BASE_INSTRUCTION = """You are an elite institutional algorithmic trading AI.
-Your objective is to analyze multi-timeframe (MTF) market data and provide a highly accurate trading decision.
+BASE_INSTRUCTION = """You are an elite institutional algorithmic trading AI specialized in SCALPING.
+Your objective is to analyze multi-timeframe (MTF) market data and provide a highly accurate SCALPING decision (15-30 minutes hold).
 
 CRITICAL JSON OUTPUT RULES:
 1. Respond ONLY with a valid JSON object.
-2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "brief explanation"}
+2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING", "reason": "brief explanation"}
 3. No markdown blocks, no extra text.
 """
 
-RISK_REVIEW_INSTRUCTION = """You are a quantitative trading risk reviewer.
+RISK_REVIEW_INSTRUCTION = """You are a quantitative trading risk reviewer specialized in SCALPING.
 Your job is to approve or reject a proposed trade after the primary AI has already produced a signal.
 
 CRITICAL JSON OUTPUT RULES:
 1. Respond ONLY with a valid JSON object.
 2. Format: {"approved": true|false, "confidence": 0.0-1.0, "reason": "brief explanation"}
-3. Approve only when the risk/reward, market regime, trend, and pattern confluence are acceptable.
+3. Approve if the risk/reward is acceptable for a quick SCALP. Do not reject trades purely based on H4 trend if M15/M30 shows strong momentum. Tight stop losses and small TP are expected and acceptable for scalping.
 4. No markdown blocks, no extra text.
 """
 
 SYMBOL_RULES = {
     "EURUSD": """
---- ASSET BEHAVIOR: EURUSD ---
-EURUSD is a technical, orderly forex major.
-- H4 Trend is KING. Do not trade against the H4 Major Trend.
-- Respect H1 Support/Resistance zones.
-- Engulfing patterns at S/R zones are highly reliable.
-- Look for orderly break & retest.
-- Give extra weight to HIGH priority pattern confluence: Double Top/Bottom, Head & Shoulders, Engulfing, Pin Bar, Inside Bar, Symmetrical Triangle, and Bullish/Bearish Flag.
-- Treat harmonic patterns as confirmation only unless they align with H4 trend and H1 support/resistance.
-- If pattern bias conflicts with H4 trend or price is not near a meaningful level, return HOLD.
-- If H4 is sideways or unclear, return HOLD.
+--- ASSET BEHAVIOR: EURUSD (SCALPING MODE) ---
+- M30/M15 momentum is KING. H4 Trend is secondary for scalping.
+- Respect M15/M30 Support/Resistance zones.
+- Look for quick momentum breakouts, engulfing patterns, or bounces.
+- If pattern bias on M15/M5 is strong, execute a quick scalp.
 """,
     "XAUUSD": """
---- ASSET BEHAVIOR: XAUUSD (GOLD) ---
-XAUUSD is highly volatile and prone to institutional manipulation (stop hunts).
-- Do not blindly trade breakouts. Gold often stop-runs first, especially in Asia.
-- Asia session: prioritize liquidity sweep, Fakey/Hikkake, SMC reversal, and psych-level rejection.
-- London/NY sessions: momentum breakouts, opening-range breaks, flags, pennants, and Marubozu continuation become more reliable.
-- Give extra weight to HIGH priority Gold confluence: Liquidity Sweep + FVG, Order Block retest, Psych Level Bounce/Break, Pin Bar at key level, Engulfing with volume, Double Top/Bottom, Head & Shoulders, Flags, Symmetrical Triangle, and Rising/Falling Wedge.
-- Pin Bars need stronger proof on Gold: 3:1 wick/body and key-level context.
-- Engulfing patterns need strong body dominance and should not be traded in the middle of a range.
-- If DXY bias is unavailable, do not assume macro confirmation; require stronger local confluence.
-- If pattern bias conflicts with H4 trend and there is no liquidity sweep / SMC reversal, return HOLD.
-- If price is near a $50/$100 psych level, treat rejection or break-and-retest as important context.
+--- ASSET BEHAVIOR: XAUUSD (SCALPING MODE) ---
+- XAUUSD is highly volatile. Perfect for quick scalping.
+- Focus on liquidity sweeps on M5/M15 followed by quick reversals (SMC/FVG).
+- If pattern bias on M15/M5 is strong and momentum is clear, execute a quick scalp.
+- Do not over-analyze H4 macro trends if short-term liquidity is grabbed.
 """
 }
 
@@ -98,16 +87,12 @@ Ask: {ask}
 Spread: {spread}
 
 --- INSTRUCTIONS ---
-Evaluate the timeframes logically:
-1. Does the trade align with the H4 Major Trend? (If not, HOLD).
-2. Is the price near H1 Support/Resistance?
-3. What is M30/M15/M5/M1 telling you? M30/M15 define intraday direction; M5/M1 are execution triggers only.
-4. Is there a liquidity sweep, valid engulfing, pin bar, inside bar, SMC/FVG setup, psych-level reaction, or other high-priority pair-specific confluence?
-5. Decide which trade_style fits best:
-   - SCALPING: M1/M5 momentum only, small target, choppy or fast session.
-   - INTRADAY: M15/M30 setup aligned with H1/H4 context.
-   - SWING: H4/H1 structure dominates and setup can hold longer.
-6. Does the detected pattern bias support the action, or is the evidence mixed enough to HOLD?
+Evaluate the timeframes logically for SCALPING:
+1. Focus heavily on M15 and M30 for trend direction, and M5/M1 for execution triggers. H4 trend is secondary.
+2. The primary goal is quick scalps (15-30 minutes holding time). You only need a small price movement.
+3. Is there a valid engulfing, pin bar, inside bar, SMC/FVG setup, psych-level reaction, or other high-priority pattern on M15/M5?
+4. Does the detected pattern bias support a quick momentum trade? If yes, execute the trade. Do not over-analyze H4 if M15/M30 is clear.
+5. Set trade_style to "SCALPING".
 """
     
     if trade_memory:
