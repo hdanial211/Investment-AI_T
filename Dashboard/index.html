@@ -419,13 +419,13 @@
 
     <section>
       <div class="section-head">
-        <h2>Trade Timeline</h2>
-        <p class="hint">Event terbaru: open trade, virtual exit, close failed, broker closed.</p>
+        <h2>Closed Trades (History)</h2>
+        <p class="hint">Rekod trade yang telah ditutup (Virtual exit / Broker closed).</p>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Time</th><th>Ticket</th><th>Event</th><th>Reason</th></tr>
+            <tr><th>Time Open</th><th>Time Close</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Lot</th><th>Style</th><th>P/L</th><th>Reason</th></tr>
           </thead>
           <tbody id="eventRows"></tbody>
         </table>
@@ -471,7 +471,7 @@
           supabase("bot_heartbeat?select=*&order=last_seen_at.desc&limit=1"),
           supabase("active_trades?select=*&current_status=neq.CLOSED&order=updated_at.desc"),
           supabase("pattern_usage_stats?select=*&order=net_profit.desc&limit=30"),
-          supabase("trade_events?select=*&order=created_at.desc&limit=20"),
+          supabase("active_trades?select=*&current_status=eq.CLOSED&order=updated_at.desc&limit=30"),
         ]);
 
         renderHeartbeat(heartbeat[0]);
@@ -543,14 +543,21 @@
     }
 
     function renderEvents(rows) {
-      $("eventRows").innerHTML = rows.map((r) => `
+      const filter = $("accountFilter")?.value || "all";
+      const filtered = filter === "all" ? rows : rows.filter((r) => (r.account_id || "acc_1") === filter);
+      $("eventRows").innerHTML = filtered.map((r) => `
         <tr>
-          <td>${r.created_at ? new Date(r.created_at).toLocaleString() : "-"}</td>
+          <td>${r.opened_at ? new Date(r.opened_at).toLocaleString() : "-"}</td>
+          <td>${r.updated_at ? new Date(r.updated_at).toLocaleString() : "-"}</td>
           <td>${safe(r.ticket)}</td>
-          <td>${safe(r.event_type)}</td>
-          <td class="muted">${safe(r.reason)}</td>
+          <td><span class="pill">${safe(r.symbol)}</span></td>
+          <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
+          <td>${safe(r.lot)}</td>
+          <td>${styleTag(r.trade_style)}</td>
+          <td class="${Number(r.floating_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.floating_profit)}</td>
+          <td class="muted">${safe(r.exit_reason || r.reason)}</td>
         </tr>
-      `).join("") || emptyRow(4);
+      `).join("") || emptyRow(9);
     }
 
     function safe(value) {
