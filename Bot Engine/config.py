@@ -38,7 +38,7 @@ ACCOUNT_ID   = os.getenv("ACCOUNT_ID",       "acc_1").strip()
 SYMBOLS          = os.getenv("SYMBOLS", "XAUUSD,EURUSD").split(",")
 PRIMARY_SYMBOL   = SYMBOLS[0]
 TIMEFRAME        = os.getenv("TIMEFRAME", "M5")
-LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "10"))
+LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "60"))
 BARS_TO_FETCH    = int(os.getenv("BARS_TO_FETCH", "100"))
 
 # ─────────────────────────────────────────────────────────────────────────────
