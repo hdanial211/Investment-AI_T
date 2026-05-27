@@ -538,9 +538,10 @@ class MT5Connector:
         filling_type = mt5.ORDER_FILLING_IOC
         sym_info = mt5.symbol_info(symbol)
         if sym_info:
-            if sym_info.filling_mode & mt5.SYMBOL_FILLING_FOK:
+            # Bit 1 (value 1) is FOK, Bit 2 (value 2) is IOC
+            if sym_info.filling_mode & 1:
                 filling_type = mt5.ORDER_FILLING_FOK
-            elif sym_info.filling_mode & mt5.SYMBOL_FILLING_IOC:
+            elif sym_info.filling_mode & 2:
                 filling_type = mt5.ORDER_FILLING_IOC
             else:
                 filling_type = mt5.ORDER_FILLING_RETURN
