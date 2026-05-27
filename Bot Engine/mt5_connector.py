@@ -624,6 +624,16 @@ class MT5Connector:
         tick = mt5.symbol_info_tick(symbol)
         price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
 
+        sym_info = mt5.symbol_info(symbol)
+        filling_type = mt5.ORDER_FILLING_IOC
+        if sym_info:
+            if sym_info.filling_mode & 1:
+                filling_type = mt5.ORDER_FILLING_FOK
+            elif sym_info.filling_mode & 2:
+                filling_type = mt5.ORDER_FILLING_IOC
+            else:
+                filling_type = mt5.ORDER_FILLING_RETURN
+
         request = {
             "action":       mt5.TRADE_ACTION_DEAL,
             "symbol":       symbol,
@@ -635,7 +645,7 @@ class MT5Connector:
             "magic":        123456,
             "comment":      "AI_BOT_CLOSE",
             "type_time":    mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": filling_type,
         }
 
         result = mt5.order_send(request)
