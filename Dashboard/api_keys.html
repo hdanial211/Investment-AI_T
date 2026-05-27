@@ -376,6 +376,17 @@
           { id: "deepseek-reasoner", name: "DeepSeek R1", desc: "Reasoning lanjutan" },
         ]
       },
+      grok: {
+        free: [
+          { id: "grok-3-mini-fast", name: "Grok 3 Mini Fast", desc: "Terpantas, ringan" },
+        ],
+        paid: [
+          { id: "grok-3", name: "Grok 3", desc: "Model flagship xAI" },
+          { id: "grok-3-fast", name: "Grok 3 Fast", desc: "Versi pantas Grok 3" },
+          { id: "grok-3-mini", name: "Grok 3 Mini", desc: "Lebih kecil, lebih murah" },
+          { id: "grok-3-mini-fast", name: "Grok 3 Mini Fast", desc: "Terpantas & termurah" },
+        ]
+      },
       huggingface: {
         free: [
           { id: "Qwen/Qwen3-4B-Instruct-2507", name: "Qwen3 4B", desc: "Ringan & pantas" },
@@ -491,6 +502,7 @@
                   <option value="openrouter" ${p.provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
                   <option value="openai" ${p.provider === 'openai' ? 'selected' : ''}>OpenAI (ChatGPT)</option>
                   <option value="anthropic" ${p.provider === 'anthropic' ? 'selected' : ''}>Anthropic (Claude)</option>
+                  <option value="grok" ${p.provider === 'grok' ? 'selected' : ''}>Grok (xAI)</option>
                   <option value="deepseek" ${p.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
                   <option value="huggingface" ${p.provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
                 </select>
@@ -667,6 +679,7 @@
         openrouter: 'openai/gpt-oss-20b:free',
         openai: 'gpt-4.1-nano',
         anthropic: 'claude-3.5-haiku-20241022',
+        grok: 'grok-3-mini-fast',
         deepseek: 'deepseek-chat',
         huggingface: 'Qwen/Qwen3-4B-Instruct-2507'
       }[p.provider] || 'openai/gpt-oss-20b:free';
@@ -692,6 +705,8 @@
         url = "https://api.openai.com/v1/chat/completions";
       } else if (p.provider === 'deepseek') {
         url = "https://api.deepseek.com/v1/chat/completions";
+      } else if (p.provider === 'grok') {
+        url = "https://api.x.ai/v1/chat/completions";
       } else if (p.provider === 'anthropic') {
         url = "https://api.anthropic.com/v1/messages";
         headers = {
