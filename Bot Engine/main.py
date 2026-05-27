@@ -486,10 +486,11 @@ def main():
     """Main entry point. Runs the infinite trading loop."""
     global _shutdown_requested
 
-    logger.info("Starting AI Trading Bot...")
+    # Verify environment
+    if not os.path.exists(".env"):
+        logger.warning("No .env file found. Using default/environment variables.")
 
-    # Fetch global AI provider/keys from Supabase
-    system_settings.fetch_and_apply_system_settings()
+    # We will fetch system settings dynamically inside the main loop so it live-updates!
 
     # Shared MT5 Connector
     connector = MT5Connector()
@@ -509,6 +510,9 @@ def main():
         logger.info(f"\n{'═'*60}")
         logger.info(f"GLOBAL CYCLE #{cycle_count} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info(f"{'═'*60}")
+        
+        # 0. Live Update System Settings (API keys, AI models)
+        system_settings.fetch_and_apply_system_settings()
         
         # 1. Fetch all enabled accounts
         enabled_accounts = get_all_enabled_accounts()
