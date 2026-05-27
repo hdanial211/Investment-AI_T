@@ -56,6 +56,25 @@ def fetch_and_apply_system_settings() -> bool:
                 if data.get("ai_risk_model"):
                     config.AI_RISK_MODEL = data["ai_risk_model"]
 
+            # Auto-detect account_id from Supabase
+            try:
+                account_endpoint = f"{url}/rest/v1/account_settings?select=account_id&limit=1"
+                acc_response = requests.get(
+                    account_endpoint,
+                    headers={
+                        "apikey": key,
+                        "Authorization": f"Bearer {key}",
+                    },
+                    timeout=config.SUPABASE_REQUEST_TIMEOUT,
+                )
+                if acc_response.status_code < 400 and acc_response.json() and len(acc_response.json()) > 0:
+                    detected_acc = acc_response.json()[0].get("account_id")
+                    if detected_acc:
+                        config.ACCOUNT_ID = detected_acc
+                        logger.info(f"Auto-detected Account ID from Supabase: {detected_acc}")
+            except Exception as e:
+                logger.warning(f"Failed to auto-detect account from Supabase: {e}")
+
             return True
         else:
             logger.info("No global system settings found in Supabase. Using .env defaults.")
