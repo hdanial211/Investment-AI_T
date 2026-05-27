@@ -674,8 +674,8 @@
         return;
       }
 
-      // Use a lightweight default model for testing if none selected yet
-      const testModel = p.main_model || {
+      // Always use a known-reliable lightweight model to test API KEY validity
+      const testModel = {
         openrouter: 'openai/gpt-oss-20b:free',
         openai: 'gpt-4.1-nano',
         anthropic: 'claude-3.5-haiku-20241022',
