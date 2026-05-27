@@ -78,7 +78,7 @@ MT5_SERVER=$(ConvertTo-DotEnvValue $Server)
 # Trading Settings
 SYMBOLS=$(ConvertTo-DotEnvValue $Symbols)
 TIMEFRAME=M5
-LOOP_INTERVAL=10
+LOOP_INTERVAL=60
 BARS_TO_FETCH=100
 
 # Risk Management
