@@ -91,11 +91,19 @@ class AccountSettings:
         return str(self._cache.get("mt5_path", config.MT5_PATH) or config.MT5_PATH)
 
     def get_symbols(self) -> list:
-        """Get broker-specific symbol names for this account."""
+        """Get broker-specific symbol names for this account (only enabled pairs)."""
         self._maybe_refresh()
-        xau = str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
-        eur = str(self._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
-        return [xau, eur]
+        symbols = []
+        if self._cache.get("xauusd_enabled", True) not in (False, "false", 0):
+            xau = str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
+            symbols.append(xau)
+        if self._cache.get("eurusd_enabled", True) not in (False, "false", 0):
+            eur = str(self._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
+            symbols.append(eur)
+        # Fallback: if user disabled both, at least trade XAUUSD
+        if not symbols:
+            symbols.append(str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip())
+        return symbols
 
     def is_style_enabled(self, trade_style: str) -> bool:
         """Check if SCALPING/INTRADAY/SWING is enabled for this account."""
