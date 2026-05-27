@@ -196,10 +196,14 @@ def run_cycle(
         # Check max trades per style
         style_max = acct_settings.get_max_trades_for_style(trade_style)
         if style_max > 0:
-            current_style_count = sum(
-                1 for p in open_positions
-                if p.get("trade_style", "INTRADAY").upper() == trade_style
-            )
+            current_style_count = 0
+            for p in open_positions:
+                ticket = p.get("ticket")
+                state = trade_memory.get_trade_state(ticket) if trade_memory else None
+                p_style = state.get("trade_style", "INTRADAY").upper() if state else "INTRADAY"
+                if p_style == trade_style:
+                    current_style_count += 1
+            
             if current_style_count >= style_max:
                 msg = f"Max {trade_style} trades ({style_max}) reached"
                 logger.info(f"[{symbol}] {msg}. Skipping.")

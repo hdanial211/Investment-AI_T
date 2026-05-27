@@ -92,6 +92,7 @@ class ActiveTradeManager:
             virtual_sl=trade_params.get("sl"),
             virtual_tp=trade_params.get("tp"),
             reason=signal.get("reason", ""),
+            trade_style=signal.get("trade_style", "INTRADAY"),
             pattern_snapshot=pattern_snapshot,
         )
         self.trade_memory.add_trade_state(ticket, state)

@@ -39,6 +39,7 @@ class VirtualExitEngine:
         virtual_sl: float,
         virtual_tp: float,
         reason: str,
+        trade_style: str = "INTRADAY",
         pattern_snapshot: Optional[Dict] = None,
     ) -> Dict:
         return {
@@ -46,6 +47,7 @@ class VirtualExitEngine:
             "symbol": symbol,
             "action": action,
             "direction": action,
+            "trade_style": trade_style,
             "entry_price": _round_price(entry_price),
             "lot": float(lot or 0),
             "reason": reason,
