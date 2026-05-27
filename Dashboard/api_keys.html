@@ -206,6 +206,70 @@
     @media (max-width: 800px) {
       .form-row, .config-row { grid-template-columns: 1fr; }
     }
+
+    /* ── MODEL PICKER BTN ──────────────────────────────────────────────── */
+    .model-picker-btn {
+      width: 100%; text-align: left; background: rgba(255,255,255,0.78);
+      color: var(--ink); border: 1px solid var(--line); border-radius: 14px;
+      padding: 11px 14px; font: inherit; font-size: 0.88rem; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+      transition: all 0.2s;
+    }
+    .model-picker-btn:hover { background: rgba(255,255,255,0.95); border-color: var(--gold); }
+    .model-picker-btn.locked { opacity: 0.45; cursor: not-allowed; }
+    .model-picker-btn.locked:hover { background: rgba(255,255,255,0.78); border-color: var(--line); }
+    .model-picker-btn .mn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .model-picker-btn .mn.empty { color: var(--muted); }
+    .model-picker-btn .pi { font-size: 0.75rem; color: var(--gold); flex-shrink: 0; margin-left: 8px; }
+
+    /* ── MODAL ─────────────────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      z-index: 1000; display: none; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; animation: mFadeIn 0.2s ease; }
+    @keyframes mFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes mSlideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal {
+      background: var(--paper); border-radius: 24px;
+      box-shadow: 0 32px 100px rgba(0,0,0,0.45);
+      width: min(660px, calc(100% - 32px)); max-height: 82vh;
+      overflow: hidden; display: flex; flex-direction: column;
+      animation: mSlideUp 0.25s ease;
+    }
+    .modal-head {
+      padding: 20px 24px 14px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-head h2 { font-family: Georgia, serif; font-size: 1.3rem; margin: 0; }
+    .modal-head .mc { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 8px; }
+    .modal-head .mc:hover { background: rgba(0,0,0,0.06); color: var(--ink); }
+    .modal-tabs { display: flex; gap: 0; padding: 0 24px; border-bottom: 1px solid var(--line); }
+    .modal-tab {
+      padding: 11px 20px; font-size: 0.84rem; font-weight: 700; cursor: pointer;
+      border: none; background: none; color: var(--muted);
+      border-bottom: 3px solid transparent; transition: all 0.15s;
+    }
+    .modal-tab:hover { color: var(--ink); }
+    .modal-tab.act { color: var(--green); border-bottom-color: var(--green); }
+    .modal-tab.act.tp { color: var(--gold); border-bottom-color: var(--gold); }
+    .modal-body { padding: 16px 24px 24px; overflow-y: auto; flex: 1; }
+    .m-card {
+      display: flex; align-items: center; gap: 14px;
+      padding: 13px 16px; border: 1px solid var(--line); border-radius: 14px;
+      margin-bottom: 9px; cursor: pointer; transition: all 0.15s;
+      background: rgba(255,255,255,0.5);
+    }
+    .m-card:hover { background: rgba(196,145,61,0.08); border-color: var(--gold); transform: translateX(4px); }
+    .m-card .mi { flex: 1; min-width: 0; }
+    .m-card .mi-n { font-weight: 800; font-size: 0.92rem; margin-bottom: 1px; }
+    .m-card .mi-id { font-family: monospace; font-size: 0.76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m-card .mi-d { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
+    .m-card .mb { font-size: 0.68rem; font-weight: 900; padding: 4px 10px; border-radius: 999px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.05em; }
+    .mb.free { background: rgba(44,139,103,0.15); color: var(--green); }
+    .mb.paid { background: rgba(196,145,61,0.15); color: var(--gold); }
+    .m-empty { text-align: center; padding: 36px 20px; color: var(--muted); font-size: 0.9rem; }
   </style>
 </head>
 <body>
@@ -243,6 +307,18 @@
     </section>
   </main>
 
+  <!-- MODEL PICKER MODAL -->
+  <div class="modal-overlay" id="modelModal">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="modalTitle">Pilih Model</h2>
+        <button class="mc" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-tabs" id="modalTabs"></div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
   <script>
     const DEFAULT_SUPABASE_URL = "https://kusyjtpcjyflxgfcqenb.supabase.co";
     const DEFAULT_SUPABASE_ANON = "sb_publishable_Pdf-F-j3PH3keLsZ8ZoEZA_tbotGoxM";
@@ -254,6 +330,65 @@
       sys: null,
       providers: []
     };
+
+    // ── MODEL CATALOG ────────────────────────────────────────────────────
+    const MODEL_CATALOG = {
+      openrouter: {
+        free: [
+          { id: "openai/gpt-oss-20b:free", name: "GPT-OSS 20B", desc: "Pantas & versatil untuk analisis" },
+          { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B", desc: "Reasoning kuat, sesuai risk review" },
+          { id: "qwen/qwen3-next-80b-a3b-instruct:free", name: "Qwen3 Next 80B", desc: "Analisis & coding cemerlang" },
+          { id: "google/gemini-2.0-flash-exp:free", name: "Gemini 2.0 Flash", desc: "Model pantas dari Google" },
+          { id: "meta-llama/llama-4-maverick:free", name: "Llama 4 Maverick", desc: "Model terbaru dari Meta" },
+          { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1", desc: "Deep reasoning, ada rate limit" },
+          { id: "mistralai/mistral-small-3.1-24b-instruct:free", name: "Mistral Small 3.1", desc: "Model Eropah, cepat & efisien" },
+        ],
+        paid: [
+          { id: "openai/gpt-4.1", name: "GPT-4.1", desc: "Flagship OpenAI via OpenRouter" },
+          { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", desc: "Anthropic terbaik via OpenRouter" },
+          { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", desc: "Model pro Google" },
+          { id: "deepseek/deepseek-r1", name: "DeepSeek R1 (Paid)", desc: "Tiada rate limit, laju penuh" },
+          { id: "meta-llama/llama-4-behemoth", name: "Llama 4 Behemoth", desc: "Model terbesar Meta" },
+        ]
+      },
+      openai: {
+        free: [],
+        paid: [
+          { id: "gpt-4.1", name: "GPT-4.1", desc: "Model flagship OpenAI" },
+          { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", desc: "Pantas & murah" },
+          { id: "gpt-4.1-nano", name: "GPT-4.1 Nano", desc: "Ultra pantas, paling murah" },
+          { id: "o3", name: "O3", desc: "Reasoning lanjutan" },
+          { id: "o4-mini", name: "O4 Mini", desc: "Reasoning pantas" },
+        ]
+      },
+      anthropic: {
+        free: [],
+        paid: [
+          { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", desc: "Imbangan terbaik kelajuan/kualiti" },
+          { id: "claude-opus-4-20250514", name: "Claude Opus 4", desc: "Paling berkuasa" },
+          { id: "claude-3.5-haiku-20241022", name: "Claude 3.5 Haiku", desc: "Terpantas, termurah" },
+        ]
+      },
+      deepseek: {
+        free: [],
+        paid: [
+          { id: "deepseek-chat", name: "DeepSeek V3", desc: "Model umum serba boleh" },
+          { id: "deepseek-reasoner", name: "DeepSeek R1", desc: "Reasoning lanjutan" },
+        ]
+      },
+      huggingface: {
+        free: [
+          { id: "Qwen/Qwen3-4B-Instruct-2507", name: "Qwen3 4B", desc: "Ringan & pantas" },
+          { id: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", name: "DeepSeek R1 Distill 7B", desc: "Reasoning model" },
+          { id: "meta-llama/Llama-3.2-3B-Instruct", name: "Llama 3.2 3B", desc: "Model kompak Meta" },
+          { id: "mistralai/Mistral-7B-Instruct-v0.3", name: "Mistral 7B", desc: "Model Eropah" },
+        ],
+        paid: []
+      }
+    };
+
+    let pickerState = { index: -1, field: "" };
+    const testedProviders = new Set();
 
     $("supabaseUrl").value = state.url;
     $("supabaseAnon").value = state.anon;
@@ -366,22 +501,29 @@
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="field-group">
-                <label>Main Model</label>
-                <input value="${safe(p.main_model)}" placeholder="Model ID..." onchange="updateProvider(${index}, 'main_model', this.value)">
-              </div>
-              <div class="field-group">
-                <label>Risk Review Model</label>
-                <input value="${safe(p.risk_model)}" placeholder="Model ID..." onchange="updateProvider(${index}, 'risk_model', this.value)">
-              </div>
-            </div>
-
             <div class="form-row full" style="margin-top:10px;">
               <button class="test-api-btn" onclick="testApi(${index})">⚡ Test Connection & API Key</button>
             </div>
             
             <div id="testRes_${index}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;"></div>
+
+            <div class="form-row" style="margin-top:14px;">
+              <div class="field-group">
+                <label>Main Model</label>
+                <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'main_model')">
+                  <span class="mn ${p.main_model ? '' : 'empty'}">${p.main_model ? safe(p.main_model) : '⊕ Pilih Model...'}</span>
+                  <span class="pi">▾</span>
+                </button>
+              </div>
+              <div class="field-group">
+                <label>Risk Review Model</label>
+                <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'risk_model')">
+                  <span class="mn ${p.risk_model ? '' : 'empty'}">${p.risk_model ? safe(p.risk_model) : '⊕ Pilih Model...'}</span>
+                  <span class="pi">▾</span>
+                </button>
+              </div>
+            </div>
+            ${!testedProviders.has(index) ? '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">🔒 Sila test API key dulu sebelum pilih model.</div>' : ''}
           </div>
         `;
         container.insertAdjacentHTML('beforeend', html);
@@ -424,6 +566,73 @@
       renderProviders();
     }
 
+    // ── MODEL PICKER ─────────────────────────────────────────────────────
+    function openModelPicker(index, field) {
+      if (!testedProviders.has(index)) {
+        const resDiv = $(`testRes_${index}`);
+        resDiv.innerHTML = `<span style="color:var(--red)">⚠️ Sila klik "Test Connection & API Key" dulu sebelum pilih model!</span>`;
+        return;
+      }
+      pickerState = { index, field };
+      const provider = state.providers[index].provider;
+      const catalog = MODEL_CATALOG[provider] || { free: [], paid: [] };
+      const label = field === 'main_model' ? 'Main Model' : 'Risk Review Model';
+      $("modalTitle").textContent = `Pilih ${label}`;
+
+      // Build tabs
+      const hasFree = catalog.free.length > 0;
+      const hasPaid = catalog.paid.length > 0;
+      let tabsHtml = '';
+      if (hasFree) tabsHtml += `<button class="modal-tab act" onclick="switchTab(this,'free')">🆓 Percuma (${catalog.free.length})</button>`;
+      if (hasPaid) tabsHtml += `<button class="modal-tab ${!hasFree ? 'act tp' : 'tp'}" onclick="switchTab(this,'paid')">💎 Berbayar (${catalog.paid.length})</button>`;
+      $("modalTabs").innerHTML = tabsHtml;
+
+      // Show first available tab
+      const defaultTab = hasFree ? 'free' : 'paid';
+      renderModelList(catalog, defaultTab);
+      $("modelModal").classList.add('open');
+    }
+
+    function switchTab(btn, type) {
+      document.querySelectorAll('.modal-tab').forEach(t => { t.classList.remove('act'); });
+      btn.classList.add('act');
+      const provider = state.providers[pickerState.index].provider;
+      const catalog = MODEL_CATALOG[provider] || { free: [], paid: [] };
+      renderModelList(catalog, type);
+    }
+
+    function renderModelList(catalog, type) {
+      const models = catalog[type] || [];
+      if (models.length === 0) {
+        $("modalBody").innerHTML = `<div class="m-empty">Tiada model ${type === 'free' ? 'percuma' : 'berbayar'} untuk provider ini.</div>`;
+        return;
+      }
+      let html = '';
+      for (const m of models) {
+        html += `<div class="m-card" onclick="selectModel('${m.id.replace(/'/g, "\\'")}')">` +
+          `<div class="mi"><div class="mi-n">${safe(m.name)}</div>` +
+          `<div class="mi-id">${safe(m.id)}</div>` +
+          `<div class="mi-d">${safe(m.desc)}</div></div>` +
+          `<span class="mb ${type}">${type === 'free' ? 'FREE' : 'PAID'}</span></div>`;
+      }
+      $("modalBody").innerHTML = html;
+    }
+
+    function selectModel(modelId) {
+      state.providers[pickerState.index][pickerState.field] = modelId;
+      closeModal();
+      renderProviders();
+    }
+
+    function closeModal() {
+      $("modelModal").classList.remove('open');
+    }
+
+    // Close modal on overlay click
+    $("modelModal").addEventListener('click', (e) => {
+      if (e.target === $("modelModal")) closeModal();
+    });
+
     // ── SAVE ─────────────────────────────────────────────────────────────
     async function saveSettings() {
       const payload = {
@@ -449,16 +658,21 @@
       resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing connection...</span>`;
 
       if (!p.api_key) {
-        resDiv.innerHTML = `<span style="color:var(--red)">❌ Missing API Key</span>`;
-        return;
-      }
-      if (!p.main_model) {
-        resDiv.innerHTML = `<span style="color:var(--red)">❌ Missing Main Model</span>`;
+        resDiv.innerHTML = `<span style="color:var(--red)">❌ Sila masukkan API Key dahulu</span>`;
         return;
       }
 
+      // Use a lightweight default model for testing if none selected yet
+      const testModel = p.main_model || {
+        openrouter: 'openai/gpt-oss-20b:free',
+        openai: 'gpt-4.1-nano',
+        anthropic: 'claude-3.5-haiku-20241022',
+        deepseek: 'deepseek-chat',
+        huggingface: 'Qwen/Qwen3-4B-Instruct-2507'
+      }[p.provider] || 'openai/gpt-oss-20b:free';
+
       const payload = {
-        model: p.main_model,
+        model: testModel,
         messages: [{ role: "user", content: "Reply with the word OK." }],
         max_tokens: 5,
         temperature: 0.1
@@ -516,7 +730,9 @@
           replyText = data.choices?.[0]?.message?.content;
         }
 
-        resDiv.innerHTML = `<span style="color:var(--green)">✅ Success! Model replied: "${safe(replyText)}"</span>`;
+        resDiv.innerHTML = `<span style="color:var(--green)">✅ API Key sah! Model replied: "${safe(replyText)}"</span>`;
+        testedProviders.add(index);
+        renderProviders();
       } catch (err) {
         resDiv.innerHTML = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
       }
