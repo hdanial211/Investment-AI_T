@@ -139,7 +139,8 @@ class ActiveTradeManager:
                 self.supabase.upsert_active_trade(state)
                 self.supabase.insert_trade_event(ticket, "close_failed", trigger)
 
-        self.pending_adoptions.intersection_update(current_loop_tickets)
+        # Remove tickets from pending_adoptions that are no longer in broker (closed externally)
+        self.pending_adoptions = {k: v for k, v in self.pending_adoptions.items() if k in current_loop_tickets}
         return closed
 
     def register_new_trade(
