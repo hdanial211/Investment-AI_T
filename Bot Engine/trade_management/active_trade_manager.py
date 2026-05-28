@@ -37,6 +37,26 @@ class ActiveTradeManager:
             state = self.trade_memory.get_trade_state(ticket)
             if not state:
                 state = self.trade_memory.adopt_broker_position(position)
+                # Auto-assign virtual SL/TP for manual trades if missing
+                if self.risk_mgr and not state.get("virtual_sl") and not state.get("virtual_tp"):
+                    try:
+                        pip_val = self.connector.get_pip_value(symbol)
+                        params = self.risk_mgr.get_trade_params(
+                            symbol=symbol,
+                            action=state["action"],
+                            price=state["entry_price"],
+                            balance=10000,
+                            pip_value=pip_val,
+                            contract_size=100,
+                            indicators=indicators,
+                            trade_style="INTRADAY"
+                        )
+                        state["virtual_sl"] = params["sl"]
+                        state["virtual_tp"] = params["tp"]
+                        state["reason"] = "Manual Trade (Auto-managed)"
+                        logger.info(f"[{symbol}] Auto-assigned SL/TP for manual trade {ticket}: SL={params['sl']}, TP={params['tp']}")
+                    except Exception as e:
+                        logger.warning(f"Failed to auto-assign SL/TP for manual trade {ticket}: {e}")
 
             state = self.exit_engine.update_state(state, position, indicators)
             state["last_checked_at"] = datetime.now().isoformat()
