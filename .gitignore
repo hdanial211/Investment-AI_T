@@ -8,6 +8,13 @@
 *.key
 *.pem
 
+# Runtime state files (may contain secrets/tokens)
+**/shared_state.json
+**/trade_memory.json
+**/data.json
+**/account_settings.json
+**/*.lock
+
 # Chart screenshots (local only)
 chart_screenshots/
 
