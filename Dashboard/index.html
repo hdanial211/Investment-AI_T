@@ -510,7 +510,7 @@
         <tr>
           <td>${safe(r.ticket)}</td>
           <td style="font-size:0.85em;color:var(--muted)">${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : "-")}</td>
-          <td><span class="pill">${safe(r.symbol)}</span></td>
+          <td><span class="pill">${safe(displaySymbol(r.symbol))}</span></td>
           <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
           <td>${safe(r.lot)}</td>
           <td>${styleTag(r.trade_style)}</td>
@@ -530,7 +530,7 @@
       $("topPattern").textContent = rows[0]?.pattern_name || "-";
       $("patternRows").innerHTML = rows.map((r) => `
         <tr>
-          <td><span class="pill">${safe(r.symbol)}</span></td>
+          <td><span class="pill">${safe(displaySymbol(r.symbol))}</span></td>
           <td>${safe(r.pattern_name)}</td>
           <td>${formatPercent(r.win_rate)} <span class="muted">(${r.win_count}W/${r.loss_count}L)</span></td>
           <td class="${r.net_profit >= 0 ? "profit" : "loss"}">${money(r.net_profit)}</td>
@@ -548,7 +548,7 @@
           <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : "-")}</td>
           <td>${r.updated_at ? new Date(r.updated_at).toLocaleString() : "-"}</td>
           <td>${safe(r.ticket)}</td>
-          <td><span class="pill">${safe(r.symbol)}</span></td>
+          <td><span class="pill">${safe(displaySymbol(r.symbol))}</span></td>
           <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
           <td>${safe(r.lot)}</td>
           <td>${styleTag(r.trade_style)}</td>
@@ -566,6 +566,13 @@
       if (val === "profit_lock") return "BE";
       if (val === "virtual_trailing_stop") return "Trailing";
       return val;
+    }
+
+    function displaySymbol(value) {
+      const raw = String(value || "").trim();
+      const upper = raw.toUpperCase();
+      if (upper.startsWith("XAU") || upper.includes("GOLD")) return "XAUUSD (Gold)";
+      return raw || "-";
     }
 
     function safe(value) {
@@ -707,16 +714,16 @@
         html += '<b style="color:var(--muted);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em">Symbol Check</b><br>';
         for (const [sym, status] of Object.entries(symStatus)) {
           if (status === 'OK') {
-            html += `<span class="sym-badge ok">✅ ${safe(sym)}</span>`;
+            html += `<span class="sym-badge ok">✅ ${safe(displaySymbol(sym))}</span>`;
           } else {
-            html += `<span class="sym-badge fail">❌ ${safe(sym)}</span>`;
+            html += `<span class="sym-badge fail">❌ ${safe(displaySymbol(sym))}</span>`;
           }
         }
         const failedSyms = Object.entries(symStatus).filter(([, v]) => v !== 'OK');
         if (failedSyms.length > 0) {
           html += `<div style="margin-top:8px; padding:10px 14px; background:rgba(173,79,67,0.08); border-radius:10px; color:var(--red); font-size:0.82rem;">`;
           for (const [sym, err] of failedSyms) {
-            html += `<div><b>${safe(sym)}:</b> ${safe(err)}</div>`;
+            html += `<div><b>${safe(displaySymbol(sym))}:</b> ${safe(err)}</div>`;
           }
           html += `</div>`;
         }
