@@ -57,10 +57,11 @@ class ActiveTradeManager:
             state = self.trade_memory.get_trade_state(ticket)
             if not state:
                 # To prevent a race condition where the AI just opened a trade
-                # but hasn't saved it to Supabase yet, we delay adoption by 4 loops (~8 sec).
-                count = self.pending_adoptions.get(ticket, 0)
-                if count < 4:
-                    self.pending_adoptions[ticket] = count + 1
+                # but hasn't saved it to Supabase yet, we delay adoption by 15 loops (~30 sec).
+                adoption_info = self.pending_adoptions.get(ticket, {"count": 0, "symbol": symbol})
+                count = adoption_info["count"]
+                if count < 15:
+                    self.pending_adoptions[ticket] = {"count": count + 1, "symbol": symbol}
                     continue 
                     
                 # If it's still missing on the next loop, it's genuinely a manual trade
@@ -147,7 +148,11 @@ class ActiveTradeManager:
                 self.supabase.insert_trade_event(ticket, "close_failed", trigger)
 
         # Remove tickets from pending_adoptions that are no longer in broker (closed externally)
-        self.pending_adoptions = {k: v for k, v in self.pending_adoptions.items() if k in current_loop_tickets}
+        # Only remove tickets that belong to the current symbol
+        self.pending_adoptions = {
+            k: v for k, v in self.pending_adoptions.items()
+            if v["symbol"] != symbol or k in current_loop_tickets
+        }
         return closed
 
     def register_new_trade(
