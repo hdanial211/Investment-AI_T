@@ -160,7 +160,7 @@ def test_vercel_dashboard_contains_live_trade_and_manual_fallback_widgets():
         "formatAge(ageSeconds)",
         "active_trades?select=*",
         "pattern_usage_stats?select=*",
-        "trade_events?select=*",
+        "current_status=eq.CLOSED",
         "styleTag(r.trade_style)",
         "visionTag(r.vision_bias)",
         "<th>Style</th>",

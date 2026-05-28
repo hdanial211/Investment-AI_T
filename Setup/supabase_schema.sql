@@ -227,6 +227,7 @@ create table if not exists public.account_settings (
   -- Symbol mapping (broker-specific tick names)
   symbol_xauusd text default 'XAUUSD',
   symbol_eurusd text default 'EURUSD',
+  manage_manual_be boolean not null default false,
 
   updated_at timestamptz not null default now(),
   updated_by text default 'dashboard'
@@ -246,6 +247,9 @@ begin
   end if;
   if not exists (select 1 from information_schema.columns where table_name='account_settings' and column_name='symbol_eurusd') then
     alter table public.account_settings add column symbol_eurusd text default 'EURUSD';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='account_settings' and column_name='manage_manual_be') then
+    alter table public.account_settings add column manage_manual_be boolean not null default false;
   end if;
 end $$;
 

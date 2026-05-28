@@ -5,7 +5,7 @@ This module is intentionally best-effort: sync failures must never stop trading.
 
 import logging
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 try:
     import requests
