@@ -502,6 +502,25 @@
             </div>
           </div>
         </div>
+        
+        <!-- Manual Trade Management -->
+        <label style="margin-bottom:10px; margin-top:20px;">Manual Trade Management</label>
+        <div class="limits-row" style="margin-bottom:18px">
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Bot Urus SL Manual Trade</label>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.manage_manual_sl ? "on" : ""}" id="f_manual_sl"></div>
+              <span class="toggle-label">${acc.manage_manual_sl ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Bot Urus TP Manual Trade</label>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.manage_manual_tp ? "on" : ""}" id="f_manual_tp"></div>
+              <span class="toggle-label">${acc.manage_manual_tp ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
+        </div>
 
         <!-- Save / Delete -->
         <div class="save-row">
@@ -535,7 +554,14 @@
         el.addEventListener("click", function () {
           const isOn = this.classList.toggle("on");
           const lbl = this.nextElementSibling;
-          if(lbl) lbl.textContent = isOn ? "Enabled" : "Disabled (Filter On)";
+          if(lbl) {
+            // Check if it's the news block toggle specifically
+            if (this.id === "f_news_block") {
+              lbl.textContent = isOn ? "Enabled" : "Disabled";
+            } else {
+              lbl.textContent = isOn ? "Enabled" : "Disabled";
+            }
+          }
         });
       });
     }
@@ -667,9 +693,10 @@
         eurusd_enabled: getPairToggle("eurusd_enabled"),
         enabled: $("masterSwitch").classList.contains("on"),
         
-        // trade_during_events is the inverse of Block New Entries
         trade_during_events: !$("f_news_block").classList.contains("on"),
         news_close_profit: $("f_news_close").classList.contains("on"),
+        manage_manual_sl: $("f_manual_sl").classList.contains("on"),
+        manage_manual_tp: $("f_manual_tp").classList.contains("on"),
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),

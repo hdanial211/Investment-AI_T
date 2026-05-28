@@ -66,24 +66,31 @@ class ActiveTradeManager:
                 # If it's still missing on the next loop, it's genuinely a manual trade
                 del self.pending_adoptions[ticket]
                 state = self.trade_memory.adopt_broker_position(position)
-                # Auto-assign virtual SL/TP for manual trades if missing
-                if self.risk_mgr and not state.get("virtual_sl") and not state.get("virtual_tp"):
+                # Auto-assign virtual SL/TP for manual trades if missing and enabled
+                if self.risk_mgr and (not state.get("virtual_sl") or not state.get("virtual_tp")):
                     try:
-                        pip_val = self.connector.get_pip_value(symbol)
-                        params = self.risk_mgr.get_trade_params(
-                            symbol=symbol,
-                            action=state["action"],
-                            price=state["entry_price"],
-                            balance=10000,
-                            pip_value=pip_val,
-                            contract_size=100,
-                            indicators=indicators,
-                            trade_style="INTRADAY"
-                        )
-                        state["virtual_sl"] = params["sl"]
-                        state["virtual_tp"] = params["tp"]
-                        state["reason"] = "Manual Trade (Auto-managed)"
-                        logger.info(f"[{symbol}] Auto-assigned SL/TP for manual trade {ticket}: SL={params['sl']}, TP={params['tp']}")
+                        from account_settings import AccountSettings
+                        acct = AccountSettings(getattr(config, 'ACCOUNT_ID', 'acc_1'))
+                        
+                        if acct.manage_manual_sl or acct.manage_manual_tp:
+                            pip_val = self.connector.get_pip_value(symbol)
+                            params = self.risk_mgr.get_trade_params(
+                                symbol=symbol,
+                                action=state["action"],
+                                price=state["entry_price"],
+                                balance=10000,
+                                pip_value=pip_val,
+                                contract_size=100,
+                                indicators=indicators,
+                                trade_style="INTRADAY"
+                            )
+                            if acct.manage_manual_sl and not state.get("virtual_sl"):
+                                state["virtual_sl"] = params["sl"]
+                            if acct.manage_manual_tp and not state.get("virtual_tp"):
+                                state["virtual_tp"] = params["tp"]
+                                
+                            state["reason"] = "Manual Trade (Auto-managed)"
+                            logger.info(f"[{symbol}] Auto-assigned virtual SL/TP for manual trade {ticket}: SL={state.get('virtual_sl')}, TP={state.get('virtual_tp')}")
                     except Exception as e:
                         logger.warning(f"Failed to auto-assign SL/TP for manual trade {ticket}: {e}")
 
