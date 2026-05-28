@@ -20,7 +20,7 @@ if not exist "%~dp0Bot Engine\start_bot.bat" (
 )
 
 echo ============================================================
-echo   2. MEMULAKAN BOT ENGINE (MICROSERVICES)
+echo   2. MEMULAKAN DESKTOP COMMAND CENTER
 echo ============================================================
-call start_microservices.bat
+start /B pythonw desktop_launcher.py
 exit /b %ERRORLEVEL%
