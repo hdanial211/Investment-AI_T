@@ -468,11 +468,14 @@
 
     async function refresh() {
       try {
+        const filter = $("accountFilter")?.value || "all";
+        const accQuery = filter !== "all" ? `&account_id=eq.${filter}` : "";
+
         const [heartbeat, active, patterns, events] = await Promise.all([
           supabase("bot_heartbeat?select=*&order=last_seen_at.desc&limit=1"),
-          supabase("active_trades?select=*&current_status=neq.CLOSED&order=updated_at.desc"),
-          supabase("pattern_usage_stats?select=*&order=net_profit.desc&limit=30"),
-          supabase("active_trades?select=*&current_status=eq.CLOSED&order=updated_at.desc&limit=30"),
+          supabase(`active_trades?select=*&current_status=neq.CLOSED&order=updated_at.desc${accQuery}`),
+          supabase(`pattern_usage_stats?select=*&order=net_profit.desc&limit=30${accQuery}`),
+          supabase(`active_trades?select=*&current_status=eq.CLOSED&order=updated_at.desc&limit=30${accQuery}`),
         ]);
 
         renderHeartbeat(heartbeat[0]);
@@ -527,6 +530,7 @@
     }
 
     function renderPatterns(rows) {
+      // rows are already pre-filtered by account in the Supabase query
       $("topPattern").textContent = rows[0]?.pattern_name || "-";
       $("patternRows").innerHTML = rows.map((r) => `
         <tr>
@@ -544,9 +548,8 @@
     }
 
     function renderEvents(rows) {
-      const filter = $("accountFilter")?.value || "all";
-      const filtered = filter === "all" ? rows : rows.filter((r) => (r.account_id || "acc_1") === filter);
-      $("eventRows").innerHTML = filtered.map((r) => `
+      // rows are already pre-filtered by account in the Supabase query
+      $("eventRows").innerHTML = rows.map((r) => `
         <tr>
           <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : "-")}</td>
           <td>${r.updated_at ? new Date(r.updated_at).toLocaleString() : "-"}</td>
