@@ -34,6 +34,10 @@ class ActiveTradeManager:
 
     def manage_symbol(self, symbol: str, positions: List[Dict], indicators: Dict) -> List[Dict]:
         closed = []
+        if positions is None:
+            logger.warning(f"[{symbol}] manage_symbol received None for positions, skipping cycle.")
+            return closed
+            
         active_tickets = [pos["ticket"] for pos in positions]
         closed_by_broker = self.trade_memory.sync_with_broker(
             active_tickets, 

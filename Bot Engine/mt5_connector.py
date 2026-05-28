@@ -430,7 +430,12 @@ class MT5Connector:
             positions = mt5.positions_get()
 
         if positions is None:
-            return []
+            err = mt5.last_error()
+            if err[0] == mt5.RES_E_NOT_FOUND:
+                return []
+            else:
+                logger.warning(f"mt5.positions_get() returned None with error {err}. Skipping this cycle to prevent wiping memory.")
+                return None
 
         result = []
         for pos in positions:

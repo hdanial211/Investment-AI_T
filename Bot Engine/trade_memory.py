@@ -152,6 +152,19 @@ class TradeMemory:
         this bot instance, so it can still be monitored.
         """
         ticket = int(position["ticket"])
+        key = str(ticket)
+        
+        # Auto-Recovery: If it was mistakenly marked as closed due to MT5 sync error,
+        # restore it from closed_trades!
+        if key in self.data.get("closed_trades", {}):
+            state = self.data["closed_trades"].pop(key)
+            state["current_status"] = "OPEN"
+            state["exit_reason"] = None
+            self.data["active_trades"][key] = state
+            self._save()
+            logger.info(f"Auto-recovered AI trade {ticket} from closed history.")
+            return state
+
         state = {
             "ticket": ticket,
             "symbol": position.get("symbol"),
