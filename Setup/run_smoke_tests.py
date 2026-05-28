@@ -161,6 +161,7 @@ def test_vercel_dashboard_contains_live_trade_and_manual_fallback_widgets():
         "active_trades?select=*",
         "pattern_usage_stats?select=*",
         "current_status=eq.CLOSED",
+        "aggregatePatternRows(rows)",
         "styleTag(r.trade_style)",
         "visionTag(r.vision_bias)",
         "<th>Style</th>",
