@@ -239,6 +239,7 @@ class RiskManager:
         pip_value:     float,
         contract_size: float,
         indicators:    Dict = None,
+        trade_style:   str = "INTRADAY",
     ) -> Dict:
         """
         Calculate all parameters needed to place a trade.
@@ -257,10 +258,27 @@ class RiskManager:
                 pip_multiplier = 100
             
             atr_pips = atr * pip_multiplier
+            
+            # Adjust multipliers based on trade style
+            sl_mult = config.DYNAMIC_SL_MULTIPLIER
+            tp_mult = config.DYNAMIC_TP_MULTIPLIER
+            
+            if trade_style == "SCALPING":
+                sl_mult = 0.2  # 20% of ATR (e.g., ~200 pips for Gold if ATR=10)
+                tp_mult = 0.4  # 1:2 Risk Reward
+            elif trade_style == "SWING":
+                sl_mult = 2.5
+                tp_mult = 5.0
+                
             # Calculate dynamic SL, but ensure it's at least MIN_VOLATILITY_PIPS
-            dynamic_sl = int(atr_pips * config.DYNAMIC_SL_MULTIPLIER)
+            dynamic_sl = int(atr_pips * sl_mult)
             sl_pips = max(dynamic_sl, config.MIN_VOLATILITY_PIPS * 2)
-            tp_pips = int(atr_pips * config.DYNAMIC_TP_MULTIPLIER)
+            
+            if trade_style == "SCALPING" and ("XAU" in symbol or "XAG" in symbol):
+                # Cap scalping SL for precious metals at 300 pips ($3.00)
+                sl_pips = min(sl_pips, 300)
+                
+            tp_pips = int(atr_pips * tp_mult)
 
         lot = calculate_lot_size(
             balance       = balance,

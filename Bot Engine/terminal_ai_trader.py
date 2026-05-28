@@ -254,6 +254,7 @@ def run_cycle(
         pip_value     = pip_value,
         contract_size = contract,
         indicators    = indicators,
+        trade_style   = trade_style,
     )
 
     # Override lot with per-style lot from dashboard settings
