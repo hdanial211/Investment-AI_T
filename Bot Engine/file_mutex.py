@@ -57,7 +57,7 @@ class FileMutex:
 class MT5Lock(FileMutex):
     """Specific lock for MT5 Terminal access."""
     def __init__(self):
-        super().__init__("mt5_terminal.lock", timeout=60.0)
+        super().__init__("mt5_terminal.lock", timeout=120.0)
 
     def __enter__(self):
         if not self.acquire():
