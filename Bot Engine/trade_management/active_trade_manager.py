@@ -12,7 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 class ActiveTradeManager:
-    """Keeps watch over each open ticket and triggers virtual exits."""
+    """
+    Manages active MT5 positions.
+    - Synchronizes MT5 positions with Supabase
+    - Applies Virtual Exit Logic (SL/TP/Trailing Stop)
+    - Records results and triggers cooling-off when trades close
+    """
 
     def __init__(self, connector, trade_memory, risk_mgr=None):
         self.connector = connector
@@ -20,6 +25,7 @@ class ActiveTradeManager:
         self.risk_mgr = risk_mgr
         self.exit_engine = VirtualExitEngine()
         self.supabase = SupabaseSync()
+        self.pending_adoptions = set()
 
     def manage_symbol(self, symbol: str, positions: List[Dict], indicators: Dict) -> List[Dict]:
         closed = []
@@ -32,10 +38,22 @@ class ActiveTradeManager:
         for closed_state in closed_by_broker:
             self._sync_closed_state(closed_state, event_type="broker_closed")
 
+        current_loop_tickets = set()
+
         for position in positions:
             ticket = int(position["ticket"])
+            current_loop_tickets.add(ticket)
+            
             state = self.trade_memory.get_trade_state(ticket)
             if not state:
+                # To prevent a race condition where the AI just opened a trade
+                # but hasn't saved it to trade_memory yet, we delay adoption by 1 loop.
+                if ticket not in self.pending_adoptions:
+                    self.pending_adoptions.add(ticket)
+                    continue # Wait for next loop
+                    
+                # If it's still missing on the next loop, it's genuinely a manual trade
+                self.pending_adoptions.remove(ticket)
                 state = self.trade_memory.adopt_broker_position(position)
                 # Auto-assign virtual SL/TP for manual trades if missing
                 if self.risk_mgr and not state.get("virtual_sl") and not state.get("virtual_tp"):
@@ -92,6 +110,7 @@ class ActiveTradeManager:
                 self.supabase.upsert_active_trade(state)
                 self.supabase.insert_trade_event(ticket, "close_failed", trigger)
 
+        self.pending_adoptions.intersection_update(current_loop_tickets)
         return closed
 
     def register_new_trade(
