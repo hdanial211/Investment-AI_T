@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 import config
+from news_filter import NewsFilter
 
 logger = logging.getLogger(__name__)
 
@@ -174,10 +175,11 @@ class RiskManager:
 
     def __init__(self):
         self.stats = SessionStats()
+        self.news_filter = NewsFilter()
 
     # ── TRADE VALIDATION ─────────────────────────────────────────────────────
 
-    def can_trade(self, symbol: str, open_positions_count: int, indicators: Dict, trade_memory=None) -> Tuple[bool, str]:
+    def can_trade(self, symbol: str, open_positions_count: int, indicators: Dict, trade_memory=None, acct_settings=None) -> Tuple[bool, str]:
         """
         Run all pre-trade checks.
 
@@ -219,6 +221,12 @@ class RiskManager:
         rsi = indicators.get("m15_rsi", 50)
         if rsi > 80 or rsi < 20:
             return False, f"Extreme RSI {rsi:.1f} — avoiding trade"
+            
+        # 5. Check News Events
+        if acct_settings and not acct_settings.trade_during_events:
+            safe, reason = self.news_filter.is_safe_to_trade(symbol)
+            if not safe:
+                return False, reason
 
         return True, "Risk checks passed"
 

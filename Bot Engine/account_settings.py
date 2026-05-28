@@ -43,6 +43,7 @@ _DEFAULTS = {
     "max_risk_percent": config.MAX_RISK_PERCENT,
     "symbol_xauusd": "XAUUSD",
     "symbol_eurusd": "EURUSD",
+    "trade_during_events": False,
 }
 
 
@@ -87,6 +88,12 @@ class AccountSettings:
         """Get MT5 broker server for this account."""
         self._maybe_refresh()
         return str(self._cache.get("mt5_server", config.MT5_SERVER) or config.MT5_SERVER)
+
+    @property
+    def trade_during_events(self) -> bool:
+        self._maybe_refresh()
+        val = self._cache.get("trade_during_events", _DEFAULTS["trade_during_events"])
+        return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property
     def mt5_path(self) -> str:

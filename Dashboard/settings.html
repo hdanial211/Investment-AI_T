@@ -484,6 +484,13 @@
             <label>Max Risk % Per Trade</label>
             <input id="f_max_risk" type="number" min="0.1" max="10" step="0.1" value="${acc.max_risk_percent ?? 2.0}">
           </div>
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Trade During High-Impact Events</label>
+            <div class="toggle-wrap" style="margin-top:8px">
+              <input type="checkbox" id="f_trade_events" class="style-toggle" ${acc.trade_during_events ? "checked" : ""}>
+              <span>${acc.trade_during_events ? "Enabled" : "Disabled (Filter On)"}</span>
+            </div>
+          </div>
         </div>
 
         <!-- Save / Delete -->
@@ -641,6 +648,7 @@
         xauusd_enabled: getPairToggle("xauusd_enabled"),
         eurusd_enabled: getPairToggle("eurusd_enabled"),
         enabled: $("masterSwitch").classList.contains("on"),
+        trade_during_events: $("f_trade_events").checked,
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),

@@ -121,8 +121,8 @@ def run_cycle(
     
     # ── STEP 2.6: Chart screenshot capture (if vision AI enabled) ────────────
     open_pos_count = len(open_positions)
-    can_trade, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators, trade_memory)
-    if not can_trade:
+    allowed, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators, trade_memory, acct_settings)
+    if not allowed:
         logger.info(f"Trade blocked: {risk_reason}")
         trade_logger.log_skipped(symbol, risk_reason, indicators=indicators)
         return "skipped"
