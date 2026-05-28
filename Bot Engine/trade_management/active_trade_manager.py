@@ -97,6 +97,35 @@ class ActiveTradeManager:
 
             state = self.exit_engine.update_state(state, position, indicators)
             state["last_checked_at"] = datetime.now().isoformat()
+            
+            # Auto Break-Even for manual trades if enabled
+            if state.get("reason") in ("Adopted open broker position", "Manual Trade (Auto-managed)"):
+                try:
+                    from account_settings import AccountSettings
+                    acct_be = AccountSettings(getattr(config, 'ACCOUNT_ID', 'acc_1'))
+                    if acct_be.manage_manual_be:
+                        entry = state.get("entry_price")
+                        current_sl = state.get("virtual_sl")
+                        direction = state.get("action") or state.get("direction")
+                        current_price = float(position.get("price_current") or 0)
+                        profit = float(position.get("profit") or 0)
+                        if entry and profit > 0 and direction and current_price:
+                            # Move SL to BE if price has moved enough (0.5 ATR) in our favour
+                            atr = (indicators or {}).get("atr") or 0
+                            min_distance = atr * 0.5 if atr else 0
+                            if direction == "BUY":
+                                if current_price > entry + min_distance:
+                                    if not current_sl or current_sl < entry:
+                                        state["virtual_sl"] = round(entry, 5)
+                                        logger.info(f"[{symbol}] BE moved: manual trade {ticket} SL → entry {entry}")
+                            else:  # SELL
+                                if current_price < entry - min_distance:
+                                    if not current_sl or current_sl > entry:
+                                        state["virtual_sl"] = round(entry, 5)
+                                        logger.info(f"[{symbol}] BE moved: manual trade {ticket} SL → entry {entry}")
+                except Exception as e:
+                    logger.warning(f"Failed to apply BE for manual trade {ticket}: {e}")
+            
             self.trade_memory.update_trade_state(ticket, state)
             self.supabase.upsert_active_trade(state)
 

@@ -46,6 +46,7 @@ _DEFAULTS = {
     "news_close_profit": False,
     "manage_manual_sl": False,
     "manage_manual_tp": False,
+    "manage_manual_be": False,
 }
 
 
@@ -113,6 +114,12 @@ class AccountSettings:
     def manage_manual_tp(self) -> bool:
         self._maybe_refresh()
         val = self._cache.get("manage_manual_tp", _DEFAULTS["manage_manual_tp"])
+        return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+
+    @property
+    def manage_manual_be(self) -> bool:
+        self._maybe_refresh()
+        val = self._cache.get("manage_manual_be", _DEFAULTS["manage_manual_be"])
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property

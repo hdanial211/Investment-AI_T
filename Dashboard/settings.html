@@ -520,6 +520,13 @@
               <span class="toggle-label">${acc.manage_manual_tp ? "Enabled" : "Disabled"}</span>
             </div>
           </div>
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Bot Urus BE Manual Trade</label>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.manage_manual_be ? "on" : ""}" id="f_manual_be"></div>
+              <span class="toggle-label">${acc.manage_manual_be ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
         </div>
 
         <!-- Save / Delete -->
@@ -697,6 +704,7 @@
         news_close_profit: $("f_news_close").classList.contains("on"),
         manage_manual_sl: $("f_manual_sl").classList.contains("on"),
         manage_manual_tp: $("f_manual_tp").classList.contains("on"),
+        manage_manual_be: $("f_manual_be").classList.contains("on"),
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),
