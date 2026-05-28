@@ -401,6 +401,21 @@
 
     <section>
       <div class="section-head">
+        <h2>Closed Trades (History)</h2>
+        <p class="hint">Rekod trade yang telah ditutup (Virtual exit / Broker closed).</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Time Open</th><th>Time Close</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Lot</th><th>Style</th><th>P/L</th><th>Reason</th></tr>
+          </thead>
+          <tbody id="eventRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
         <h2>Pattern Ranking</h2>
         <p class="hint">Count pattern yang digunakan, win/loss, win rate, dan net P/L.</p>
       </div>
@@ -414,21 +429,6 @@
             </tr>
           </thead>
           <tbody id="patternRows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section>
-      <div class="section-head">
-        <h2>Closed Trades (History)</h2>
-        <p class="hint">Rekod trade yang telah ditutup (Virtual exit / Broker closed).</p>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Time Open</th><th>Time Close</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Lot</th><th>Style</th><th>P/L</th><th>Reason</th></tr>
-          </thead>
-          <tbody id="eventRows"></tbody>
         </table>
       </div>
     </section>
