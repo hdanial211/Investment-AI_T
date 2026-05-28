@@ -189,6 +189,20 @@ class RiskManager:
             is_cooling, reason = trade_memory.is_cooling_off(symbol)
             if is_cooling:
                 return False, reason
+                
+            # 0.5 Check entry spacing (10 mins) for layering
+            active_trades = trade_memory.data.get("active_trades", {})
+            for t_id, state in active_trades.items():
+                if state.get("symbol") == symbol:
+                    opened_at_str = state.get("timestamp")
+                    if opened_at_str:
+                        try:
+                            opened_at = datetime.fromisoformat(opened_at_str)
+                            if (datetime.now() - opened_at).total_seconds() < 600: # 10 minutes
+                                return False, f"Entry spacing: Must wait 10 minutes after last {symbol} trade"
+                        except ValueError:
+                            pass
+
         # 1. Check if trading is halted
         if self.stats.trading_halted:
             return False, f"Trading halted: {self.stats.halt_reason}"
