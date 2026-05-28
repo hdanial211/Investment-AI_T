@@ -486,9 +486,9 @@
           </div>
           <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
             <label>Trade During High-Impact Events</label>
-            <div class="toggle-wrap" style="margin-top:8px">
-              <input type="checkbox" id="f_trade_events" class="style-toggle" ${acc.trade_during_events ? "checked" : ""}>
-              <span>${acc.trade_during_events ? "Enabled" : "Disabled (Filter On)"}</span>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.trade_during_events ? "on" : ""}" id="f_trade_events"></div>
+              <span class="toggle-label">${acc.trade_during_events ? "Enabled" : "Disabled (Filter On)"}</span>
             </div>
           </div>
         </div>
@@ -518,6 +518,14 @@
           const lbl = this.nextElementSibling;
           const pair = this.dataset.key === "xauusd_enabled" ? "XAUUSD (Gold)" : "EURUSD";
           lbl.textContent = pair + " — " + (isOn ? "Active" : "Off");
+        });
+      });
+      // Generic toggles
+      document.querySelectorAll(".generic-toggle").forEach((el) => {
+        el.addEventListener("click", function () {
+          const isOn = this.classList.toggle("on");
+          const lbl = this.nextElementSibling;
+          if(lbl) lbl.textContent = isOn ? "Enabled" : "Disabled (Filter On)";
         });
       });
     }
@@ -648,7 +656,7 @@
         xauusd_enabled: getPairToggle("xauusd_enabled"),
         eurusd_enabled: getPairToggle("eurusd_enabled"),
         enabled: $("masterSwitch").classList.contains("on"),
-        trade_during_events: $("f_trade_events").checked,
+        trade_during_events: $("f_trade_events").classList.contains("on"),
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),
