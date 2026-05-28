@@ -177,9 +177,22 @@ class MT5Connector:
                     "Set MT5_PATH in your .env or Supabase to the full path of terminal64.exe."
                 )
 
-        # ── Step 2: Initialize (attach to running terminal) ──────────────────
+        target_login = int(login) if login is not None else int(config.MT5_LOGIN)
+        target_password = password if password is not None else config.MT5_PASSWORD
+        target_server = server if server is not None else config.MT5_SERVER
+
+        # ── Step 2: Initialize (attach to running terminal & auto-download server if missing) ──
         target_path = path if path else (config.MT5_PATH if config.MT5_PATH else None)
-        init_ok = mt5.initialize(path=target_path) if target_path else mt5.initialize()
+        
+        kwargs = {}
+        if target_path:
+            kwargs["path"] = target_path
+        if target_login and target_password and target_server:
+            kwargs["login"] = target_login
+            kwargs["password"] = target_password
+            kwargs["server"] = target_server
+            
+        init_ok = mt5.initialize(**kwargs)
 
         if not init_ok:
             logger.error(f"MT5 initialize failed: {mt5.last_error()}")
@@ -187,10 +200,7 @@ class MT5Connector:
             self._enter_demo()
             return True
 
-        # ── Step 3: Login with credentials ───────────────────────────────────
-        target_login = int(login) if login is not None else int(config.MT5_LOGIN)
-        target_password = password if password is not None else config.MT5_PASSWORD
-        target_server = server if server is not None else config.MT5_SERVER
+        # ── Step 3: Verify Login with credentials ───────────────────────────────────
 
         account = mt5.account_info()
 
