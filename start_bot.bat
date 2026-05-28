@@ -20,18 +20,7 @@ if not exist "%~dp0Bot Engine\start_bot.bat" (
 )
 
 echo ============================================================
-echo   2. MEMBUKA WEB DASHBOARD
+echo   2. MEMULAKAN BOT ENGINE (MICROSERVICES)
 echo ============================================================
-echo Starting Local Web Server pada port 5500...
-start /MIN cmd /c "python -m http.server 5500"
-timeout /t 2 /nobreak >NUL
-
-echo Membuka browser ke Web Dashboard...
-start http://127.0.0.1:5500/Dashboard/index.html
-echo.
-
-echo ============================================================
-echo   3. MEMULAKAN BOT ENGINE
-echo ============================================================
-call "%~dp0Bot Engine\start_bot.bat"
+call start_microservices.bat
 exit /b %ERRORLEVEL%
