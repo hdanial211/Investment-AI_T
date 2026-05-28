@@ -42,17 +42,22 @@ class TerminalUI:
     def log(self, message):
         self.text_area.configure(state="normal")
         
+        import re
+        # Strip ANSI color codes
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        clean_msg = ansi_escape.sub('', message)
+        
         # Determine tag based on content
         tag = "INFO"
-        upper_msg = message.upper()
-        if "ERROR" in upper_msg or "CRITICAL" in upper_msg or "FAIL" in upper_msg or "✘" in message:
+        upper_msg = clean_msg.upper()
+        if "ERROR" in upper_msg or "CRITICAL" in upper_msg or "FAIL" in upper_msg or "✘" in clean_msg:
             tag = "ERROR"
-        elif "WARNING" in upper_msg or "⚠" in message:
+        elif "WARNING" in upper_msg or "⚠" in clean_msg:
             tag = "WARNING"
-        elif "SUCCESS" in upper_msg or "✅" in message or "✔" in message or "APPROVED" in upper_msg:
+        elif "SUCCESS" in upper_msg or "✅" in clean_msg or "✔" in clean_msg or "APPROVED" in upper_msg:
             tag = "SUCCESS"
             
-        self.text_area.insert(tk.END, message, tag)
+        self.text_area.insert(tk.END, clean_msg, tag)
         self.text_area.see(tk.END)
         self.text_area.configure(state="disabled")
 
