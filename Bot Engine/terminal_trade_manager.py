@@ -72,31 +72,26 @@ def run():
                 
                 # Critical Section: Access MT5
                 with MT5Lock():
-                    if not connector.connect(login=login_val, password=password_val, server=server_val, path=path_val):
-                        logger.warning(f"[{account_id}] MT5 connection failed.")
-                        continue
-                        
-                    # Manage symbols for this account
-                    trading_symbols = acct_settings.get_symbols()
-                    for symbol in trading_symbols:
-                        open_positions = connector.get_open_positions(symbol)
-                        if open_positions:
-                            logger.info(f"[{account_id}][{symbol}] Managing {len(open_positions)} active position(s)...")
-                            # We pass empty indicators because trade manager only needs price for SL/TP check
-                            # Actually, manage_symbol fetches current tick inside MT5Connector usually if needed, 
-                            # but active_manager.manage_symbol needs 'indicators' to be passed.
-                            # The only thing it uses from indicators is ATR for trailing stop.
-                            # We can pass empty {} if trailing stop doesn't rely heavily on it, or fetch it.
-                            # Let's just fetch basic tick.
-                            tick = connector.get_tick(symbol)
-                            if not tick:
-                                continue
+                    try:
+                        if not connector.connect(login=login_val, password=password_val, server=server_val, path=path_val):
+                            logger.warning(f"[{account_id}] MT5 connection failed.")
+                            continue
                             
-                            closed = active_manager.manage_symbol(symbol, open_positions, indicators={})
-                            if closed:
-                                logger.info(f"[{account_id}][{symbol}] Closed {len(closed)} position(s).")
+                        # Manage symbols for this account
+                        trading_symbols = acct_settings.get_symbols()
+                        for symbol in trading_symbols:
+                            open_positions = connector.get_open_positions(symbol)
+                            if open_positions:
+                                logger.info(f"[{account_id}][{symbol}] Managing {len(open_positions)} active position(s)...")
+                                tick = connector.get_tick(symbol)
+                                if not tick:
+                                    continue
                                 
-            # Small sleep to prevent crazy looping
+                                closed = active_manager.manage_symbol(symbol, open_positions, indicators={})
+                                if closed:
+                                    logger.info(f"[{account_id}][{symbol}] Closed {len(closed)} position(s).")
+                    finally:
+                        connector.disconnect()
             time.sleep(2)
             
         except KeyboardInterrupt:
