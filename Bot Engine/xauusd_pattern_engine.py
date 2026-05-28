@@ -59,7 +59,8 @@ def scan_xauusd_patterns(
     if "XAU" not in symbol.upper() and "GOLD" not in symbol.upper():
         return []
 
-    session = detect_gold_session(mdf)
+    from session_filter import detect_session
+    session = detect_session(mdf, symbol)
     dxy_bias = "unavailable"
     current_price = _latest_price(mdf)
     results: List[Pattern] = []
@@ -85,7 +86,8 @@ def scan_xauusd_patterns(
 
 def summarize_xauusd_pattern_bias(patterns: Sequence[Pattern], mdf: Dict[str, pd.DataFrame]) -> Dict[str, object]:
     """Summarize XAUUSD pattern confluence with session and psych-level context."""
-    session = detect_gold_session(mdf)
+    from session_filter import detect_session
+    session = detect_session(mdf, "XAUUSD")
     price = _latest_price(mdf)
     nearest_50 = _nearest_psych_level(price, 50.0) if price else None
     nearest_100 = _nearest_psych_level(price, 100.0) if price else None
@@ -133,42 +135,6 @@ def summarize_xauusd_pattern_bias(patterns: Sequence[Pattern], mdf: Dict[str, pd
     }
 
 
-def detect_gold_session(mdf: Dict[str, pd.DataFrame]) -> Dict[str, str]:
-    """
-    Estimate Gold session from the latest bar timestamp.
-
-    MT5 timestamps are often broker-local and may be timezone-naive, so this is
-    intentionally labelled as an estimate for prompt context.
-    """
-    latest_time = _latest_time(mdf)
-    if latest_time is None:
-        latest_time = datetime.utcnow()
-
-    hour = latest_time.hour
-    if 0 <= hour < 7:
-        return {
-            "name": "Asia",
-            "profile": "stop-run reversal prone; require stronger confirmation for clean breakouts",
-        }
-    if 7 <= hour < 12:
-        return {
-            "name": "London",
-            "profile": "high momentum; breakouts and range expansions are more reliable",
-        }
-    if 12 <= hour < 16:
-        return {
-            "name": "London/NY overlap",
-            "profile": "highest liquidity; continuation and opening-range breaks get extra weight",
-        }
-    if 16 <= hour < 21:
-        return {
-            "name": "NY",
-            "profile": "high liquidity; news-driven continuation and reversals both matter",
-        }
-    return {
-        "name": "Off-hours",
-        "profile": "lower liquidity; prefer HOLD unless SMC and key-level confluence is strong",
-    }
 
 
 # ---------------------------------------------------------------------------

@@ -225,13 +225,13 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     symbol_upper = symbol.upper()
     if "EURUSD" in symbol_upper:
         detected_patterns = scan_eurusd_patterns(mdf, symbol=symbol)
-        pattern_bias = summarize_pattern_bias(detected_patterns)
+        pattern_bias = summarize_pattern_bias(detected_patterns, mdf)
     elif "XAU" in symbol_upper or "GOLD" in symbol_upper:
         detected_patterns = scan_xauusd_patterns(mdf, symbol=symbol)
         pattern_bias = summarize_xauusd_pattern_bias(detected_patterns, mdf)
     else:
         detected_patterns = []
-        pattern_bias = summarize_pattern_bias(detected_patterns)
+        pattern_bias = summarize_pattern_bias(detected_patterns, mdf)
 
     # Compile rich context
     indicators = {
@@ -256,6 +256,7 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
         "sufficient_volatility": atr_val > (config.MIN_VOLATILITY_PIPS * pip_size),
         "detected_patterns": detected_patterns,
         "pattern_bias": pattern_bias,
+        "trading_mode": config.TRADING_MODE,
     }
 
     logger.debug(
@@ -292,16 +293,19 @@ def _format_detected_patterns(ind: Dict) -> str:
 def _format_pattern_context(ind: Dict) -> str:
     symbol = str(ind.get("symbol", "")).upper()
     pattern_bias = ind.get("pattern_bias") or {}
-    if "XAU" not in symbol and "GOLD" not in symbol:
-        return ""
 
-    return (
-        f"Gold Session: {pattern_bias.get('session', 'unknown')} "
+    out = (
+        f"Session: {pattern_bias.get('session', 'unknown')} "
         f"({pattern_bias.get('session_profile', 'no session profile')})\n"
-        f"DXY Bias: {pattern_bias.get('dxy_bias', 'unavailable')}\n"
-        f"Nearest Psych Levels: $50={pattern_bias.get('nearest_psych_50', 'n/a')}, "
-        f"$100={pattern_bias.get('nearest_psych_100', 'n/a')}\n"
     )
+
+    if "XAU" in symbol or "GOLD" in symbol:
+        out += (
+            f"DXY Bias: {pattern_bias.get('dxy_bias', 'unavailable')}\n"
+            f"Nearest Psych Levels: $50={pattern_bias.get('nearest_psych_50', 'n/a')}, "
+            f"$100={pattern_bias.get('nearest_psych_100', 'n/a')}\n"
+        )
+    return out
 
 
 def format_for_prompt(ind: Dict) -> str:
@@ -317,6 +321,7 @@ def format_for_prompt(ind: Dict) -> str:
     return (
         f"Symbol: {ind['symbol']}\n"
         f"Current Price: {ind['price']:.5f}\n"
+        f"Trading Mode: {ind.get('trading_mode', 'INTRADAY')} (Follow specific rules for this mode!)\n"
         f"\n--- MARKET REGIME ---\n"
         f"Regime: {ind['market_regime']} (ADX: {ind['adx']})\n"
         f"*(Instruction: If TRENDING, prioritize breakouts & trends. If RANGING, prioritize S/R bounces and sweeps)*\n"

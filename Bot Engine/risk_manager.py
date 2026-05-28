@@ -262,46 +262,67 @@ class RiskManager:
         pip_value:     float,
         contract_size: float,
         indicators:    Dict = None,
-        trade_style:   str = "INTRADAY",
+        trade_style:   str = None,
     ) -> Dict:
         """
         Calculate all parameters needed to place a trade.
 
         Returns dict with: lot, sl, tp, sl_pips, tp_pips
         """
+        if trade_style is None:
+            trade_style = config.TRADING_MODE
+            
         sl_pips = config.SL_PIPS
         tp_pips = config.TP_PIPS
         
+        is_gold = "XAU" in symbol.upper() or "GOLD" in symbol.upper()
+        
         if config.USE_DYNAMIC_SL and indicators and "atr" in indicators:
             atr = indicators["atr"]
-            pip_multiplier = 10000
-            if "XAU" in symbol or "XAG" in symbol:
-                pip_multiplier = 100
-            elif "JPY" in symbol:
-                pip_multiplier = 100
-            
+            pip_multiplier = 100 if is_gold or "JPY" in symbol.upper() else 10000
             atr_pips = atr * pip_multiplier
             
-            # Adjust multipliers based on trade style
+            # Default fallback multipliers
             sl_mult = config.DYNAMIC_SL_MULTIPLIER
             tp_mult = config.DYNAMIC_TP_MULTIPLIER
             
+            # Clamp limits (min_sl, max_sl, min_tp, max_tp) based on user specs
+            # SCALPING
             if trade_style == "SCALPING":
-                sl_mult = 0.2  # 20% of ATR (e.g., ~200 pips for Gold if ATR=10)
-                tp_mult = 0.4  # 1:2 Risk Reward
+                sl_mult, tp_mult = 0.5, 1.0 # Base ATR multipliers
+                if is_gold:
+                    min_sl, max_sl = 20, 30
+                    min_tp, max_tp = 40, 80
+                else:
+                    min_sl, max_sl = 5, 10
+                    min_tp, max_tp = 10, 20
+                    
+            # SWING
             elif trade_style == "SWING":
-                sl_mult = 2.5
-                tp_mult = 5.0
-                
-            # Calculate dynamic SL, but ensure it's at least MIN_VOLATILITY_PIPS
+                sl_mult, tp_mult = 3.0, 6.0
+                if is_gold:
+                    min_sl, max_sl = 150, 300
+                    min_tp, max_tp = 500, 1500
+                else:
+                    min_sl, max_sl = 80, 150
+                    min_tp, max_tp = 200, 400
+                    
+            # INTRADAY
+            else:
+                sl_mult, tp_mult = 1.5, 3.0 # e.g. 1.5x ATR for Gold SL
+                if is_gold:
+                    min_sl, max_sl = 50, 100
+                    min_tp, max_tp = 200, 500
+                else:
+                    min_sl, max_sl = 20, 40
+                    min_tp, max_tp = 60, 100
+
+            # Calculate dynamic bounds and clamp
             dynamic_sl = int(atr_pips * sl_mult)
-            sl_pips = max(dynamic_sl, config.MIN_VOLATILITY_PIPS * 2)
+            dynamic_tp = int(atr_pips * tp_mult)
             
-            if trade_style == "SCALPING" and ("XAU" in symbol or "XAG" in symbol):
-                # Cap scalping SL for precious metals at 300 pips ($3.00)
-                sl_pips = min(sl_pips, 300)
-                
-            tp_pips = int(atr_pips * tp_mult)
+            sl_pips = max(min_sl, min(max_sl, dynamic_sl))
+            tp_pips = max(min_tp, min(max_tp, dynamic_tp))
 
         lot = calculate_lot_size(
             balance       = balance,

@@ -77,12 +77,17 @@ def scan_eurusd_patterns(
     return _rank_patterns(_dedupe_patterns(results), max_patterns=max_patterns)
 
 
-def summarize_pattern_bias(patterns: Sequence[Pattern]) -> Dict[str, object]:
+def summarize_pattern_bias(patterns: Sequence[Pattern], mdf: Optional[Dict[str, pd.DataFrame]] = None) -> Dict[str, object]:
     """Return a compact bullish/bearish/neutral score summary."""
     bullish = 0.0
     bearish = 0.0
     neutral = 0.0
     high_priority = []
+    
+    session_info = {"name": "unknown", "profile": ""}
+    if mdf:
+        from session_filter import detect_session
+        session_info = detect_session(mdf, "EURUSD")
 
     for pattern in patterns:
         confidence = float(pattern.get("confidence", 0.0))
@@ -114,6 +119,8 @@ def summarize_pattern_bias(patterns: Sequence[Pattern]) -> Dict[str, object]:
         "net_score": round(net, 2),
         "high_priority_count": len(high_priority),
         "high_priority_patterns": high_priority[:6],
+        "session": session_info.get("name"),
+        "session_profile": session_info.get("profile"),
     }
 
 
@@ -311,10 +318,14 @@ def _detect_price_action_patterns(df: pd.DataFrame, timeframe: str, tf_weight: f
     if c0 is None or c1 is None or c2 is None:
         return patterns
 
-    if _is_hammer_shape(c0):
-        patterns.append(_pattern("Pin Bar Bullish", "reversal", "bullish", "price_action", 0.78, timeframe, "Lower wick is at least twice the candle body.", priority="high"))
-    if _is_inverted_hammer_shape(c0):
-        patterns.append(_pattern("Pin Bar Bearish", "reversal", "bearish", "price_action", 0.78, timeframe, "Upper wick is at least twice the candle body.", priority="high"))
+    # EURUSD Pin bars need 2:1 ratio
+    is_pin_bullish = c0.lower >= c0.body * 2 and c0.upper <= c0.body * 0.5
+    is_pin_bearish = c0.upper >= c0.body * 2 and c0.lower <= c0.body * 0.5
+
+    if is_pin_bullish:
+        patterns.append(_pattern("Pin Bar Bullish", "reversal", "bullish", "price_action", 0.78, timeframe, "Lower wick is at least twice the candle body (EURUSD 2:1 ratio).", priority="high"))
+    if is_pin_bearish:
+        patterns.append(_pattern("Pin Bar Bearish", "reversal", "bearish", "price_action", 0.78, timeframe, "Upper wick is at least twice the candle body (EURUSD 2:1 ratio).", priority="high"))
 
     if c0.high <= c1.high and c0.low >= c1.low:
         patterns.append(_pattern("Inside Bar", "continuation/reversal", "neutral", "price_action", 0.70, timeframe, "Current range sits inside previous candle.", priority="high"))

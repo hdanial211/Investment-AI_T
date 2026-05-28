@@ -41,6 +41,8 @@ TIMEFRAME        = os.getenv("TIMEFRAME", "M5")
 LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "60"))
 BARS_TO_FETCH    = int(os.getenv("BARS_TO_FETCH", "100"))
 
+TRADING_MODE     = os.getenv("TRADING_MODE", "INTRADAY").upper() # SCALPING, INTRADAY, SWING
+
 # ─────────────────────────────────────────────────────────────────────────────
 # RISK MANAGEMENT
 # ─────────────────────────────────────────────────────────────────────────────
