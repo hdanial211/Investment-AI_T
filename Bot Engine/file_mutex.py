@@ -22,24 +22,23 @@ class FileMutex:
                 os.close(fd)
                 return True
             except OSError as e:
-                # e.errno == 17 is FileExistsError
-                # e.errno == 13 is PermissionError
-                # e.errno == 32 is Sharing Violation (Windows)
+                # Check for stale lock immediately to avoid unnecessary 60s wait
+                try:
+                    file_age = time.time() - os.path.getmtime(self.lock_file)
+                    if file_age > self.timeout:
+                        logger.warning(f"Lock {self.lock_file} seems stale (age {file_age:.1f}s). Breaking it.")
+                        try:
+                            os.remove(self.lock_file)
+                            continue # Try acquiring again immediately
+                        except OSError:
+                            pass
+                except OSError:
+                    pass
                 
+                # If we have waited longer than timeout, give up
                 if time.time() - start_time > self.timeout:
-                    # To prevent deadlocks if a process crashes while holding lock
-                    try:
-                        file_age = time.time() - os.path.getmtime(self.lock_file)
-                        if file_age > self.timeout:
-                            logger.warning(f"Lock {self.lock_file} seems stale (age {file_age:.1f}s). Breaking it.")
-                            try:
-                                os.remove(self.lock_file)
-                                continue # Try acquiring again
-                            except OSError:
-                                pass
-                    except OSError:
-                        pass
                     return False
+                    
                 time.sleep(0.1) # Wait and retry
             except Exception as e:
                 logger.error(f"Error acquiring lock {self.lock_file}: {e}")
