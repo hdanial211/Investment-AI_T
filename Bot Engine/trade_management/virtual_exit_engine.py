@@ -109,7 +109,15 @@ class VirtualExitEngine:
         if direction == "BUY":
             profit_distance = current - entry
             if profit_distance > stage1_distance:
-                state["profit_lock_level"] = _round_price(entry)
+                import config
+                pip_size = config.get_pip_multiplier(state.get("symbol", ""))
+                be_plus = 2 * pip_size  # 2 pips BE+
+                # Only update profit_lock_level if we are improving it
+                new_lock = _round_price(entry + be_plus)
+                old_lock = _as_float(state.get("profit_lock_level"), None)
+                if old_lock is None or new_lock > old_lock:
+                    state["profit_lock_level"] = new_lock
+
             if profit_distance > stage2_distance:
                 candidate = current - trail_distance
                 old_trail = _as_float(state.get("virtual_trailing_stop"), None)
@@ -118,7 +126,14 @@ class VirtualExitEngine:
         else:
             profit_distance = entry - current
             if profit_distance > stage1_distance:
-                state["profit_lock_level"] = _round_price(entry)
+                import config
+                pip_size = config.get_pip_multiplier(state.get("symbol", ""))
+                be_plus = 2 * pip_size  # 2 pips BE+
+                new_lock = _round_price(entry - be_plus)
+                old_lock = _as_float(state.get("profit_lock_level"), None)
+                if old_lock is None or new_lock < old_lock:
+                    state["profit_lock_level"] = new_lock
+
             if profit_distance > stage2_distance:
                 candidate = current + trail_distance
                 old_trail = _as_float(state.get("virtual_trailing_stop"), None)
