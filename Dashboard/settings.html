@@ -484,11 +484,21 @@
             <label>Max Risk % Per Trade</label>
             <input id="f_max_risk" type="number" min="0.1" max="10" step="0.1" value="${acc.max_risk_percent ?? 2.0}">
           </div>
+        <!-- News Filter -->
+        <label style="margin-bottom:10px; margin-top:20px;">High-Impact News Action</label>
+        <div class="limits-row" style="margin-bottom:18px">
           <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-            <label>Trade During High-Impact Events</label>
+            <label>Block New Entries</label>
             <div class="toggle-row" style="margin-top:8px">
-              <div class="toggle generic-toggle ${acc.trade_during_events ? "on" : ""}" id="f_trade_events"></div>
-              <span class="toggle-label">${acc.trade_during_events ? "Enabled" : "Disabled (Filter On)"}</span>
+              <div class="toggle generic-toggle ${!acc.trade_during_events ? "on" : ""}" id="f_news_block"></div>
+              <span class="toggle-label">${!acc.trade_during_events ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Close Profitable Trades</label>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.news_close_profit ? "on" : ""}" id="f_news_close"></div>
+              <span class="toggle-label">${acc.news_close_profit ? "Enabled" : "Disabled"}</span>
             </div>
           </div>
         </div>
@@ -656,7 +666,10 @@
         xauusd_enabled: getPairToggle("xauusd_enabled"),
         eurusd_enabled: getPairToggle("eurusd_enabled"),
         enabled: $("masterSwitch").classList.contains("on"),
-        trade_during_events: $("f_trade_events").classList.contains("on"),
+        
+        // trade_during_events is the inverse of Block New Entries
+        trade_during_events: !$("f_news_block").classList.contains("on"),
+        news_close_profit: $("f_news_close").classList.contains("on"),
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),

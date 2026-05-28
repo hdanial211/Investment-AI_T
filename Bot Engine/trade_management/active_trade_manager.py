@@ -7,6 +7,10 @@ from typing import Dict, List
 from .pattern_usage_tracker import build_pattern_snapshot
 from .supabase_sync import SupabaseSync
 from .virtual_exit_engine import VirtualExitEngine
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from news_filter import NewsFilter
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,7 @@ class ActiveTradeManager:
         self.exit_engine = VirtualExitEngine()
         self.supabase = SupabaseSync()
         self.pending_adoptions = set()
+        self.news_filter = NewsFilter()
 
     def manage_symbol(self, symbol: str, positions: List[Dict], indicators: Dict) -> List[Dict]:
         closed = []
@@ -82,6 +87,24 @@ class ActiveTradeManager:
             self.supabase.upsert_active_trade(state)
 
             trigger = self.exit_engine.get_exit_trigger(state, position)
+            
+            # Check Advanced News Filter: Close Profitable Trades
+            # But only if we don't already have an exit trigger
+            if not trigger:
+                # We need acct_settings. We can get it from self.connector or self.risk_mgr?
+                # Actually, terminal_trade_manager passes acct_settings to RiskManager, but ActiveTradeManager
+                # doesn't directly have acct_settings. Let's load it directly.
+                from account_settings import AccountSettings
+                acct = AccountSettings()
+                if acct.news_close_profit:
+                    safe, reason = self.news_filter.is_safe_to_trade(symbol)
+                    if not safe:
+                        # Event is active/upcoming. Are we in profit?
+                        profit = float(position.get("profit") or 0.0)
+                        if profit > 0:
+                            trigger = "NEWS_EVASION_PROFIT"
+                            logger.info(f"[{symbol}] Closing ticket {ticket} in profit ({profit}) due to upcoming news: {reason}")
+            
             if not trigger:
                 continue
 

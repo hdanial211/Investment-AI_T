@@ -44,6 +44,7 @@ _DEFAULTS = {
     "symbol_xauusd": "XAUUSD",
     "symbol_eurusd": "EURUSD",
     "trade_during_events": False,
+    "news_close_profit": False,
 }
 
 
@@ -93,6 +94,12 @@ class AccountSettings:
     def trade_during_events(self) -> bool:
         self._maybe_refresh()
         val = self._cache.get("trade_during_events", _DEFAULTS["trade_during_events"])
+        return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+
+    @property
+    def news_close_profit(self) -> bool:
+        self._maybe_refresh()
+        val = self._cache.get("news_close_profit", _DEFAULTS["news_close_profit"])
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property
