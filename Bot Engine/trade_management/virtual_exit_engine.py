@@ -5,6 +5,7 @@ stored locally and acted on by the bot while it is running.
 """
 
 from typing import Dict, Optional
+from datetime import datetime
 
 import config
 
@@ -61,6 +62,7 @@ class VirtualExitEngine:
             "current_status": "OPEN",
             "exit_reason": None,
             "pattern_snapshot": pattern_snapshot or {},
+            "timestamp": datetime.now().isoformat(),
         }
 
     def update_state(

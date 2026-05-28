@@ -390,7 +390,7 @@
         <table>
           <thead>
             <tr>
-              <th>Opened</th><th>Ticket</th><th>Symbol</th><th>Direction</th><th>Lot</th><th>Style</th><th>Pattern</th><th>Combo</th>
+              <th>Ticket</th><th>Opened</th><th>Symbol</th><th>Direction</th><th>Lot</th><th>Style</th><th>Pattern</th><th>Combo</th>
               <th>Vision</th><th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
             </tr>
           </thead>
@@ -408,8 +408,9 @@
         <table>
           <thead>
             <tr>
-              <th>Pattern</th><th>Symbol</th><th>TF</th><th>Used</th><th>Open</th>
-              <th>W/L</th><th>Win Rate</th><th>Net P/L</th><th>Avg Confidence</th>
+              <th style="width:10%">TICKET</th>
+              <th style="width:10%">OPENED</th>
+              <th style="width:8%">SYMBOL</th><th>Win Rate</th><th>Net P/L</th><th>Avg Confidence</th>
             </tr>
           </thead>
           <tbody id="patternRows"></tbody>
@@ -507,8 +508,8 @@
       $("activeCount").textContent = filtered.length;
       $("activeRows").innerHTML = filtered.map((r) => `
         <tr>
-          <td>${r.opened_at ? new Date(r.opened_at).toLocaleString() : "-"}</td>
           <td>${safe(r.ticket)}</td>
+          <td style="font-size:0.85em;color:var(--muted)">${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : "-")}</td>
           <td><span class="pill">${safe(r.symbol)}</span></td>
           <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
           <td>${safe(r.lot)}</td>
@@ -547,7 +548,7 @@
       const filtered = filter === "all" ? rows : rows.filter((r) => (r.account_id || "acc_1") === filter);
       $("eventRows").innerHTML = filtered.map((r) => `
         <tr>
-          <td>${r.opened_at ? new Date(r.opened_at).toLocaleString() : "-"}</td>
+          <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : "-")}</td>
           <td>${r.updated_at ? new Date(r.updated_at).toLocaleString() : "-"}</td>
           <td>${safe(r.ticket)}</td>
           <td><span class="pill">${safe(r.symbol)}</span></td>
