@@ -137,19 +137,17 @@ class LauncherApp:
         btn_stop_all = tk.Button(self.control_frame, text="⏹ Stop All", font=("Segoe UI", 10, "bold"), bg="#FF5C5C", fg="white", borderwidth=0, padx=15, pady=5, cursor="hand2", command=self.stop_all)
         btn_stop_all.pack(side=tk.RIGHT, padx=5, pady=15)
         
-        # Terminals Container (Grid layout 3 columns)
+        # Terminals Container (Grid layout 2 columns)
         self.terminals_frame = tk.Frame(root, bg="#1E1E1E")
         self.terminals_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         self.terminals_frame.columnconfigure(0, weight=1)
         self.terminals_frame.columnconfigure(1, weight=1)
-        self.terminals_frame.columnconfigure(2, weight=1)
         self.terminals_frame.rowconfigure(0, weight=1)
         
         # Define Terminals
         self.terminals = [
-            TerminalUI(self.terminals_frame, "🤖 Terminal 1: AI Trader", ["python", "terminal_ai_trader.py"], bg_color="#181818", fg_color="#DCDCAA"),
-            TerminalUI(self.terminals_frame, "☁️ Terminal 2: Data Sync", ["python", "terminal_data_sync.py"], bg_color="#181818", fg_color="#9CDCFE"),
+            TerminalUI(self.terminals_frame, "🤖 Terminal 1: AI Trader", ["python", "main.py"], bg_color="#181818", fg_color="#DCDCAA"),
             TerminalUI(self.terminals_frame, "🛡️ Terminal 3: Trade Manager", ["python", "terminal_trade_manager.py"], bg_color="#181818", fg_color="#CE9178"),
         ]
         

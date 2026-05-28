@@ -11,6 +11,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from news_filter import NewsFilter
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ActiveTradeManager:
         self.risk_mgr = risk_mgr
         self.exit_engine = VirtualExitEngine()
         self.supabase = SupabaseSync()
-        self.pending_adoptions = set()
+        self.pending_adoptions = {}
         self.news_filter = NewsFilter()
 
     def manage_symbol(self, symbol: str, positions: List[Dict], indicators: Dict) -> List[Dict]:
@@ -56,13 +57,14 @@ class ActiveTradeManager:
             state = self.trade_memory.get_trade_state(ticket)
             if not state:
                 # To prevent a race condition where the AI just opened a trade
-                # but hasn't saved it to trade_memory yet, we delay adoption by 1 loop.
-                if ticket not in self.pending_adoptions:
-                    self.pending_adoptions.add(ticket)
-                    continue # Wait for next loop
+                # but hasn't saved it to Supabase yet, we delay adoption by 4 loops (~8 sec).
+                count = self.pending_adoptions.get(ticket, 0)
+                if count < 4:
+                    self.pending_adoptions[ticket] = count + 1
+                    continue 
                     
                 # If it's still missing on the next loop, it's genuinely a manual trade
-                self.pending_adoptions.remove(ticket)
+                del self.pending_adoptions[ticket]
                 state = self.trade_memory.adopt_broker_position(position)
                 # Auto-assign virtual SL/TP for manual trades if missing
                 if self.risk_mgr and not state.get("virtual_sl") and not state.get("virtual_tp"):
@@ -99,7 +101,7 @@ class ActiveTradeManager:
                 # Actually, terminal_trade_manager passes acct_settings to RiskManager, but ActiveTradeManager
                 # doesn't directly have acct_settings. Let's load it directly.
                 from account_settings import AccountSettings
-                acct = AccountSettings()
+                acct = AccountSettings(getattr(config, 'ACCOUNT_ID', 'acc_1'))
                 if acct.news_close_profit:
                     safe, reason = self.news_filter.is_safe_to_trade(symbol)
                     if not safe:

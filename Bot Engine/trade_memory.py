@@ -57,22 +57,59 @@ class TradeMemory:
             self._save()
 
     def _load(self):
-        if os.path.exists(self.memory_file):
-            with MemoryLock():
-                try:
-                    with open(self.memory_file, "r") as f:
-                        self.data = json.load(f)
-                except Exception as e:
-                    logger.error(f"Failed to load memory from {self.memory_file}: {e}")
+        """Fetch active trades and pattern usage stats from Supabase."""
+        try:
+            from trade_management.supabase_sync import SupabaseSync
+            sync = SupabaseSync()
+            acc_id = getattr(config, "ACCOUNT_ID", "acc_1")
+            
+            # Fetch active trades
+            trades = sync.fetch_active_trades(acc_id)
+            self.data["active_trades"] = {}
+            for t in trades:
+                # Map Supabase columns back to internal state dict format
+                state = {
+                    "ticket": t.get("ticket"),
+                    "symbol": t.get("symbol"),
+                    "action": t.get("direction"),
+                    "direction": t.get("direction"),
+                    "lot": t.get("lot"),
+                    "entry_price": t.get("entry_price"),
+                    "floating_profit": t.get("floating_profit"),
+                    "virtual_sl": t.get("virtual_sl"),
+                    "virtual_tp": t.get("virtual_tp"),
+                    "virtual_trailing_stop": t.get("virtual_trailing_stop"),
+                    "current_status": t.get("current_status"),
+                    "reason": t.get("original_thesis"),
+                    "timestamp": t.get("opened_at"),
+                    "last_price": t.get("last_price"),
+                    "profit_lock_level": t.get("profit_lock_level"),
+                    "max_drawdown": t.get("max_drawdown"),
+                    "exit_reason": t.get("exit_reason"),
+                    "trade_style": t.get("trade_style"),
+                    "vision_bias": t.get("vision_bias"),
+                    "pattern_snapshot": {
+                        "primary_pattern": t.get("primary_pattern"),
+                        "pattern_names": t.get("pattern_names"),
+                        "pattern_categories": t.get("pattern_categories"),
+                        "pattern_timeframes": t.get("pattern_timeframes"),
+                        "confluence_combo": t.get("confluence_combo"),
+                        "pattern_confidence": t.get("pattern_confidence"),
+                        "pattern_count": t.get("pattern_count"),
+                    }
+                }
+                self.data["active_trades"][str(t["ticket"])] = state
+                
+            # Fetch pattern usage stats
+            stats = sync.fetch_pattern_usage_stats()
+            self.data["pattern_usage_stats"] = stats
+            
+        except Exception as e:
+            logger.warning(f"TradeMemory: Failed to load from Supabase: {e}")
 
     def _save(self):
-        with MemoryLock():
-            try:
-                os.makedirs(config.LOG_DIR, exist_ok=True)
-                with open(self.memory_file, "w") as f:
-                    json.dump(self.data, f, indent=4)
-            except Exception as e:
-                logger.error(f"Failed to save memory to {self.memory_file}: {e}")
+        """No longer used. Updates are pushed directly to Supabase via ActiveTradeManager or add_trade."""
+        pass
 
     def add_trade(
         self,
@@ -215,6 +252,16 @@ class TradeMemory:
             "closed_at": datetime.now().isoformat(),
         })
         self.data.setdefault("closed_trades", {})[key] = state
+        # Refresh stats from Supabase to avoid overwriting another terminal's data
+        try:
+            from trade_management.supabase_sync import SupabaseSync
+            sync = SupabaseSync()
+            stats = sync.fetch_pattern_usage_stats()
+            if stats:
+                self.data["pattern_usage_stats"] = stats
+        except Exception:
+            pass
+
         self.data["pattern_usage_stats"] = update_stats_on_close(
             self.data.get("pattern_usage_stats", {}),
             snapshot,

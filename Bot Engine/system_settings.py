@@ -14,32 +14,27 @@ SHARED_STATE_FILE = os.path.join(os.path.dirname(__file__), "shared_state.json")
 
 def fetch_and_apply_system_settings() -> bool:
     """
-    Reads the global system settings from shared_state.json and overwrites config.py.
-    Terminal 2 handles fetching from Supabase and writing to this file.
+    Reads the global system settings from Supabase and overwrites config.py.
     """
     try:
-        if not os.path.exists(SHARED_STATE_FILE):
-            logger.warning(f"Shared state file {SHARED_STATE_FILE} not found. Waiting for Terminal 2 to sync.")
-            return False
+        from trade_management.supabase_sync import SupabaseSync
+        sync = SupabaseSync()
+        sys_data = sync.fetch_system_settings()
             
-        with open(SHARED_STATE_FILE, "r") as f:
-            state = json.load(f)
-            
-        sys_data = state.get("system_settings", {})
         if not sys_data:
+            logger.warning("No system settings found in Supabase.")
             return False
             
         providers_list = sys_data.get("providers_list", [])
         if isinstance(providers_list, list) and len(providers_list) > 0:
             config.PROVIDERS_CONFIG = providers_list
-            logger.info(f"Loaded {len(providers_list)} API providers from shared state.")
+            logger.info(f"Loaded {len(providers_list)} API providers directly from Supabase.")
         else:
-            logger.warning("No providers_list found in shared state.")
+            logger.warning("No providers_list found in Supabase settings.")
             
-        # We don't auto-detect account ID here anymore; account_settings handles it
         return True
         
     except Exception as e:
-        logger.error(f"Failed to load system settings from shared_state.json: {e}")
+        logger.error(f"Failed to load system settings from Supabase: {e}")
         return False
 

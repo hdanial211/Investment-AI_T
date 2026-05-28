@@ -157,6 +157,74 @@ class SupabaseSync:
             logger.warning(f"Error fetching active trades from Supabase: {e}")
         return []
 
+    def fetch_system_settings(self) -> Dict:
+        if not self.enabled:
+            return {}
+        url = f"{self.base_url}/rest/v1/system_settings?id=eq.global&select=*"
+        try:
+            import requests
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code == 200:
+                data = response.json()
+                return data[0] if data else {}
+            else:
+                logger.warning(f"Failed to fetch system_settings: {response.text[:240]}")
+        except Exception as e:
+            logger.warning(f"Error fetching system_settings: {e}")
+        return {}
+
+    def fetch_account_settings(self, account_id: str) -> Dict:
+        if not self.enabled:
+            return {}
+        url = f"{self.base_url}/rest/v1/account_settings?account_id=eq.{account_id}&select=*"
+        try:
+            import requests
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code == 200:
+                data = response.json()
+                return data[0] if data else {}
+            else:
+                logger.warning(f"Failed to fetch account_settings: {response.text[:240]}")
+        except Exception as e:
+            logger.warning(f"Error fetching account_settings: {e}")
+        return {}
+
+    def fetch_all_enabled_accounts(self) -> List[str]:
+        if not self.enabled:
+            return ["acc_1"]
+        url = f"{self.base_url}/rest/v1/account_settings?select=account_id,enabled"
+        try:
+            import requests
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code == 200:
+                return [acc["account_id"] for acc in response.json() if acc.get("enabled", False)]
+            else:
+                logger.warning(f"Failed to fetch enabled accounts: {response.text[:240]}")
+        except Exception as e:
+            logger.warning(f"Error fetching enabled accounts: {e}")
+        return ["acc_1"]
+
+    def fetch_pattern_usage_stats(self) -> Dict:
+        if not self.enabled:
+            return {}
+        url = f"{self.base_url}/rest/v1/pattern_usage_stats?select=*"
+        try:
+            import requests
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code == 200:
+                # Convert list of rows to dictionary { "pattern_name": { ...row... } }
+                stats = {}
+                for row in response.json():
+                    name = row.get("id") or row.get("pattern_name")
+                    if name:
+                        stats[name] = row
+                return stats
+            else:
+                logger.warning(f"Failed to fetch pattern_usage_stats: {response.text[:240]}")
+        except Exception as e:
+            logger.warning(f"Error fetching pattern_usage_stats: {e}")
+        return {}
+
     def _upsert(self, table: str, payload: Dict, conflict: str = "") -> None:
         if not self.enabled:
             return

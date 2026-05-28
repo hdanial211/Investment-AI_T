@@ -192,30 +192,23 @@ class AccountSettings:
         if now - self._last_fetch < self._fetch_interval:
             return
         self._last_fetch = now
-        self._fetch_from_shared_state()
+        self._fetch_from_supabase()
 
-    def _fetch_from_shared_state(self) -> None:
-        """Fetch settings from local shared_state.json populated by Terminal 2."""
+    def _fetch_from_supabase(self) -> None:
+        """Fetch settings directly from Supabase."""
         if not config.SUPABASE_SYNC_ENABLED:
             logger.debug("AccountSettings: Supabase disabled, using local defaults.")
             self._supabase_available = False
             return
 
         try:
-            if not os.path.exists(SHARED_STATE_FILE):
-                logger.debug(f"AccountSettings: {SHARED_STATE_FILE} not found yet.")
-                self._supabase_available = False
-                return
-                
-            with open(SHARED_STATE_FILE, "r") as f:
-                state = json.load(f)
-                
-            acc_settings = state.get("account_settings", {})
-            my_settings = acc_settings.get(self.account_id)
+            from trade_management.supabase_sync import SupabaseSync
+            sync = SupabaseSync()
+            my_settings = sync.fetch_account_settings(self.account_id)
             
             if not my_settings:
                 logger.debug(
-                    f"AccountSettings: No settings for '{self.account_id}' in shared state. "
+                    f"AccountSettings: No settings for '{self.account_id}' found in Supabase. "
                     f"Using local defaults."
                 )
                 self._supabase_available = False
@@ -227,7 +220,7 @@ class AccountSettings:
                     self._cache[k] = v
                     
             self._supabase_available = True
-            logger.debug(f"AccountSettings: Loaded settings for '{self.account_id}' from shared state.")
+            logger.debug(f"AccountSettings: Loaded settings for '{self.account_id}' directly from Supabase.")
             
         except Exception as e:
             logger.warning(f"AccountSettings: fetch failed: {e}. Using cached settings.")
@@ -288,25 +281,18 @@ class AccountSettings:
         self._last_fetch = 0
 
 def get_all_enabled_accounts() -> list[str]:
-    """Fetch all account IDs that are enabled from shared_state.json. Fallback to config.ACCOUNT_ID if failed."""
+    """Fetch all account IDs that are enabled from Supabase. Fallback to config.ACCOUNT_ID if failed."""
     if not config.SUPABASE_SYNC_ENABLED:
         if config.ACCOUNT_ID:
             return [config.ACCOUNT_ID]
         return []
         
     try:
-        if not os.path.exists(SHARED_STATE_FILE):
-            if config.ACCOUNT_ID:
-                return [config.ACCOUNT_ID]
-            return []
-            
-        with open(SHARED_STATE_FILE, "r") as f:
-            state = json.load(f)
-            
-        enabled = state.get("enabled_accounts", [])
+        from trade_management.supabase_sync import SupabaseSync
+        sync = SupabaseSync()
+        enabled = sync.fetch_all_enabled_accounts()
         if enabled:
             return enabled
-            
     except Exception as e:
         logger.warning(f"get_all_enabled_accounts failed: {e}")
         
