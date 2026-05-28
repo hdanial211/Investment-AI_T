@@ -59,6 +59,7 @@ class VirtualExitEngine:
             "profit_lock_level": None,
             "max_favorable_price": _round_price(entry_price),
             "max_drawdown": 0.0,
+            "floating_profit": 0.0,
             "current_status": "OPEN",
             "exit_reason": None,
             "pattern_snapshot": pattern_snapshot or {},
