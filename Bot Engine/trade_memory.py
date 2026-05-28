@@ -13,6 +13,7 @@ from typing import Dict, Optional, Tuple
 
 import config
 from trade_management.pattern_usage_tracker import update_stats_on_close, update_stats_on_open
+from file_mutex import MemoryLock
 
 logger = logging.getLogger(__name__)
 
@@ -57,19 +58,21 @@ class TradeMemory:
 
     def _load(self):
         if os.path.exists(self.memory_file):
-            try:
-                with open(self.memory_file, "r") as f:
-                    self.data = json.load(f)
-            except Exception as e:
-                logger.error(f"Failed to load trade memory: {e}")
+            with MemoryLock():
+                try:
+                    with open(self.memory_file, "r") as f:
+                        self.data = json.load(f)
+                except Exception as e:
+                    logger.error(f"Failed to load memory from {self.memory_file}: {e}")
 
     def _save(self):
-        os.makedirs(config.LOG_DIR, exist_ok=True)
-        try:
-            with open(self.memory_file, "w") as f:
-                json.dump(self.data, f, indent=4)
-        except Exception as e:
-            logger.error(f"Failed to save trade memory: {e}")
+        with MemoryLock():
+            try:
+                os.makedirs(config.LOG_DIR, exist_ok=True)
+                with open(self.memory_file, "w") as f:
+                    json.dump(self.data, f, indent=4)
+            except Exception as e:
+                logger.error(f"Failed to save memory to {self.memory_file}: {e}")
 
     def add_trade(
         self,
@@ -129,7 +132,11 @@ class TradeMemory:
 
     def get_trade_state(self, ticket: int) -> Optional[Dict]:
         """Return stored active-trade state for one ticket."""
-        return self.data["active_trades"].get(str(ticket))
+        key = str(ticket)
+        if key not in self.data["active_trades"]:
+            # Reload from disk in case another process (like Terminal 1) just added it
+            self._load()
+        return self.data["active_trades"].get(key)
 
     def update_trade_state(self, ticket: int, updates: Dict):
         """Merge updates into an active-trade state."""
