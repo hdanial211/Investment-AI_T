@@ -536,7 +536,7 @@ def main():
             if account_id not in account_states:
                 acct_settings = AccountSettings(account_id)
                 risk_mgr = RiskManager()
-                trade_memory = TradeMemory()
+                trade_memory = TradeMemory(account_id)
                 trade_logger = TradeLogger()
                 active_manager = ActiveTradeManager(connector, trade_memory, risk_mgr)
                 

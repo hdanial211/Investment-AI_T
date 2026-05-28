@@ -18,8 +18,9 @@ from file_mutex import MemoryLock
 logger = logging.getLogger(__name__)
 
 class TradeMemory:
-    def __init__(self):
-        self.memory_file = os.path.join(config.LOG_DIR, "trade_memory.json")
+    def __init__(self, account_id: str):
+        self.account_id = account_id
+        self.memory_file = os.path.join(config.LOG_DIR, f"trade_memory_{account_id}.json")
         self.data = {
             "active_trades": {},  # ticket_id (str) -> dict(symbol, action, reason, target)
             "closed_trades": {},
@@ -61,10 +62,9 @@ class TradeMemory:
         try:
             from trade_management.supabase_sync import SupabaseSync
             sync = SupabaseSync()
-            acc_id = getattr(config, "ACCOUNT_ID", "acc_1")
             
             # Fetch active trades
-            trades = sync.fetch_active_trades(acc_id)
+            trades = sync.fetch_active_trades(self.account_id)
             self.data["active_trades"] = {}
             for t in trades:
                 # Map Supabase columns back to internal state dict format
@@ -127,6 +127,7 @@ class TradeMemory:
         """Record the thesis/reason for a newly opened trade."""
         state = {
             "ticket": int(ticket),
+            "account_id": self.account_id,
             "symbol": symbol,
             "action": action,
             "direction": action,
@@ -204,6 +205,7 @@ class TradeMemory:
 
         state = {
             "ticket": ticket,
+            "account_id": self.account_id,
             "symbol": position.get("symbol"),
             "action": position.get("direction"),
             "direction": position.get("direction"),

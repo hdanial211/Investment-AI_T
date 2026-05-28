@@ -41,7 +41,7 @@ def run():
                     account_states[account_id] = {
                         "acct_settings": AccountSettings(account_id),
                         "risk_mgr": RiskManager(),
-                        "trade_memory": TradeMemory(),
+                        "trade_memory": TradeMemory(account_id),
                     }
                     account_states[account_id]["active_manager"] = ActiveTradeManager(
                         connector, 

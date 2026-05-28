@@ -52,6 +52,7 @@ class SupabaseSync:
     def upsert_active_trade(self, state: Dict) -> None:
         payload = {
             "ticket": state.get("ticket"),
+            "account_id": state.get("account_id") or getattr(config, "ACCOUNT_ID", "acc_1"),
             "symbol": state.get("symbol"),
             "direction": state.get("action") or state.get("direction"),
             "lot": state.get("lot"),
