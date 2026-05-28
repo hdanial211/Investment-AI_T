@@ -209,7 +209,7 @@
 
     /* ── MODEL PICKER BTN ──────────────────────────────────────────────── */
     .model-picker-btn {
-      width: 100%; text-align: left; background: rgba(255,255,255,0.78);
+      flex: 1; text-align: left; background: rgba(255,255,255,0.78);
       color: var(--ink); border: 1px solid var(--line); border-radius: 14px;
       padding: 11px 14px; font: inherit; font-size: 0.88rem; cursor: pointer;
       display: flex; justify-content: space-between; align-items: center;
@@ -221,6 +221,14 @@
     .model-picker-btn .mn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .model-picker-btn .mn.empty { color: var(--muted); }
     .model-picker-btn .pi { font-size: 0.75rem; color: var(--gold); flex-shrink: 0; margin-left: 8px; }
+    
+    .test-model-btn {
+      padding: 0 12px; background: rgba(47, 102, 143, 0.12); color: var(--blue);
+      border: 1px solid rgba(47, 102, 143, 0.3); border-radius: 14px; cursor: pointer;
+      font-size: 1.1rem; flex-shrink: 0; transition: all 0.2s;
+    }
+    .test-model-btn:hover:not(:disabled) { background: rgba(47, 102, 143, 0.25); }
+    .test-model-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── MODAL ─────────────────────────────────────────────────────────── */
     .modal-overlay {
@@ -526,17 +534,23 @@
             <div class="form-row" style="margin-top:14px;">
               <div class="field-group">
                 <label>Main Model</label>
-                <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'main_model')">
-                  <span class="mn ${p.main_model ? '' : 'empty'}">${p.main_model ? safe(p.main_model) : '⊕ Pilih Model...'}</span>
-                  <span class="pi">▾</span>
-                </button>
+                <div style="display:flex;gap:8px;">
+                  <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'main_model')">
+                    <span class="mn ${p.main_model ? '' : 'empty'}">${p.main_model ? safe(p.main_model) : '⊕ Pilih Model...'}</span>
+                    <span class="pi">▾</span>
+                  </button>
+                  <button type="button" class="test-model-btn" title="Test Main Model" onclick="testModel(${index}, 'main_model')" ${!p.main_model || !testedProviders.has(index) ? 'disabled' : ''}>🧪</button>
+                </div>
               </div>
               <div class="field-group">
                 <label>Risk Review Model</label>
-                <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'risk_model')">
-                  <span class="mn ${p.risk_model ? '' : 'empty'}">${p.risk_model ? safe(p.risk_model) : '⊕ Pilih Model...'}</span>
-                  <span class="pi">▾</span>
-                </button>
+                <div style="display:flex;gap:8px;">
+                  <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'risk_model')">
+                    <span class="mn ${p.risk_model ? '' : 'empty'}">${p.risk_model ? safe(p.risk_model) : '⊕ Pilih Model...'}</span>
+                    <span class="pi">▾</span>
+                  </button>
+                  <button type="button" class="test-model-btn" title="Test Risk Model" onclick="testModel(${index}, 'risk_model')" ${!p.risk_model || !testedProviders.has(index) ? 'disabled' : ''}>🧪</button>
+                </div>
               </div>
             </div>
             ${!testedProviders.has(index) ? '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">🔒 Sila test API key dulu sebelum pilih model.</div>' : ''}
@@ -754,6 +768,79 @@
         renderProviders();
       } catch (err) {
         resDiv.innerHTML = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
+      }
+    }
+
+    // ── TEST MODEL ────────────────────────────────────────────────────────
+    async function testModel(index, field) {
+      const p = state.providers[index];
+      const modelId = p[field];
+      const resDiv = $(`testRes_${index}`);
+      
+      if (!modelId) return;
+      resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing model <strong>${safe(modelId)}</strong>...</span>`;
+
+      const payload = {
+        model: modelId,
+        messages: [{ role: "user", content: "Reply with exactly the word OK." }],
+        max_tokens: 5,
+        temperature: 0.1
+      };
+
+      let url = "";
+      let headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${p.api_key}`
+      };
+
+      if (p.provider === 'openrouter') {
+        url = "https://openrouter.ai/api/v1/chat/completions";
+        headers["HTTP-Referer"] = "https://github.com/hdanial211/Investment-AI_T";
+        headers["X-Title"] = "Investment-AI_T";
+      } else if (p.provider === 'openai') {
+        url = "https://api.openai.com/v1/chat/completions";
+      } else if (p.provider === 'deepseek') {
+        url = "https://api.deepseek.com/v1/chat/completions";
+      } else if (p.provider === 'grok') {
+        url = "https://api.x.ai/v1/chat/completions";
+      } else if (p.provider === 'anthropic') {
+        url = "https://api.anthropic.com/v1/messages";
+        headers = {
+          "Content-Type": "application/json",
+          "x-api-key": p.api_key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerously-allow-browser": "true"
+        };
+        payload.max_tokens = 5;
+        delete payload.messages;
+        payload.messages = [{ role: "user", content: "Reply with exactly the word OK." }];
+      } else if (p.provider === 'huggingface') {
+        url = "https://router.huggingface.co/v1/chat/completions";
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error?.message || JSON.stringify(data));
+        }
+
+        let replyText = "";
+        if (p.provider === 'anthropic') {
+          replyText = data.content?.[0]?.text;
+        } else {
+          replyText = data.choices?.[0]?.message?.content;
+        }
+
+        resDiv.innerHTML = `<span style="color:var(--green)">✅ Model <strong>${safe(modelId)}</strong> sah! Reply: "${safe(replyText)}"</span>`;
+      } catch (err) {
+        resDiv.innerHTML = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(err.message)}</span>`;
       }
     }
 
