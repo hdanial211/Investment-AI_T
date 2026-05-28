@@ -11,7 +11,7 @@ Responsibilities:
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 
 import config
@@ -200,7 +200,8 @@ class RiskManager:
                     if opened_at_str:
                         try:
                             opened_at = datetime.fromisoformat(opened_at_str)
-                            if (datetime.now() - opened_at).total_seconds() < 600: # 10 minutes
+                            now_time = datetime.now(timezone.utc) if opened_at.tzinfo else datetime.now()
+                            if (now_time - opened_at).total_seconds() < 600: # 10 minutes
                                 return False, f"Entry spacing: Must wait 10 minutes after last {symbol} trade"
                         except ValueError:
                             pass
