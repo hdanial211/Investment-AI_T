@@ -9,7 +9,26 @@ git pull
 echo.
 
 echo ============================================================
-echo   2. MEMULAKAN DESKTOP COMMAND CENTER
-echo ============================================================
-start /B pythonw desktop_launcher.py
+echo  :: ── STEP 2: Start Desktop Command Center (background) ───────────
+echo  [2/4] Memulakan Desktop Command Center...
+if exist "%~dp0desktop_launcher.py" (
+    pythonw --version >nul 2>&1
+    if not errorlevel 1 (
+        start "Desktop Command Center" /B pythonw desktop_launcher.py
+        echo        Desktop Command Center started (using pythonw).
+    ) else (
+        py -w --version >nul 2>&1
+        if not errorlevel 1 (
+            start "Desktop Command Center" /B py -w desktop_launcher.py
+            echo        Desktop Command Center started (using py -w).
+        ) else (
+            echo        [ERROR] Python is not installed or not in PATH!
+            echo        Sila run VPS_Setup\Install_VPS_Requirements.bat dahulu.
+            pause
+            exit /b 1
+        )
+    )
+) else (
+    echo        [SKIP] desktop_launcher.py tidak dijumpai.
+)
 exit /b 0

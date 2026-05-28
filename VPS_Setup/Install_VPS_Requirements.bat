@@ -5,7 +5,7 @@ cls
 
 echo ============================================================
 echo   AUTO-INSTALLER UNTUK VPS WINDOWS
-echo   (Python 3.10 ^& Git for Windows)
+echo   (Python 3.9 ^& Git for Windows)
 echo ============================================================
 echo.
 echo Pastikan VPS anda mempunyai sambungan Internet sebelum bermula.
@@ -16,15 +16,15 @@ pause
 cd /d "%~dp0"
 
 echo.
-echo [1/4] Sedang download Python 3.10.11...
-powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe' -OutFile 'python-installer.exe'"
+echo [1/4] Sedang download Python 3.9.13...
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.9.13/python-3.9.13-amd64.exe' -OutFile 'python-installer.exe'"
 if not exist "python-installer.exe" (
     echo [ERROR] Gagal download Python. Sila check Internet VPS.
     pause
     exit /b 1
 )
 
-echo [2/4] Sedang install Python 3.10 (Sila tunggu...)...
+echo [2/4] Sedang install Python 3.9 (Sila tunggu...)...
 start /wait python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
 echo       Python selesai di-install!
 del python-installer.exe
