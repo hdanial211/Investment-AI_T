@@ -176,7 +176,12 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     h4_ema9 = calc_ema(df_h4['close'], 9).iloc[-1]
     h4_ema21 = calc_ema(df_h4['close'], 21).iloc[-1]
     h4_rsi = calc_rsi(df_h4['close'], 14).iloc[-1]
-    
+
+    # EMA 50/200 for swing/intraday context (Golden/Death Cross)
+    h4_ema50 = calc_ema(df_h4['close'], 50).iloc[-1] if len(df_h4) >= 50 else None
+    h4_ema200 = calc_ema(df_h4['close'], 200).iloc[-1] if len(df_h4) >= 200 else None
+    h4_golden_cross = (h4_ema50 > h4_ema200) if (h4_ema50 is not None and h4_ema200 is not None) else None
+
     h4_trend = "sideways"
     if h4_ema9 > h4_ema21 and h4_rsi > 50:
         h4_trend = "bullish"
@@ -240,6 +245,9 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
         "market_regime": market_regime,
         "adx": round(adx_val, 2),
         "h4_trend": h4_trend,
+        "h4_ema50": round(h4_ema50, 5) if h4_ema50 is not None else None,
+        "h4_ema200": round(h4_ema200, 5) if h4_ema200 is not None else None,
+        "h4_golden_cross": h4_golden_cross,
         "h1_resistance": h1_res,
         "h1_support": h1_sup,
         "h1_macd_trend": h1_macd_trend,
@@ -327,6 +335,9 @@ def format_for_prompt(ind: Dict) -> str:
         f"*(Instruction: If TRENDING, prioritize breakouts & trends. If RANGING, prioritize S/R bounces and sweeps)*\n"
         f"\n--- TIMEFRAME: H4 (MACRO TREND) ---\n"
         f"Major Trend: {ind['h4_trend'].upper()}\n"
+        f"EMA50: {ind.get('h4_ema50', 'insufficient data')}\n"
+        f"EMA200: {ind.get('h4_ema200', 'insufficient data')}\n"
+        f"Golden Cross (EMA50>EMA200): {ind.get('h4_golden_cross', 'insufficient data')}\n"
         f"\n--- TIMEFRAME: H1 (ZONES & MOMENTUM) ---\n"
         f"Resistance Zone: {ind['h1_resistance']:.5f}\n"
         f"Support Zone: {ind['h1_support']:.5f}\n"

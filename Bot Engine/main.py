@@ -181,6 +181,20 @@ def run_cycle(
         f"Reason: {signal['reason']}"
     )
 
+    # ── STEP 6.1: Session filter (hard block) ─────────────────────────────────
+    session_ok, session_reason = risk_mgr.validate_session(trade_style, symbol)
+    if not session_ok:
+        logger.info(f"[{symbol}] {session_reason}")
+        trade_logger.log_skipped(symbol, session_reason, signal=signal, indicators=indicators)
+        return "skipped"
+
+    # ── STEP 6.1b: Min ATR filter (scalping guard) ────────────────────────────
+    atr_ok, atr_reason = risk_mgr.validate_min_atr(trade_style, symbol, indicators)
+    if not atr_ok:
+        logger.info(f"[{symbol}] {atr_reason}")
+        trade_logger.log_skipped(symbol, atr_reason, signal=signal, indicators=indicators)
+        return "skipped"
+
     # ── STEP 6.2: Account settings — style/lot/max-trade check ────────────────
     if acct_settings:
         if not acct_settings.enabled:
@@ -252,7 +266,17 @@ def run_cycle(
         pip_value     = pip_value,
         contract_size = contract,
         indicators    = indicators,
+        trade_style   = trade_style,
     )
+
+    # ── STEP 7.1: R:R ratio validation ────────────────────────────────────────
+    rr_ok, rr_reason = risk_mgr.validate_rr_ratio(
+        trade_params["sl_pips"], trade_params["tp_pips"], trade_style, symbol
+    )
+    if not rr_ok:
+        logger.info(f"[{symbol}] {rr_reason}. Skipping.")
+        trade_logger.log_skipped(symbol, rr_reason, signal=signal, indicators=indicators)
+        return "skipped"
 
     # Override lot with per-style lot from dashboard settings
     if acct_settings:

@@ -262,71 +262,52 @@ class RiskManager:
         pip_value:     float,
         contract_size: float,
         indicators:    Dict = None,
-        trade_style:   str = None,
+        trade_style:   str = "INTRADAY",
     ) -> Dict:
         """
         Calculate all parameters needed to place a trade.
 
-        Returns dict with: lot, sl, tp, sl_pips, tp_pips
+        Uses per-style per-symbol parameters from style_params when dynamic
+        SL is enabled, otherwise falls back to config.SL_PIPS / TP_PIPS.
+
+        Returns dict with: lot, sl, tp, sl_pips, tp_pips, trade_style
         """
-        if trade_style is None:
-            trade_style = config.TRADING_MODE
-            
+        from style_params import get_style_params
+
+        style_p = get_style_params(trade_style, symbol)
+
         sl_pips = config.SL_PIPS
         tp_pips = config.TP_PIPS
-        
-        is_gold = "XAU" in symbol.upper() or "GOLD" in symbol.upper()
-        
+        risk_pct = style_p["risk_percent"]
+
         if config.USE_DYNAMIC_SL and indicators and "atr" in indicators:
             atr = indicators["atr"]
-            pip_multiplier = 100 if is_gold or "JPY" in symbol.upper() else 10000
-            atr_pips = atr * pip_multiplier
-            
-            # Default fallback multipliers
-            sl_mult = config.DYNAMIC_SL_MULTIPLIER
-            tp_mult = config.DYNAMIC_TP_MULTIPLIER
-            
-            # Clamp limits (min_sl, max_sl, min_tp, max_tp) based on user specs
-            # SCALPING
-            if trade_style == "SCALPING":
-                sl_mult, tp_mult = 0.5, 1.0 # Base ATR multipliers
-                if is_gold:
-                    min_sl, max_sl = 20, 30
-                    min_tp, max_tp = 40, 80
-                else:
-                    min_sl, max_sl = 5, 10
-                    min_tp, max_tp = 10, 20
-                    
-            # SWING
-            elif trade_style == "SWING":
-                sl_mult, tp_mult = 3.0, 6.0
-                if is_gold:
-                    min_sl, max_sl = 150, 300
-                    min_tp, max_tp = 500, 1500
-                else:
-                    min_sl, max_sl = 80, 150
-                    min_tp, max_tp = 200, 400
-                    
-            # INTRADAY
-            else:
-                sl_mult, tp_mult = 1.5, 3.0 # e.g. 1.5x ATR for Gold SL
-                if is_gold:
-                    min_sl, max_sl = 50, 100
-                    min_tp, max_tp = 200, 500
-                else:
-                    min_sl, max_sl = 20, 40
-                    min_tp, max_tp = 60, 100
+            pip_multiplier = 10000
+            if "XAU" in symbol or "XAG" in symbol:
+                pip_multiplier = 100
+            elif "JPY" in symbol:
+                pip_multiplier = 100
 
-            # Calculate dynamic bounds and clamp
-            dynamic_sl = int(atr_pips * sl_mult)
-            dynamic_tp = int(atr_pips * tp_mult)
-            
-            sl_pips = max(min_sl, min(max_sl, dynamic_sl))
-            tp_pips = max(min_tp, min(max_tp, dynamic_tp))
+            atr_pips = atr * pip_multiplier
+
+            # Use per-style ATR multipliers instead of global config values
+            dynamic_sl = int(atr_pips * style_p["sl_atr_multi"])
+            dynamic_tp = int(atr_pips * style_p["tp_atr_multi"])
+
+            # Clamp SL within per-style min/max bounds
+            sl_pips = max(style_p["min_sl_pips"], min(style_p["max_sl_pips"], dynamic_sl))
+            tp_pips = max(dynamic_tp, sl_pips)  # TP should never be less than SL
+
+            logger.debug(
+                f"Style-aware SL/TP: style={trade_style}, ATR={atr_pips:.0f}pips, "
+                f"SL={sl_pips}pips (multi={style_p['sl_atr_multi']}), "
+                f"TP={tp_pips}pips (multi={style_p['tp_atr_multi']}), "
+                f"risk={risk_pct}%"
+            )
 
         lot = calculate_lot_size(
             balance       = balance,
-            risk_pct      = config.MAX_RISK_PERCENT,
+            risk_pct      = risk_pct,
             sl_pips       = sl_pips,
             symbol        = symbol,
             pip_value     = pip_value,
@@ -343,12 +324,90 @@ class RiskManager:
             tp_price = price - (tp_pips * pip_size)
 
         return {
-            "lot":     lot,
-            "sl":      round(sl_price, 5),
-            "tp":      round(tp_price, 5),
-            "sl_pips": sl_pips,
-            "tp_pips": tp_pips,
+            "lot":         lot,
+            "sl":          round(sl_price, 5),
+            "tp":          round(tp_price, 5),
+            "sl_pips":     sl_pips,
+            "tp_pips":     tp_pips,
+            "trade_style": trade_style,
         }
+
+    # ── R:R RATIO VALIDATION ─────────────────────────────────────────────────
+
+    @staticmethod
+    def validate_rr_ratio(
+        sl_pips: int,
+        tp_pips: int,
+        trade_style: str,
+        symbol: str,
+    ) -> tuple:
+        """
+        Check if the risk-reward ratio meets the minimum for this style.
+
+        Returns (valid: bool, reason: str).
+        """
+        from style_params import get_style_params
+
+        params = get_style_params(trade_style, symbol)
+        min_rr = params.get("min_rr", 1.0)
+
+        if sl_pips <= 0:
+            return True, "SL is zero — skipping R:R check"
+
+        rr = round(tp_pips / sl_pips, 2)
+        if rr < min_rr:
+            return False, (
+                f"R:R {rr} below minimum {min_rr} for {trade_style} "
+                f"(SL={sl_pips}, TP={tp_pips})"
+            )
+        return True, f"R:R {rr} OK (min: {min_rr})"
+
+    # ── SESSION VALIDATION ───────────────────────────────────────────────────
+
+    @staticmethod
+    def validate_session(trade_style: str, symbol: str) -> tuple:
+        """
+        Check if the current session allows this trade style.
+
+        Returns (allowed: bool, reason: str).
+        """
+        from style_params import is_session_allowed
+        return is_session_allowed(trade_style, symbol)
+
+    # ── MIN ATR VALIDATION (SCALPING) ────────────────────────────────────────
+
+    @staticmethod
+    def validate_min_atr(
+        trade_style: str,
+        symbol: str,
+        indicators: Dict,
+    ) -> tuple:
+        """
+        For SCALPING, reject if ATR is below the minimum threshold.
+
+        Returns (allowed: bool, reason: str).
+        """
+        from style_params import get_style_params
+
+        params = get_style_params(trade_style, symbol)
+        min_atr = params.get("min_atr_pips")
+        if min_atr is None:
+            return True, "No ATR minimum for this style"
+
+        atr = indicators.get("atr", 0)
+        pip_multiplier = 10000
+        if "XAU" in symbol.upper() or "XAG" in symbol.upper():
+            pip_multiplier = 100
+        elif "JPY" in symbol.upper():
+            pip_multiplier = 100
+
+        atr_pips = atr * pip_multiplier
+        if atr_pips < min_atr:
+            return False, (
+                f"ATR {atr_pips:.0f} pips below minimum {min_atr} "
+                f"for {trade_style} {symbol}"
+            )
+        return True, f"ATR {atr_pips:.0f} pips OK (min: {min_atr})"
 
     # ── RESULT RECORDING ─────────────────────────────────────────────────────
 

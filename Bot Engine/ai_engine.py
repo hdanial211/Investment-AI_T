@@ -28,57 +28,146 @@ _AI_CALL_LOCK = threading.Lock()
 # PROMPT BUILDER
 # ─────────────────────────────────────────────────────────────────────────────
 
-BASE_INSTRUCTION = """You are an elite institutional algorithmic trading AI specialized in SCALPING.
-Your objective is to analyze multi-timeframe (MTF) market data and provide a highly accurate SCALPING decision (15-30 minutes hold).
+BASE_INSTRUCTION = """You are an elite institutional algorithmic trading AI.
+Your objective is to analyze multi-timeframe (MTF) market data and provide
+an accurate trading decision with the appropriate trade style.
 
 CRITICAL JSON OUTPUT RULES:
 1. Respond ONLY with a valid JSON object.
-2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING", "reason": "brief explanation"}
+2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "brief explanation"}
 3. No markdown blocks, no extra text.
 """
 
-RISK_REVIEW_INSTRUCTION = """You are a quantitative trading risk reviewer specialized in SCALPING.
+# Dynamic instruction injected based on ADX market regime
+REGIME_INSTRUCTIONS = {
+    "TRENDING": """
+--- MARKET REGIME: TRENDING (ADX > 25) ---
+- The market has a clear directional trend. Prioritize INTRADAY or SWING setups.
+- Scalping is secondary — only use it if M5/M15 patterns are exceptionally strong.
+- Look for breakout continuations, flag patterns, and trend-following entries.
+- H4 trend direction is PRIMARY. M15/M5 are for entry timing only.
+- For INTRADAY: hold 1–8 hours. For SWING: hold 1–5 days.
+""",
+    "RANGING": """
+--- MARKET REGIME: RANGING (ADX < 25) ---
+- The market lacks a clear trend. Prioritize SCALPING setups.
+- Swing trades are risky in ranging markets — avoid unless a major chart pattern is forming.
+- Look for S/R bounces, liquidity sweeps, and quick mean-reversion trades.
+- M15/M5 momentum is KING. H4 trend is secondary for scalping.
+- For SCALPING: hold 5–30 minutes. Quick in, quick out.
+""",
+}
+
+RISK_REVIEW_INSTRUCTION = """You are a quantitative trading risk reviewer.
 Your job is to approve or reject a proposed trade after the primary AI has already produced a signal.
 
 CRITICAL JSON OUTPUT RULES:
 1. Respond ONLY with a valid JSON object.
 2. Format: {"approved": true|false, "confidence": 0.0-1.0, "reason": "brief explanation"}
-3. Approve if the risk/reward is acceptable for a quick SCALP. Do not reject trades purely based on H4 trend if M15/M30 shows strong momentum. Tight stop losses and small TP are expected and acceptable for scalping.
+3. Evaluate the trade based on its trade_style:
+   - SCALPING: Tight SL/TP are expected. Approve if M5/M15 momentum is clear. Don't reject based on H4 alone.
+   - INTRADAY: Require minimum 1:2 R:R. Reject if trading against the H1/H4 trend.
+   - SWING: Require minimum 1:2 R:R. Reject if Daily trend is clearly opposite.
 4. No markdown blocks, no extra text.
 """
 
-SYMBOL_RULES = {
-    "EURUSD": """
---- ASSET BEHAVIOR: EURUSD (SCALPING MODE) ---
-- M30/M15 momentum is KING. H4 Trend is secondary for scalping.
-- Respect M15/M30 Support/Resistance zones.
-- Look for quick momentum breakouts, engulfing patterns, or bounces.
-- If pattern bias on M15/M5 is strong, execute a quick scalp.
+# Per-style, per-symbol guidance for the AI
+SYMBOL_STYLE_RULES = {
+    "EURUSD": {
+        "SCALPING": """
+--- ASSET: EURUSD | STYLE: SCALPING ---
+- Timeframe focus: M1, M5. Use M15 for trend context.
+- Best patterns: Pin Bar (2:1 wick) at pivot, Inside Bar breakout, Engulfing at S/R, Fakey.
+- EMA 9/21 cross for micro-trend direction.
+- SL: 5–10 pip. TP: 10–20 pip. R:R minimum 1:1.
+- Best session: London/NY overlap. AVOID Asia and Friday afternoon.
 """,
-    "XAUUSD": """
---- ASSET BEHAVIOR: XAUUSD (SCALPING MODE) ---
-- XAUUSD is highly volatile. Perfect for quick scalping.
-- Focus on liquidity sweeps on M5/M15 followed by quick reversals (SMC/FVG).
-- If pattern bias on M15/M5 is strong and momentum is clear, execute a quick scalp.
-- Do not over-analyze H4 macro trends if short-term liquidity is grabbed.
-"""
+        "INTRADAY": """
+--- ASSET: EURUSD | STYLE: INTRADAY ---
+- Timeframe focus: M15, H1. Use H4 for trend context.
+- Best patterns: H&S, Double Top/Bottom, Bull/Bear Flag, Rising/Falling Wedge, Engulfing at EMA50.
+- EMA 20/50 for trend health. ADX > 25 confirms trend strength.
+- SL: 20–40 pip. TP: 60–100 pip. R:R minimum 1:2.
+- Best session: London open and NY continuation. Avoid Asia.
+""",
+        "SWING": """
+--- ASSET: EURUSD | STYLE: SWING ---
+- Timeframe focus: H4, Daily. Use Weekly for macro context.
+- Best patterns: Double Top/Bottom, H&S, Wedge breakout, Cup & Handle, Trendline retest.
+- EMA 50/200 Golden/Death Cross. Fibonacci 38.2%/61.8% retracements.
+- SL: 80–150 pip. TP: 200–400 pip. R:R minimum 1:2.
+- All sessions OK. Use Daily close for confirmation.
+""",
+    },
+    "XAUUSD": {
+        "SCALPING": """
+--- ASSET: XAUUSD | STYLE: SCALPING ---
+- Timeframe focus: M1, M5. Use M15 for trend context.
+- Best patterns: Pin Bar (3:1 wick) at psych level ($50/$100), Liquidity Sweep + Reversal, Engulfing (1.2x body) with volume spike, Fakey/Hikkake.
+- Volume confirmation is REQUIRED for candlestick patterns.
+- SL: 20–80 pip. TP: 40–200 pip. R:R minimum 1:1.
+- Best session: London/NY overlap ONLY. Avoid Asia (except for fade-the-stop-hunt setups).
+- NEVER scalp during NFP/CPI/FOMC — slippage can reach 100 pip.
+""",
+        "INTRADAY": """
+--- ASSET: XAUUSD | STYLE: INTRADAY ---
+- Timeframe focus: M15, H1. Use H4 for trend context.
+- Best patterns: Double Top/Bottom at psych level, H&S (H1/H4), Morning/Evening Star, Falling/Rising Wedge, SMC Order Block + FVG retest, Harmonik (Gartley, Bat) in London/NY.
+- ATR(14) for dynamic SL. Use 1.5x ATR for SL distance.
+- SL: 50–250 pip. TP: 200–500 pip. R:R minimum 1:2.
+- Trail stop: 80–150 pip after 100 pip profit.
+- Best session: London and NY. Avoid opening intraday 30 min before major news.
+""",
+        "SWING": """
+--- ASSET: XAUUSD | STYLE: SWING ---
+- Timeframe focus: H4, Daily. Use Weekly for macro context.
+- Best patterns: H&S (Daily), Double Top/Bottom, Wedge breakout, Cup & Handle, Three White Soldiers/Black Crows (H4), MSS on H4 (HH/HL → LH/LL).
+- MA200 on Daily is a MAJOR support/resistance level for Gold.
+- SL: 150–300 pip. TP: 500–1500 pip. R:R minimum 1:2.
+- Move SL to breakeven after 500 pip profit.
+- All sessions OK. DXY weakness = bullish for Gold.
+""",
+    },
+}
+
+# Legacy flat lookup for backward compat
+SYMBOL_RULES = {
+    "EURUSD": SYMBOL_STYLE_RULES["EURUSD"]["SCALPING"],
+    "XAUUSD": SYMBOL_STYLE_RULES["XAUUSD"]["SCALPING"],
 }
 
 
 def build_prompt(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN") -> str:
     symbol = indicators.get("symbol", "")
-    
-    # Get specific rules based on symbol, fallback to general if unknown
+
+    # Determine market regime from ADX
+    regime = indicators.get("market_regime", "RANGING").upper()
+    if regime not in REGIME_INSTRUCTIONS:
+        regime = "RANGING"
+    regime_instruction = REGIME_INSTRUCTIONS[regime]
+
+    # Get per-style per-symbol rules (pick style hint from regime)
+    base_sym = symbol.upper()[:6] if symbol else "UNKNOWN"
     specific_rules = ""
-    for k, v in SYMBOL_RULES.items():
-        if k in symbol:
-            specific_rules = v
+    for sym_key, style_block in SYMBOL_STYLE_RULES.items():
+        if sym_key in base_sym or sym_key in symbol.upper():
+            # Include ALL style rules so AI can choose the best style
+            for style_name, rule_text in style_block.items():
+                specific_rules += rule_text + "\n"
             break
+
+    # Fallback: if no match found, try legacy SYMBOL_RULES
+    if not specific_rules:
+        for k, v in SYMBOL_RULES.items():
+            if k in symbol:
+                specific_rules = v
+                break
 
     market_section = format_for_prompt(indicators)
     spread = round(ask - bid, 5)
 
     prompt = f"""{BASE_INSTRUCTION}
+{regime_instruction}
 {specific_rules}
 --- CURRENT MARKET DATA ---
 {market_section}
@@ -87,14 +176,16 @@ Ask: {ask}
 Spread: {spread}
 
 --- INSTRUCTIONS ---
-Evaluate the timeframes logically for SCALPING:
-1. Focus heavily on M15 and M30 for trend direction, and M5/M1 for execution triggers. H4 trend is secondary.
-2. The primary goal is quick scalps (15-30 minutes holding time). You only need a small price movement.
-3. Is there a valid engulfing, pin bar, inside bar, SMC/FVG setup, psych-level reaction, or other high-priority pattern on M15/M5?
-4. Does the detected pattern bias support a quick momentum trade? If yes, execute the trade. Do not over-analyze H4 if M15/M30 is clear.
-5. Set trade_style to "SCALPING".
+Evaluate the timeframes logically based on the MARKET REGIME above:
+1. Identify the best trade_style (SCALPING, INTRADAY, or SWING) based on market conditions.
+2. For SCALPING: Focus on M5/M15 patterns. Quick entry/exit (5–30 min hold).
+3. For INTRADAY: Focus on H1 patterns with H4 trend context. Hold 1–8 hours.
+4. For SWING: Focus on H4/Daily patterns. Hold 1–5 days.
+5. Check if detected patterns and pattern bias support the chosen style.
+6. Set trade_style to your chosen style in the JSON output.
+7. If no clear setup exists for any style, return HOLD.
 """
-    
+
     if trade_memory:
         active_records = trade_memory.get_symbol_active_memory(symbol)
         if active_records:

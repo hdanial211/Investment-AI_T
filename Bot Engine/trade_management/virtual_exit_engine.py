@@ -105,9 +105,28 @@ class VirtualExitEngine:
         current: float,
         atr: float,
     ) -> None:
-        stage1_distance = 0.5 * atr
-        stage2_distance = 1.5 * atr
-        trail_distance = 1.0 * atr
+        # Use per-style trailing parameters from style_params
+        trade_style = state.get("trade_style", "INTRADAY")
+        symbol = state.get("symbol", "")
+
+        try:
+            from style_params import get_style_params
+            params = get_style_params(trade_style, symbol)
+        except Exception:
+            # Fallback to original hardcoded values
+            params = {
+                "trail_stage1": 0.5,
+                "trail_stage2": 1.5,
+                "trail_distance": 1.0,
+            }
+
+        # If trailing is disabled for this style (e.g. EUR/USD scalping)
+        if params.get("trail_stage1") is None:
+            return
+
+        stage1_distance = params["trail_stage1"] * atr
+        stage2_distance = params["trail_stage2"] * atr
+        trail_distance = params["trail_distance"] * atr
 
         if direction == "BUY":
             profit_distance = current - entry
