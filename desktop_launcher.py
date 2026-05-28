@@ -29,12 +29,30 @@ class TerminalUI:
         # Text Area
         self.text_area = scrolledtext.ScrolledText(self.frame, bg=bg_color, fg=fg_color, font=("Consolas", 9), wrap=tk.WORD)
         self.text_area.pack(fill=tk.BOTH, expand=True)
+        
+        # Configure Color Tags
+        self.text_area.tag_config("ERROR", foreground="#FF5C5C")     # Red
+        self.text_area.tag_config("WARNING", foreground="#F0E68C")   # Yellow (Khaki)
+        self.text_area.tag_config("SUCCESS", foreground="#4CAF50")   # Green
+        self.text_area.tag_config("INFO", foreground=fg_color)       # Default
+        
         self.text_area.insert(tk.END, f"Ready to start {self.name}...\n")
         self.text_area.configure(state="disabled")
 
     def log(self, message):
         self.text_area.configure(state="normal")
-        self.text_area.insert(tk.END, message)
+        
+        # Determine tag based on content
+        tag = "INFO"
+        upper_msg = message.upper()
+        if "ERROR" in upper_msg or "CRITICAL" in upper_msg or "FAIL" in upper_msg or "✘" in message:
+            tag = "ERROR"
+        elif "WARNING" in upper_msg or "⚠" in message:
+            tag = "WARNING"
+        elif "SUCCESS" in upper_msg or "✅" in message or "✔" in message or "APPROVED" in upper_msg:
+            tag = "SUCCESS"
+            
+        self.text_area.insert(tk.END, message, tag)
         self.text_area.see(tk.END)
         self.text_area.configure(state="disabled")
 
