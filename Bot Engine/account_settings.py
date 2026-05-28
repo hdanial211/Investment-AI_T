@@ -10,13 +10,17 @@ the bot uses values from the local .env (existing behavior).
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import config
 
 logger = logging.getLogger(__name__)
+
+SHARED_STATE_FILE = os.path.join(os.path.dirname(__file__), "shared_state.json")
 
 # Default settings that mirror config.py / .env
 _DEFAULTS = {
@@ -174,69 +178,43 @@ class AccountSettings:
         if now - self._last_fetch < self._fetch_interval:
             return
         self._last_fetch = now
-        self._fetch_from_supabase()
+        self._fetch_from_shared_state()
 
-    def _fetch_from_supabase(self) -> None:
-        """Fetch settings from Supabase REST API."""
+    def _fetch_from_shared_state(self) -> None:
+        """Fetch settings from local shared_state.json populated by Terminal 2."""
         if not config.SUPABASE_SYNC_ENABLED:
             logger.debug("AccountSettings: Supabase disabled, using local defaults.")
             self._supabase_available = False
             return
 
-        url = config.SUPABASE_URL.rstrip("/")
-        key = config.SUPABASE_SERVICE_ROLE_KEY or config.SUPABASE_ANON_KEY
-        if not url or not key:
-            logger.debug("AccountSettings: No Supabase URL/key, using local defaults.")
-            self._supabase_available = False
-            return
-
         try:
-            import requests
-
-            endpoint = (
-                f"{url}/rest/v1/account_settings"
-                f"?account_id=eq.{self.account_id}&select=*&limit=1"
-            )
-            response = requests.get(
-                endpoint,
-                headers={
-                    "apikey": key,
-                    "Authorization": f"Bearer {key}",
-                },
-                timeout=config.SUPABASE_REQUEST_TIMEOUT,
-            )
-
-            if response.status_code >= 400:
-                logger.warning(
-                    f"AccountSettings: Supabase returned {response.status_code}. "
-                    f"Using cached/default settings."
-                )
+            if not os.path.exists(SHARED_STATE_FILE):
+                logger.debug(f"AccountSettings: {SHARED_STATE_FILE} not found yet.")
                 self._supabase_available = False
                 return
-
-            data = response.json()
-            if not data:
-                logger.info(
-                    f"AccountSettings: No settings for '{self.account_id}' in Supabase. "
+                
+            with open(SHARED_STATE_FILE, "r") as f:
+                state = json.load(f)
+                
+            acc_settings = state.get("account_settings", {})
+            my_settings = acc_settings.get(self.account_id)
+            
+            if not my_settings:
+                logger.debug(
+                    f"AccountSettings: No settings for '{self.account_id}' in shared state. "
                     f"Using local defaults."
                 )
                 self._supabase_available = False
                 return
-
-            # Merge with defaults (Supabase values take priority)
-            row = data[0]
-            for k, v in row.items():
+                
+            # Merge with defaults
+            for k, v in my_settings.items():
                 if v is not None:
                     self._cache[k] = v
-
+                    
             self._supabase_available = True
-            logger.debug(
-                f"AccountSettings: Loaded settings for '{self.account_id}' from Supabase."
-            )
-
-        except ImportError:
-            logger.warning("AccountSettings: 'requests' package not found.")
-            self._supabase_available = False
+            logger.debug(f"AccountSettings: Loaded settings for '{self.account_id}' from shared state.")
+            
         except Exception as e:
             logger.warning(f"AccountSettings: fetch failed: {e}. Using cached settings.")
             self._supabase_available = False
@@ -296,34 +274,28 @@ class AccountSettings:
         self._last_fetch = 0
 
 def get_all_enabled_accounts() -> list[str]:
-    """Fetch all account IDs that are enabled from Supabase. Fallback to config.ACCOUNT_ID if failed."""
+    """Fetch all account IDs that are enabled from shared_state.json. Fallback to config.ACCOUNT_ID if failed."""
     if not config.SUPABASE_SYNC_ENABLED:
-        return [config.ACCOUNT_ID]
-
-    url = config.SUPABASE_URL.rstrip("/")
-    key = config.SUPABASE_SERVICE_ROLE_KEY or config.SUPABASE_ANON_KEY
-    if not url or not key:
-        return [config.ACCOUNT_ID]
-
-    try:
-        import requests
-        endpoint = f"{url}/rest/v1/account_settings?enabled=eq.true&select=account_id"
-        response = requests.get(
-            endpoint,
-            headers={
-                "apikey": key,
-                "Authorization": f"Bearer {key}",
-            },
-            timeout=config.SUPABASE_REQUEST_TIMEOUT,
-        )
-        if response.status_code >= 400:
+        if config.ACCOUNT_ID:
             return [config.ACCOUNT_ID]
+        return []
         
-        data = response.json()
-        if not data:
+    try:
+        if not os.path.exists(SHARED_STATE_FILE):
+            if config.ACCOUNT_ID:
+                return [config.ACCOUNT_ID]
             return []
             
-        return [row["account_id"] for row in data if "account_id" in row]
+        with open(SHARED_STATE_FILE, "r") as f:
+            state = json.load(f)
+            
+        enabled = state.get("enabled_accounts", [])
+        if enabled:
+            return enabled
+            
     except Exception as e:
-        logger.warning(f"Failed to fetch enabled accounts: {e}")
+        logger.warning(f"get_all_enabled_accounts failed: {e}")
+        
+    if config.ACCOUNT_ID:
         return [config.ACCOUNT_ID]
+    return []

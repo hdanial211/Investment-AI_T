@@ -4,83 +4,42 @@ Updates config.py dynamically at runtime.
 """
 
 import logging
-import requests
-from typing import Optional
-
+import json
+import os
 import config
 
 logger = logging.getLogger(__name__)
 
+SHARED_STATE_FILE = os.path.join(os.path.dirname(__file__), "shared_state.json")
+
 def fetch_and_apply_system_settings() -> bool:
     """
-    Fetches the global system settings from Supabase and overwrites
-    config.py parameters (providers_list).
-    Returns True if successful, False otherwise.
+    Reads the global system settings from shared_state.json and overwrites config.py.
+    Terminal 2 handles fetching from Supabase and writing to this file.
     """
     try:
-        url = config.SUPABASE_URL.rstrip("/")
-        key = config.SUPABASE_ANON_KEY
-        if not url or not key:
-            logger.warning("Supabase URL or Key missing in .env. Skipping system settings load.")
+        if not os.path.exists(SHARED_STATE_FILE):
+            logger.warning(f"Shared state file {SHARED_STATE_FILE} not found. Waiting for Terminal 2 to sync.")
             return False
-
-        endpoint = f"{url}/rest/v1/system_settings?id=eq.global&select=*"
-        response = requests.get(
-            endpoint,
-            headers={
-                "apikey": key,
-                "Authorization": f"Bearer {key}",
-            },
-            timeout=config.SUPABASE_REQUEST_TIMEOUT,
-        )
-
-        if response.status_code < 400 and response.json() and len(response.json()) > 0:
-            data = response.json()[0]
-            logger.info("Loaded global system settings from Supabase. Overriding config.")
-
-            providers_list = data.get("providers_list", [])
-            if isinstance(providers_list, list) and len(providers_list) > 0:
-                config.PROVIDERS_CONFIG = providers_list
-                logger.info(f"Loaded {len(providers_list)} API providers.")
-            else:
-                logger.warning("No providers_list found. Will fallback to default config variables.")
-                # Fallback to old method just in case
-                if data.get("openrouter_api_key"):
-                    config.OPENROUTER_API_KEY = data["openrouter_api_key"]
-                if data.get("hf_token"):
-                    config.HF_TOKEN = data["hf_token"]
-                if data.get("ai_provider"):
-                    config.AI_PROVIDER = data["ai_provider"].upper()
-                if data.get("ai_main_model"):
-                    config.AI_MAIN_MODEL = data["ai_main_model"]
-                if data.get("ai_risk_model"):
-                    config.AI_RISK_MODEL = data["ai_risk_model"]
-
-            # Auto-detect account_id from Supabase
-            try:
-                account_endpoint = f"{url}/rest/v1/account_settings?select=account_id&limit=1"
-                acc_response = requests.get(
-                    account_endpoint,
-                    headers={
-                        "apikey": key,
-                        "Authorization": f"Bearer {key}",
-                    },
-                    timeout=config.SUPABASE_REQUEST_TIMEOUT,
-                )
-                if acc_response.status_code < 400 and acc_response.json() and len(acc_response.json()) > 0:
-                    detected_acc = acc_response.json()[0].get("account_id")
-                    if detected_acc:
-                        config.ACCOUNT_ID = detected_acc
-                        logger.info(f"Auto-detected Account ID from Supabase: {detected_acc}")
-            except Exception as e:
-                logger.warning(f"Failed to auto-detect account from Supabase: {e}")
-
-            return True
+            
+        with open(SHARED_STATE_FILE, "r") as f:
+            state = json.load(f)
+            
+        sys_data = state.get("system_settings", {})
+        if not sys_data:
+            return False
+            
+        providers_list = sys_data.get("providers_list", [])
+        if isinstance(providers_list, list) and len(providers_list) > 0:
+            config.PROVIDERS_CONFIG = providers_list
+            logger.info(f"Loaded {len(providers_list)} API providers from shared state.")
         else:
-            logger.info("No global system settings found in Supabase. Using .env defaults.")
-            return False
-
+            logger.warning("No providers_list found in shared state.")
+            
+        # We don't auto-detect account ID here anymore; account_settings handles it
+        return True
+        
     except Exception as e:
-        logger.error(f"Failed to fetch system settings from Supabase: {e}")
+        logger.error(f"Failed to load system settings from shared_state.json: {e}")
         return False
 
