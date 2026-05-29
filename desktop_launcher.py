@@ -3,7 +3,18 @@ from tkinter import ttk, scrolledtext
 import subprocess
 import threading
 import os
+import sys
 import signal
+import time
+import queue
+
+# For importing account_settings from Bot Engine
+sys.path.append(os.path.join(os.path.dirname(__file__), "Bot Engine"))
+try:
+    from account_settings import get_all_enabled_accounts
+    from system_settings import fetch_and_apply_system_settings
+except ImportError:
+    pass
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -93,7 +104,7 @@ class TerminalUI:
             text=True,
             bufsize=1,
             env=env,
-            creationflags=CREATE_NO_WINDOW
+            creationflags=CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         
         thread = threading.Thread(target=self._read_output, daemon=True)
@@ -103,8 +114,11 @@ class TerminalUI:
         if self.process and self.process.poll() is None:
             self.log(f"\n--- Stopping {self.name} ---\n")
             try:
-                # Use signal.CTRL_C_EVENT to allow graceful shutdown if possible
-                os.kill(self.process.pid, signal.CTRL_C_EVENT)
+                # Try graceful shutdown
+                if os.name == 'nt':
+                    os.kill(self.process.pid, signal.CTRL_C_EVENT)
+                else:
+                    os.kill(self.process.pid, signal.SIGTERM)
             except Exception:
                 try:
                     self.process.terminate()
@@ -114,53 +128,189 @@ class TerminalUI:
 
     def set_stopped(self):
         self.lbl_status.config(text="🔴 Stopped", fg="#FF5C5C")
-
+        self.process = None
 
 class LauncherApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Investment-AI Microservices Command Center")
-        self.root.geometry("1400x700")
+        self.root.title("Investment-AI Supervisor & Terminal Manager")
+        self.root.geometry("1400x800")
         self.root.configure(bg="#1E1E1E")
+        
+        self.running = False
+        
+        # Terminals dictionary: key = ID, value = TerminalUI object
+        self.terminals = {}
         
         # Top Control Bar
         self.control_frame = tk.Frame(root, bg="#252526", height=60)
         self.control_frame.pack(fill=tk.X, side=tk.TOP)
         self.control_frame.pack_propagate(False)
         
-        lbl = tk.Label(self.control_frame, text="⚙️ AI Trading Bot Command Center", font=("Segoe UI", 14, "bold"), bg="#252526", fg="#FFFFFF")
+        lbl = tk.Label(self.control_frame, text="⚙️ AI Trading Supervisor", font=("Segoe UI", 14, "bold"), bg="#252526", fg="#FFFFFF")
         lbl.pack(side=tk.LEFT, padx=20, pady=15)
         
-        btn_start_all = tk.Button(self.control_frame, text="▶ Start All", font=("Segoe UI", 10, "bold"), bg="#4CAF50", fg="white", borderwidth=0, padx=15, pady=5, cursor="hand2", command=self.start_all)
-        btn_start_all.pack(side=tk.RIGHT, padx=10, pady=15)
+        self.btn_start_all = tk.Button(self.control_frame, text="▶ Start Supervisor", font=("Segoe UI", 10, "bold"), bg="#4CAF50", fg="white", borderwidth=0, padx=15, pady=5, cursor="hand2", command=self.start_supervisor)
+        self.btn_start_all.pack(side=tk.RIGHT, padx=10, pady=15)
         
-        btn_stop_all = tk.Button(self.control_frame, text="⏹ Stop All", font=("Segoe UI", 10, "bold"), bg="#FF5C5C", fg="white", borderwidth=0, padx=15, pady=5, cursor="hand2", command=self.stop_all)
-        btn_stop_all.pack(side=tk.RIGHT, padx=5, pady=15)
+        self.btn_stop_all = tk.Button(self.control_frame, text="⏹ Stop All", font=("Segoe UI", 10, "bold"), bg="#FF5C5C", fg="white", borderwidth=0, padx=15, pady=5, cursor="hand2", command=self.stop_all)
+        self.btn_stop_all.pack(side=tk.RIGHT, padx=5, pady=15)
+        self.btn_stop_all.config(state=tk.DISABLED)
         
-        # Terminals Container (Grid layout 2 columns)
-        self.terminals_frame = tk.Frame(root, bg="#1E1E1E")
-        self.terminals_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.lbl_watchdog = tk.Label(self.control_frame, text="Supervisor is inactive.", font=("Segoe UI", 10), bg="#252526", fg="#D4D4D4")
+        self.lbl_watchdog.pack(side=tk.RIGHT, padx=20, pady=15)
         
-        self.terminals_frame.columnconfigure(0, weight=1)
-        self.terminals_frame.columnconfigure(1, weight=1)
-        self.terminals_frame.rowconfigure(0, weight=1)
+        # Terminals Container (Grid layout with scrollbar if needed)
+        self.canvas = tk.Canvas(root, bg="#1E1E1E", highlightthickness=0)
+        self.scrollbar = tk.Scrollbar(root, orient="vertical", command=self.canvas.yview)
         
-        # Define Terminals
-        self.terminals = [
-            TerminalUI(self.terminals_frame, "🤖 Terminal 1: AI Trader", ["python", "main.py"], bg_color="#181818", fg_color="#DCDCAA"),
-            TerminalUI(self.terminals_frame, "🛡️ Terminal 3: Trade Manager", ["python", "terminal_trade_manager.py"], bg_color="#181818", fg_color="#CE9178"),
-        ]
+        self.terminals_frame = tk.Frame(self.canvas, bg="#1E1E1E")
+        self.terminals_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         
-        for i, term in enumerate(self.terminals):
-            term.frame.grid(row=0, column=i, sticky="nsew", padx=5)
+        self.canvas.create_window((0, 0), window=self.terminals_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=10)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=0, pady=10)
+        
+        # We handle layout dynamically
+        self.update_layout()
 
-    def start_all(self):
-        for term in self.terminals:
-            term.start()
+    def update_layout(self):
+        """Rearrange terminals in a grid (2 columns max)."""
+        col = 0
+        row = 0
+        
+        # We always want Master Analyzer first if it exists
+        term_keys = list(self.terminals.keys())
+        if "master" in term_keys:
+            term_keys.remove("master")
+            term_keys.insert(0, "master")
+            
+        # Also let's put Watchdog terminal next
+        if "watchdog" in term_keys:
+            term_keys.remove("watchdog")
+            term_keys.insert(1, "watchdog")
+
+        for key in term_keys:
+            term = self.terminals[key]
+            term.frame.grid(row=row, column=col, sticky="nsew", padx=5, pady=5)
+            # Give frame some fixed dimensions to prevent collapsing
+            term.frame.configure(width=650, height=350)
+            term.frame.grid_propagate(False)
+            
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+
+    def ensure_terminal_exists(self, term_id, title, command, bg_color, fg_color):
+        if term_id not in self.terminals:
+            term = TerminalUI(self.terminals_frame, title, command, bg_color=bg_color, fg_color=fg_color)
+            self.terminals[term_id] = term
+            self.update_layout()
+            # Start it automatically if supervisor is running
+            if self.running:
+                term.start()
+        return self.terminals[term_id]
+
+    def remove_terminal(self, term_id):
+        if term_id in self.terminals:
+            term = self.terminals[term_id]
+            term.stop()
+            term.frame.destroy()
+            del self.terminals[term_id]
+            self.update_layout()
+
+    def watchdog_loop(self):
+        """Runs in background thread, syncing settings every 5 minutes and managing terminals."""
+        # We'll use a local "watchdog" terminal to show supervisor logs
+        # We can simulate a terminal by just having one that prints our local logs
+        
+        while self.running:
+            self.root.after(0, lambda: self.lbl_watchdog.config(text="🔄 Supervisor is checking Supabase..."))
+            self._log_to_watchdog("\n[WATCHDOG] Waking up to check system settings and active accounts...")
+            
+            try:
+                # 1. Fetch System Settings
+                fetch_and_apply_system_settings()
+                self._log_to_watchdog("[WATCHDOG] System settings & API keys fetched successfully.")
+                
+                # 2. Get active accounts from Supabase
+                active_accounts = get_all_enabled_accounts()
+                self._log_to_watchdog(f"[WATCHDOG] Found {len(active_accounts)} active accounts: {active_accounts}")
+                
+                # 3. Ensure Master Analyzer is running
+                if len(active_accounts) > 0:
+                    self.root.after(0, lambda: self.ensure_terminal_exists(
+                        "master", "🧠 Master Analyzer", ["python", "master_analyzer.py"], "#101018", "#E6E6FA"
+                    ))
+                
+                # 4. Ensure Account Terminals are running
+                for acc_id in active_accounts:
+                    term_id = f"acc_{acc_id}"
+                    title = f"📈 Terminal: Account {acc_id}"
+                    cmd = ["python", "account_terminal.py", str(acc_id)]
+                    self.root.after(0, lambda t=term_id, ti=title, c=cmd: self.ensure_terminal_exists(
+                        t, ti, c, "#181818", "#DCDCAA"
+                    ))
+                
+                # 5. Stop & Remove inactive terminals
+                # (Keep watchdog and master alone)
+                existing_term_ids = list(self.terminals.keys())
+                for term_id in existing_term_ids:
+                    if term_id.startswith("acc_"):
+                        acc_id_str = term_id.replace("acc_", "")
+                        if acc_id_str not in active_accounts:
+                            self._log_to_watchdog(f"[WATCHDOG] Account {acc_id_str} is disabled. Terminating its terminal...")
+                            self.root.after(0, lambda t=term_id: self.remove_terminal(t))
+                            
+            except Exception as e:
+                self._log_to_watchdog(f"[WATCHDOG] ⚠ Error during check: {e}")
+
+            # Sleep for 5 minutes (300 seconds), broken down into small chunks to allow quick exit
+            self.root.after(0, lambda: self.lbl_watchdog.config(text="✅ Supervisor active. Sleeping..."))
+            for _ in range(300):
+                if not self.running:
+                    break
+                time.sleep(1)
+
+    def _log_to_watchdog(self, msg):
+        # Safely log to the watchdog terminal if it exists
+        def append_log():
+            if "watchdog" in self.terminals:
+                self.terminals["watchdog"].log(msg + "\n")
+        self.root.after(0, append_log)
+
+    def start_supervisor(self):
+        if self.running:
+            return
+            
+        self.running = True
+        self.btn_start_all.config(state=tk.DISABLED)
+        self.btn_stop_all.config(state=tk.NORMAL)
+        
+        # Create a fake terminal for Watchdog output
+        self.ensure_terminal_exists(
+            "watchdog", "👁️ Watchdog / Supervisor", ["cmd.exe", "/c", "echo Supervisor running..."], "#0D1B2A", "#74B3CE"
+        )
+        
+        # We don't actually run a process for watchdog, we just hijack the TerminalUI for logging.
+        # But TerminalUI starts a subprocess if start() is called. 
+        # By setting command to an infinite sleep or just letting it run out and stop, it's fine.
+        
+        # Start watchdog thread
+        threading.Thread(target=self.watchdog_loop, daemon=True).start()
 
     def stop_all(self):
-        for term in self.terminals:
+        self.running = False
+        self.lbl_watchdog.config(text="Supervisor is inactive.")
+        
+        for term in self.terminals.values():
             term.stop()
+            
+        self.btn_start_all.config(state=tk.NORMAL)
+        self.btn_stop_all.config(state=tk.DISABLED)
 
     def on_closing(self):
         self.stop_all()

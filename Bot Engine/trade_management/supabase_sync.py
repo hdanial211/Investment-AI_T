@@ -205,6 +205,41 @@ class SupabaseSync:
             logger.warning(f"Error fetching enabled accounts: {e}")
         return ["acc_1"]
 
+    def upsert_market_signal(self, signal_data: Dict) -> None:
+        """Upsert a market signal from the Master Analyzer into the market_signals table."""
+        payload = {
+            "symbol": signal_data.get("symbol"),
+            "action": signal_data.get("action"),
+            "confidence": signal_data.get("confidence"),
+            "trade_style": signal_data.get("trade_style"),
+            "reason": signal_data.get("reason"),
+            "market_regime": signal_data.get("market_regime"),
+            "indicators_snapshot": signal_data.get("indicators_snapshot"),
+            "vision_bias": signal_data.get("vision_bias"),
+            "bid": signal_data.get("bid"),
+            "ask": signal_data.get("ask"),
+            "atr": signal_data.get("atr"),
+            "signal_id": signal_data.get("signal_id"),
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        self._upsert("market_signals", payload, conflict="symbol")
+
+    def fetch_market_signals(self) -> List[Dict]:
+        """Fetch the latest market signals (one per symbol) from Supabase."""
+        if not self.enabled:
+            return []
+        url = f"{self.base_url}/rest/v1/market_signals?select=*&order=created_at.desc"
+        try:
+            import requests
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch market_signals: {response.text[:240]}")
+        except Exception as e:
+            logger.warning(f"Error fetching market_signals: {e}")
+        return []
+
     def fetch_pattern_usage_stats(self) -> Dict:
         if not self.enabled:
             return {}
