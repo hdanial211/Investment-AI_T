@@ -100,7 +100,7 @@ class TickSimulator:
         tfs = {'M1': '1min', 'M5': '5min', 'M15': '15min', 'M30': '30min', 'H1': '1h', 'H4': '4h'}
         for name, pd_freq in tfs.items():
             if name == 'M1':
-                mdf['M1'] = self.df_m1.iloc[:self.current_idx+1].copy()
+                mdf['M1'] = self.df_m1.iloc[:self.current_idx+1].tail(100).copy()
                 continue
                 
             t_start = current_time.floor(pd_freq)
@@ -116,10 +116,12 @@ class TickSimulator:
                     'close': forming_m1['close'].iloc[-1],
                     'volume': forming_m1['volume'].sum()
                 }]).set_index('time')
-                mdf[name] = pd.concat([past_df, current_row])
+                full = pd.concat([past_df, current_row])
             else:
-                mdf[name] = past_df
+                full = past_df
                 
+            mdf[name] = full.tail(100).copy()
+            
         return mdf
 
 # Global State
@@ -232,9 +234,9 @@ def init_simulation():
         
     sim = TickSimulator(df)
     
-    # Start the simulation index after 2 days (2880 M1 bars) 
-    # to ensure there is enough historical data to show on the graph
-    start_offset = min(2880, max(0, sim.total_ticks - 1440))
+    # Start the simulation index after 10 days (14400 M1 bars) 
+    # to ensure there is enough historical data to show on the graph and avoid flat first bars
+    start_offset = min(14400, max(0, sim.total_ticks - 1440))
     sim.current_idx = start_offset
     
     sim_state["symbol"] = symbol
