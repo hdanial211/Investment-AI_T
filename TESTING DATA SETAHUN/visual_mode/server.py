@@ -392,9 +392,9 @@ def next_bar():
             ind = calculate_multi_indicators(mdf, sim_state["symbol"])
             if ind:
                 # Basic check before calling AI
-                h1_adx = ind["H1"]["adx"]
+                h1_adx = ind.get("adx", 0)
                 if h1_adx > 20: # Example condition
-                    action = "BUY" if ind["H1"]["ema9"] > ind["H1"]["ema21"] else "SELL"
+                    action = "BUY" if ind.get("h1_macd_trend") == "bullish" else "SELL"
                     sim_state["ai_logs"].append(f"[{time_str}] Setup detected on H1 ADX > 20. Querying AI...")
                     
                     if config.AI_PROVIDER != "":
