@@ -22,6 +22,7 @@ try:
     from strategy import calculate_multi_indicators
     from ai_engine import get_ai_signal
     import system_settings
+    from mt5_connector import MT5Connector
     HAS_BOT_ENGINE = True
 except ImportError as e:
     HAS_BOT_ENGINE = False
@@ -77,6 +78,32 @@ def load_data_yfinance(symbol: str, days: int = 60, interval: str = "1h") -> pd.
     
     return df
 
+def load_data_mt5(symbol: str, days: int, interval: str) -> pd.DataFrame:
+    if not HAS_BOT_ENGINE:
+        return None
+        
+    # Map typical interval strings to MT5
+    tf_map = {
+        "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30",
+        "1h": "H1", "4h": "H4", "1d": "D1"
+    }
+    mt5_tf = tf_map.get(interval, "H1")
+    
+    # Calculate bars required (roughly)
+    bars_per_day = {
+        "M1": 1440, "M5": 288, "M15": 96, "M30": 48,
+        "H1": 24, "H4": 6, "D1": 1
+    }
+    bars = bars_per_day.get(mt5_tf, 24) * days
+    
+    mt5 = MT5Connector()
+    if mt5.connect():
+        df = mt5.get_ohlcv(symbol, mt5_tf, bars)
+        mt5.disconnect()
+        if df is not None and not df.empty:
+            return df
+    return None
+
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
@@ -88,12 +115,20 @@ def init_simulation():
     days = int(data.get("days", 30))
     tf = data.get("timeframe", "1h")
     mode = data.get("mode", "INTRADAY")
+    source = data.get("source", "yfinance")
     
     config.TRADING_MODE = mode
     
-    df = load_data_yfinance(symbol, days, tf)
+    if source == "mt5":
+        df = load_data_mt5(symbol, days, tf)
+        if df is None or df.empty:
+            # Fallback
+            df = load_data_yfinance(symbol, days, tf)
+    else:
+        df = load_data_yfinance(symbol, days, tf)
+        
     if df is None or df.empty:
-        return jsonify({"success": False, "error": "No data found for symbol."})
+        return jsonify({"success": False, "error": "No data found for symbol. If using yfinance, M5/M15 is limited to 60 days."})
         
     # Reset state
     sim_state["symbol"] = symbol

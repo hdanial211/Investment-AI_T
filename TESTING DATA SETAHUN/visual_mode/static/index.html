@@ -214,6 +214,14 @@
                 <input type="text" id="cfg-symbol" value="XAUUSD">
             </div>
             <div class="form-group">
+                <label>Data Source</label>
+                <select id="cfg-source">
+                    <option value="mt5">MetaTrader 5 (MT5)</option>
+                    <option value="yfinance">Yahoo Finance (yfinance)</option>
+                </select>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">MT5 allows unlimited history. yfinance limits M5/M15 to 60 days.</div>
+            </div>
+            <div class="form-group">
                 <label>Timeframe</label>
                 <select id="cfg-tf">
                     <option value="1h">1 Hour (H1)</option>
@@ -340,7 +348,8 @@
             const payload = {
                 symbol: document.getElementById('cfg-symbol').value,
                 timeframe: document.getElementById('cfg-tf').value,
-                days: parseInt(document.getElementById('cfg-days').value)
+                days: parseInt(document.getElementById('cfg-days').value),
+                source: document.getElementById('cfg-source').value
             };
 
             try {
