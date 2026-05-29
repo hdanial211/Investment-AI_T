@@ -186,16 +186,29 @@ def main() -> int:
         "results": all_symbol_results,
     }
 
-    # ── Generate report ──────────────────────────────────────────────────────
+    # ── Generate HTML report ──────────────────────────────────────────────────
     if not REPORT_TEMPLATE.exists():
         print(f"[ERROR] Report template not found: {REPORT_TEMPLATE}")
         return 1
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Save JSON for AI Report
+    json_name = f"backtest_{'-'.join(symbols)}_{ts}.json"
+    json_path = REPORTS_DIR / json_name
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(combined, indent=2, default=str), encoding="utf-8")
+
+    # Generate HTML
     output_name = f"backtest_{'-'.join(symbols)}_{ts}.html"
     output_path = REPORTS_DIR / output_name
-
     build_report(combined, REPORT_TEMPLATE, output_path)
+
+    # ── Generate AI Markdown Report ──────────────────────────────────────────
+    ai_report_script = TESTING_ROOT / "generate_ai_report.py"
+    if ai_report_script.exists():
+        print("\n[INFO] Generating AI Markdown Report...")
+        subprocess.run([sys.executable, str(ai_report_script), str(json_path)])
 
     print(f"\n{'='*60}")
     print(f"✅ Backtest complete!")
