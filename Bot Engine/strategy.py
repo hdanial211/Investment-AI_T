@@ -32,8 +32,8 @@ def calc_ema(series: pd.Series, period: int) -> pd.Series:
 
 def calc_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     delta = series.diff()
-    gain  = delta.clip(lower=0)
-    loss  = -delta.clip(upper=0)
+    gain  = delta.clip(lower=0).fillna(0)
+    loss  = -delta.clip(upper=0).fillna(0)
 
     avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
     avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
@@ -81,11 +81,12 @@ def calc_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
         (low - close.shift()).abs()
     ], axis=1).max(axis=1)
     
-    atr = tr.ewm(alpha=1/period, adjust=False).mean()
+    atr = tr.ewm(alpha=1/period, adjust=False).mean().replace(0, np.finfo(float).eps)
     plus_di = 100 * (pd.Series(plus_dm).ewm(alpha=1/period, adjust=False).mean() / atr)
     minus_di = 100 * (pd.Series(minus_dm).ewm(alpha=1/period, adjust=False).mean() / atr)
     
     dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di).replace(0, np.finfo(float).eps))
+    dx = dx.fillna(0) # Prevent NaN from poisoning ewm(adjust=False)
     adx = dx.ewm(alpha=1/period, adjust=False).mean()
     return adx
 
