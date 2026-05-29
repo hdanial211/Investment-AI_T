@@ -180,6 +180,12 @@ def load_data_mt5(symbol: str, days: int) -> pd.DataFrame:
         print("[MT5] Error: Could not initialize MT5. Is it open?")
         return None
         
+    symbol_info = mt5.symbol_info(symbol)
+    if symbol_info is None:
+        print(f"[MT5] Error: Symbol '{symbol}' not found in your MT5 broker! Check Market Watch for the exact name (e.g., GOLD, XAUUSD.m).")
+        mt5.shutdown()
+        return None
+        
     rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, bars)
     mt5.shutdown()
     
