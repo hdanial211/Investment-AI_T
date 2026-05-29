@@ -330,7 +330,7 @@ class TradeMemory:
         self._save()
         return False, ""
 
-    def sync_with_broker(self, active_tickets: list, symbol: str = None, get_profit_fn=None):
+    def sync_with_broker(self, active_tickets: list, symbol: str = None, get_close_info_fn=None):
         """
         Compare active broker tickets with local memory.
         If a ticket is in memory but NOT in broker, it means it closed.
@@ -345,15 +345,27 @@ class TradeMemory:
                 continue
             if mt not in active_str_tickets:
                 sym = self.data["active_trades"][mt]["symbol"]
-                logger.info(f"[{sym}] Trade {mt} closed. Initiating cooling-off period.")
                 profit = 0.0
-                if get_profit_fn:
+                exit_reason = "broker_closed"
+                
+                if get_close_info_fn:
                     try:
-                        profit = get_profit_fn(int(mt))
-                    except Exception as e:
-                        logger.error(f"Failed to fetch profit for closed trade {mt}: {e}")
+                        close_info = get_close_info_fn(int(mt))
+                        profit = close_info.get("profit", 0.0)
+                        comment = (close_info.get("comment") or "").lower()
                         
-                self.mark_trade_closed(int(mt), sym, profit=profit, exit_reason="broker_closed")
+                        if "so:" in comment:
+                            exit_reason = "Stop Out (Margin Call)"
+                        elif "sl:" in comment:
+                            exit_reason = "Broker SL"
+                        elif "tp:" in comment:
+                            exit_reason = "Broker TP"
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to fetch close info for trade {mt}: {e}")
+                        
+                logger.info(f"[{sym}] Trade {mt} closed ({exit_reason}). Initiating cooling-off period.")
+                self.mark_trade_closed(int(mt), sym, profit=profit, exit_reason=exit_reason)
                 closed = self.data.get("closed_trades", {}).get(mt)
                 if closed:
                     closed_states.append(closed)

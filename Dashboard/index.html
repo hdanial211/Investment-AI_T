@@ -561,6 +561,9 @@
 
     function formatReason(val) {
       if (!val) return "-";
+      if (val === "Stop Out (Margin Call)") return "Margin Call";
+      if (val === "Broker SL") return "Broker SL";
+      if (val === "Broker TP") return "Broker TP";
       if (val === "broker_closed") return "Manual";
       if (val === "virtual_sl") return "SL";
       if (val === "virtual_tp") return "TP";

@@ -43,7 +43,7 @@ class ActiveTradeManager:
         closed_by_broker = self.trade_memory.sync_with_broker(
             active_tickets, 
             symbol=symbol,
-            get_profit_fn=self.connector.get_position_profit
+            get_close_info_fn=self.connector.get_position_close_info
         )
         for closed_state in closed_by_broker:
             self._sync_closed_state(closed_state, event_type="broker_closed")

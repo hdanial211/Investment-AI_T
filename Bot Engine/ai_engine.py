@@ -42,11 +42,10 @@ CRITICAL JSON OUTPUT RULES:
 REGIME_INSTRUCTIONS = {
     "TRENDING": """
 --- MARKET REGIME: TRENDING (ADX > 25) ---
-- The market has a clear directional trend. Prioritize INTRADAY or SWING setups.
-- Scalping is secondary — only use it if M5/M15 patterns are exceptionally strong.
-- Look for breakout continuations, flag patterns, and trend-following entries.
-- H4 trend direction is PRIMARY. M15/M5 are for entry timing only.
-- For INTRADAY: hold 1–8 hours. For SWING: hold 1–5 days.
+- The market has a clear directional trend. 
+- You may choose SCALPING (for quick momentum bursts, 5-30 mins) OR INTRADAY (to ride the trend for 1-8 hours).
+- Do not restrict yourself. If M15/M5 momentum is very strong, SCALPING is highly recommended.
+- H4 trend direction is PRIMARY.
 """,
     "RANGING": """
 --- MARKET REGIME: RANGING (ADX < 25) ---
