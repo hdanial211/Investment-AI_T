@@ -388,9 +388,9 @@ def next_bar():
     # 3. Strategy Logic (Execute once per new H1 candle close? Or M15?)
     # To save CPU, we only run AI logic on the close of an M15 bar
     ai_event = None
-    is_m15_close = (sim.current_idx % 15 == 0) and sim.current_idx > 0
+    is_m5_close = (sim.current_idx % 5 == 0) and sim.current_idx > 0
     
-    if is_m15_close and len(sim_state["open_trades"]) == 0:
+    if is_m5_close and len(sim_state["open_trades"]) == 0:
         if not HAS_BOT_ENGINE:
             ai_event = {"type": "AI_DECISION", "action": "ERROR", "reason": "HAS_BOT_ENGINE is False (ImportError)", "time": time_str}
         else:
