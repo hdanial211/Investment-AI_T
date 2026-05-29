@@ -360,6 +360,16 @@ class TradeMemory:
                             exit_reason = "Broker SL"
                         elif "tp:" in comment:
                             exit_reason = "Broker TP"
+                        elif "virtual_sl" in comment:
+                            exit_reason = "virtual_sl"
+                        elif "virtual_tp" in comment:
+                            exit_reason = "virtual_tp"
+                        elif "profit_lock" in comment:
+                            exit_reason = "profit_lock"
+                        elif "virtual_trailing_stop" in comment:
+                            exit_reason = "virtual_trailing_stop"
+                        elif "reverse_signal" in comment:
+                            exit_reason = "reverse_signal"
                             
                     except Exception as e:
                         logger.error(f"Failed to fetch close info for trade {mt}: {e}")

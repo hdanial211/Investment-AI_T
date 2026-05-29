@@ -155,7 +155,7 @@ class ActiveTradeManager:
                 f"[{symbol}] Virtual exit triggered: {trigger} | "
                 f"Ticket {ticket} | Price {position.get('price_current')}"
             )
-            if self.connector.close_trade(ticket, symbol):
+            if self.connector.close_trade(ticket, symbol, comment=trigger):
                 profit = float(position.get("profit") or 0.0)
                 if self.risk_mgr:
                     self.risk_mgr.record_trade_result(profit)

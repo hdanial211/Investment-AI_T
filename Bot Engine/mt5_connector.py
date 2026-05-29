@@ -620,7 +620,7 @@ class MT5Connector:
         logger.info(f"[DEMO] Order placed: {action} {lot} {symbol} | Ticket: {ticket}")
         return {"success": True, "ticket": ticket, "message": "DEMO", "price": price}
 
-    def close_trade(self, ticket: int, symbol: str) -> bool:
+    def close_trade(self, ticket: int, symbol: str, comment: str = "AI_BOT_CLOSE") -> bool:
         """Close an open position by ticket."""
         if self.demo_mode:
             if ticket in _demo_positions:
@@ -649,6 +649,9 @@ class MT5Connector:
             else:
                 filling_type = mt5.ORDER_FILLING_RETURN
 
+        # Trim comment to 31 chars max
+        comment = comment[:31]
+
         request = {
             "action":       mt5.TRADE_ACTION_DEAL,
             "symbol":       symbol,
@@ -658,7 +661,7 @@ class MT5Connector:
             "price":        price,
             "deviation":    20,
             "magic":        123456,
-            "comment":      "AI_BOT_CLOSE",
+            "comment":      comment,
             "type_time":    mt5.ORDER_TIME_GTC,
             "type_filling": filling_type,
         }
