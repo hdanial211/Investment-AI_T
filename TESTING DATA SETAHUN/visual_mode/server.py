@@ -173,15 +173,21 @@ def load_data_mt5(symbol: str, days: int) -> pd.DataFrame:
     mt5_tf = mt5.TIMEFRAME_M1
     bars = 1440 * days
     
+    logger.info(f"Connecting to MT5 to download {bars} bars of M1 data for {symbol}...")
+    print(f"\n[MT5] Downloading {bars} M1 bars for {symbol} ({days} days)... Please wait.")
+    
     if not mt5.initialize():
+        print("[MT5] Error: Could not initialize MT5. Is it open?")
         return None
         
     rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, bars)
     mt5.shutdown()
     
     if rates is None or len(rates) == 0:
+        print("[MT5] Error: MT5 returned no data.")
         return None
         
+    print(f"[MT5] Successfully downloaded {len(rates)} bars!")
     df = pd.DataFrame(rates)
     df["time"] = pd.to_datetime(df["time"], unit="s")
     df = df.rename(columns={"tick_volume": "volume"})
@@ -215,6 +221,11 @@ def init_simulation():
         return jsonify({"success": False, "error": "No data found. Note: yfinance 1m data is limited to 7 days."})
         
     sim = TickSimulator(df)
+    
+    # Start the simulation index after 2 days (2880 M1 bars) 
+    # to ensure there is enough historical data to show on the graph
+    start_offset = min(2880, max(0, sim.total_ticks - 1440))
+    sim.current_idx = start_offset
     
     sim_state["symbol"] = symbol
     sim_state["balance"] = 10000.0
