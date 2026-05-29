@@ -95,6 +95,11 @@ def parse_args(saved: dict) -> argparse.Namespace:
         help="Do not auto-open the report in browser",
     )
     parser.add_argument(
+        "--use-ai", action="store_true",
+        default=saved.get("use_ai", False),
+        help="Use REAL Gemini AI to filter trades (WARNING: Slower & uses API quota!)",
+    )
+    parser.add_argument(
         "--settings", action="store_true",
         help="Open the settings UI in browser instead of running backtest",
     )
@@ -165,6 +170,7 @@ def main() -> int:
             start_date=start_date,
             end_date=end_date,
             min_confidence=args.confidence,
+            use_ai=args.use_ai,
         )
         result = run_full_backtest(cfg)
         if result:

@@ -53,16 +53,33 @@ echo ============================================================
 echo.
 
 REM ── Check if settings file exists ───────────────────────────
+set USE_AI_FLAG=
+
+echo ============================================================
+echo   [PILIHAN AI]
+echo   Adakah awak mahu gunakan REAL AI (Gemini) untuk filter trades?
+echo   - YA: Keputusan lebih tepat/realistik tapi akan mengambil masa LEBIH LAMA.
+echo   - TIDAK: Hanya gunakan technical indicator (Sangat pantas).
+echo ============================================================
+set /p use_ai="Guna REAL AI? (Y/N): "
+if /I "%use_ai%"=="Y" (
+    set USE_AI_FLAG=--use-ai
+    echo [INFO] REAL AI Filter dihidupkan!
+) else (
+    echo [INFO] AI Filter dimatikan (Fast mode).
+)
+echo.
+
 if exist "backtest_settings.json" (
     echo [INFO] Settings file found - menggunakan custom settings...
     echo.
-    python run_backtest.py
+    python run_backtest.py %USE_AI_FLAG%
 ) else (
     echo [INFO] Tiada settings file - menggunakan defaults...
     echo [INFO] Symbol: XAUUSD + EURUSD ^| Styles: All ^| Balance: $10,000
     echo [INFO] Data: 1 tahun lepas sehingga hari ini ^(auto-download^)
     echo.
-    python run_backtest.py --symbol XAUUSD EURUSD --style SCALPING INTRADAY SWING --balance 10000
+    python run_backtest.py --symbol XAUUSD EURUSD --style SCALPING INTRADAY SWING --balance 10000 %USE_AI_FLAG%
 )
 
 if errorlevel 1 (

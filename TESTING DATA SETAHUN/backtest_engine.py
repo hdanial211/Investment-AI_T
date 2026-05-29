@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# ── Add Bot Engine to path for style_params ───────────────────────────────────
+# ── Add Bot Engine to path for style_params and ai_engine ──────────────────────
 TESTING_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = TESTING_ROOT.parent
 BOT_ENGINE = PROJECT_ROOT / "Bot Engine"
@@ -29,6 +29,12 @@ try:
     HAS_STYLE_PARAMS = True
 except ImportError:
     HAS_STYLE_PARAMS = False
+
+try:
+    from ai_engine import get_ai_signal
+    HAS_AI_ENGINE = True
+except ImportError:
+    HAS_AI_ENGINE = False
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 PIP_SIZE = {"XAUUSD": 0.01, "EURUSD": 0.00001, "DEFAULT": 0.0001}
@@ -398,6 +404,7 @@ class BacktestConfig:
     min_confidence: float = 0.55
     min_bars_between_entries: int = 3
     max_open_per_symbol: int = 3
+    use_ai: bool = False  # Set to True to call the real Gemini AI for trade filtering
 
 
 @dataclass
@@ -547,6 +554,56 @@ def run_simulation(
 
         if signal["action"] == "HOLD" or signal["confidence"] < cfg.min_confidence:
             continue
+
+        # ── Optional: Query REAL Cloud AI ─────────────────────────────────────
+        if cfg.use_ai and HAS_AI_ENGINE:
+            import time
+            
+            # Construct a mock indicator dict representing the single-timeframe data
+            regime = "TRENDING" if float(row.get("adx", 0)) >= 25 else "RANGING"
+            trend = "bullish" if row.get("ema9",0) > row.get("ema21",0) else "bearish"
+            
+            mock_indicators = {
+                "symbol": cfg.symbol,
+                "price": close,
+                "market_regime": regime,
+                "adx": round(float(row.get("adx", 0)), 2),
+                "h4_trend": trend, # using 1h as proxy
+                "h4_ema50": row.get("ema50", 0),
+                "h4_ema200": row.get("ema200", 0),
+                "h4_golden_cross": row.get("ema50",0) > row.get("ema200",0),
+                "h1_resistance": high * 1.01, # mock
+                "h1_support": low * 0.99, # mock
+                "h1_macd_trend": trend,
+                "m15_rsi": round(float(row.get("rsi", 50)), 2), # proxy
+                "m15_liquidity_sweep": "none",
+                "m15_pattern": "none",
+                "m5_liquidity_sweep": "none",
+                "m5_pattern": "none",
+                "atr": row.get("atr", 0),
+                "pattern_bias": {"bias": "none", "bullish_score": 0, "bearish_score": 0},
+                "detected_patterns": [],
+                "trading_mode": trade_style
+            }
+
+            print(f"\n[AI] Querying Gemini AI for {action} setup on {ts}...")
+            ai_signal = get_ai_signal(mock_indicators, bid=close, ask=close, trade_memory=None, symbol=cfg.symbol)
+            
+            # Rate limit protection (Google free tier is ~15 RPM)
+            time.sleep(4.0) 
+
+            if ai_signal.get("action", "HOLD") == "HOLD":
+                print(f"  → AI Rejected: {ai_signal.get('reason')}")
+                continue
+            
+            # Override with AI's decision
+            signal = ai_signal
+            signal["confidence"] = ai_signal.get("confidence", signal["confidence"])
+            signal["reason"] = f"[AI Filtered] {ai_signal.get('reason', '')}"
+            print(f"  → AI APPROVED: {signal['action']} ({signal['confidence']})")
+            
+            if signal["action"] == "HOLD":
+                continue
 
         atr = float(row.get("atr", 0) or 0)
         if atr <= 0:
