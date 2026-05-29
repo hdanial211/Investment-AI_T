@@ -126,7 +126,7 @@ def download_data(
     end: datetime,
     interval: str = "1h",
 ) -> Optional[object]:
-    """Download OHLCV data from Yahoo Finance."""
+    """Download OHLCV data from Yahoo Finance (compatible with yfinance 0.2+ and 1.4+)."""
     pd, np = _try_import_pandas()
     yf = _try_import_yfinance()
     if yf is None:
@@ -135,26 +135,82 @@ def download_data(
 
     # Map symbol to Yahoo Finance ticker
     yf_map = {
-        "XAUUSD": "GC=F",   # Gold Futures
+        "XAUUSD": "GC=F",    # Gold Futures
         "EURUSD": "EURUSD=X",
     }
     s = symbol.upper()
     ticker = yf_map.get(s, s)
 
     print(f"[DATA] Downloading {symbol} ({ticker}) from Yahoo Finance...")
-    df = yf.download(ticker, start=start, end=end, interval=interval, progress=False, auto_adjust=True)
-    if df is None or len(df) == 0:
+    try:
+        raw = yf.download(
+            ticker,
+            start=start,
+            end=end,
+            interval=interval,
+            progress=False,
+            auto_adjust=True,
+            group_by="column",
+        )
+    except Exception as e:
+        print(f"[ERROR] Download failed: {e}")
+        return None
+
+    if raw is None or raw.empty:
         print(f"[WARNING] No data returned for {symbol}")
         return None
 
-    df.columns = [c[0].lower() if isinstance(c, tuple) else c.lower() for c in df.columns]
-    df = df.reset_index()
-    time_col = "datetime" if "datetime" in df.columns else "date"
+    # ── Flatten MultiIndex columns (yfinance 1.4+) ────────────────────────
+    # yfinance 1.4 returns columns like ('Close', 'GC=F'), ('Open', 'GC=F') etc.
+    if isinstance(raw.columns, pd.MultiIndex):
+        # Take just the first level (OHLCV name), drop the ticker level
+        raw.columns = [col[0].lower() if isinstance(col, tuple) else str(col).lower() for col in raw.columns]
+    else:
+        raw.columns = [str(c).lower() for c in raw.columns]
+
+    # ── Reset index to get the datetime as a column ───────────────────────
+    df = raw.reset_index()
+
+    # Debug: show what columns we actually got
+    print(f"[DATA] Columns after reset_index: {list(df.columns)}")
+
+    # ── Find the datetime column (could be 'Datetime', 'Date', 'index', 'Price') ─
+    time_col = None
+    for candidate in ["datetime", "date", "index", "timestamp", "price"]:
+        if candidate in df.columns:
+            time_col = candidate
+            break
+
+    # If still not found, use the first column (it's almost always the index/datetime)
+    if time_col is None:
+        time_col = df.columns[0]
+        print(f"[DATA] Using first column as time: {time_col}")
+
     df = df.rename(columns={time_col: "time"})
-    df["time"] = pd.to_datetime(df["time"])
-    df = df[["time", "open", "high", "low", "close", "volume"]].dropna()
-    print(f"[DATA] Got {len(df)} bars for {symbol}")
+    df["time"] = pd.to_datetime(df["time"], utc=True).dt.tz_localize(None)
+
+    # ── Select OHLCV columns (volume optional for forex) ─────────────────
+    needed = ["time", "open", "high", "low", "close"]
+    for col in needed:
+        if col not in df.columns:
+            print(f"[ERROR] Missing column '{col}'. Available: {list(df.columns)}")
+            return None
+
+    if "volume" in df.columns:
+        df = df[needed + ["volume"]].dropna(subset=["open", "high", "low", "close"])
+    else:
+        df = df[needed].dropna()
+
+    df = df.sort_values("time").reset_index(drop=True)
+
+    # Ensure numeric types
+    for col in ["open", "high", "low", "close"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["open", "high", "low", "close"])
+
+    print(f"[DATA] Got {len(df)} bars for {symbol} | First: {df['time'].iloc[0]} | Last: {df['time'].iloc[-1]}")
     return df
+
 
 
 def load_csv_data(csv_path: str) -> Optional[object]:
