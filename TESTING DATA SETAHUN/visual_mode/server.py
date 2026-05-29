@@ -82,27 +82,40 @@ def load_data_mt5(symbol: str, days: int, interval: str) -> pd.DataFrame:
     if not HAS_BOT_ENGINE:
         return None
         
+    try:
+        import MetaTrader5 as mt5
+    except ImportError:
+        return None
+        
     # Map typical interval strings to MT5
     tf_map = {
-        "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30",
-        "1h": "H1", "4h": "H4", "1d": "D1"
+        "1m": mt5.TIMEFRAME_M1, "5m": mt5.TIMEFRAME_M5, "15m": mt5.TIMEFRAME_M15, "30m": mt5.TIMEFRAME_M30,
+        "1h": mt5.TIMEFRAME_H1, "4h": mt5.TIMEFRAME_H4, "1d": mt5.TIMEFRAME_D1
     }
-    mt5_tf = tf_map.get(interval, "H1")
+    mt5_tf = tf_map.get(interval, mt5.TIMEFRAME_H1)
     
     # Calculate bars required (roughly)
     bars_per_day = {
-        "M1": 1440, "M5": 288, "M15": 96, "M30": 48,
-        "H1": 24, "H4": 6, "D1": 1
+        mt5.TIMEFRAME_M1: 1440, mt5.TIMEFRAME_M5: 288, mt5.TIMEFRAME_M15: 96, mt5.TIMEFRAME_M30: 48,
+        mt5.TIMEFRAME_H1: 24, mt5.TIMEFRAME_H4: 6, mt5.TIMEFRAME_D1: 1
     }
     bars = bars_per_day.get(mt5_tf, 24) * days
     
-    mt5 = MT5Connector()
-    if mt5.connect():
-        df = mt5.get_ohlcv(symbol, mt5_tf, bars)
-        mt5.disconnect()
-        if df is not None and not df.empty:
-            return df
-    return None
+    if not mt5.initialize():
+        return None
+        
+    rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, bars)
+    mt5.shutdown()
+    
+    if rates is None or len(rates) == 0:
+        return None
+        
+    df = pd.DataFrame(rates)
+    df["time"] = pd.to_datetime(df["time"], unit="s")
+    df = df.rename(columns={"tick_volume": "volume"})
+    if "spread" not in df.columns:
+        df["spread"] = 0
+    return df
 
 @app.route("/")
 def index():
