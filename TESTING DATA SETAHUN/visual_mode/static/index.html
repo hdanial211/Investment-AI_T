@@ -340,8 +340,13 @@
 
         function initChart() {
             const container = document.getElementById('chart-container');
+            const rect = container.getBoundingClientRect();
+            let w = rect.width || (window.innerWidth * 0.75);
+            let h = rect.height || (window.innerHeight - 60);
+            
             chart = LightweightCharts.createChart(container, {
-                autoSize: true,
+                width: w,
+                height: h,
                 layout: {
                     background: { type: 'solid', color: '#0f172a' },
                     textColor: '#94a3b8',
