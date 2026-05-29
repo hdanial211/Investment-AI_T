@@ -390,31 +390,35 @@ def next_bar():
     ai_event = None
     is_m15_close = (sim.current_idx % 15 == 0) and sim.current_idx > 0
     
-    if is_m15_close and len(sim_state["open_trades"]) == 0 and HAS_BOT_ENGINE:
-        mdf = sim.get_mdf()
-        try:
-            ind = calculate_multi_indicators(mdf, sim_state["symbol"])
-            if ind:
-                # Basic check before calling AI
-                h1_adx = ind.get("adx", 0)
-                if h1_adx > 15: # Lowered threshold to trigger more often
-                    action = "BUY" if ind.get("h1_macd_trend") == "bullish" else "SELL"
-                    
-                    if config.AI_PROVIDER != "":
-                        ai_response = get_ai_signal(ind, current_price, current_price, None, sim_state["symbol"])
-                        final_action = ai_response.get("action", "HOLD")
-                        reason = ai_response.get("reason", "")
-                        
-                        ai_event = {"type": "AI_DECISION", "action": final_action, "reason": reason, "time": time_str}
-                        
-                        if final_action in ["BUY", "SELL"]:
-                            trade = simulate_trade_execution({'close': current_price, 'time': time_str}, ind, final_action)
-                            events.append({"type": "TRADE_OPEN", "trade": trade})
+    if is_m15_close and len(sim_state["open_trades"]) == 0:
+        if not HAS_BOT_ENGINE:
+            ai_event = {"type": "AI_DECISION", "action": "ERROR", "reason": "HAS_BOT_ENGINE is False (ImportError)", "time": time_str}
+        else:
+            mdf = sim.get_mdf()
+            try:
+                ind = calculate_multi_indicators(mdf, sim_state["symbol"])
+                if not ind:
+                    ai_event = {"type": "AI_DECISION", "action": "SKIP", "reason": "Not enough data for indicators", "time": time_str}
+                else:
+                    h1_adx = ind.get("adx", 0)
+                    if h1_adx > 15:
+                        if config.AI_PROVIDER != "":
+                            ai_response = get_ai_signal(ind, current_price, current_price, None, sim_state["symbol"])
+                            final_action = ai_response.get("action", "HOLD")
+                            reason = ai_response.get("reason", "")
+                            
+                            ai_event = {"type": "AI_DECISION", "action": final_action, "reason": reason, "time": time_str}
+                            
+                            if final_action in ["BUY", "SELL"]:
+                                trade = simulate_trade_execution({'close': current_price, 'time': time_str}, ind, final_action)
+                                events.append({"type": "TRADE_OPEN", "trade": trade})
+                        else:
+                            ai_event = {"type": "AI_DECISION", "action": "ERROR", "reason": "AI_PROVIDER is empty", "time": time_str}
                     else:
-                        ai_event = {"type": "AI_DECISION", "action": "ERROR", "reason": "AI_PROVIDER is empty", "time": time_str}
-        except Exception as e:
-            logger.error(f"Error in strategy: {e}")
-            sim_state["ai_logs"].append(f"[{time_str}] Error: {e}")
+                        ai_event = {"type": "AI_DECISION", "action": "SKIP", "reason": f"ADX ({h1_adx}) is too low (<15)", "time": time_str}
+            except Exception as e:
+                logger.error(f"Error in strategy: {e}")
+                ai_event = {"type": "AI_DECISION", "action": "ERROR", "reason": f"Exception: {e}", "time": time_str}
 
     if ai_event:
         events.append(ai_event)
