@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GOLD AI - Visual Strategy Tester</title>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
             --bg-dark: #0f172a;
@@ -340,13 +340,9 @@
 
         function initChart() {
             const container = document.getElementById('chart-container');
-            const rect = container.getBoundingClientRect();
-            let w = rect.width || (window.innerWidth * 0.75);
-            let h = rect.height || (window.innerHeight - 60);
             
             chart = LightweightCharts.createChart(container, {
-                width: w,
-                height: h,
+                autoSize: true,
                 layout: {
                     background: { type: 'solid', color: '#0f172a' },
                     textColor: '#94a3b8',
