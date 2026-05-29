@@ -203,7 +203,11 @@ def load_data_mt5(symbol: str, days: int) -> pd.DataFrame:
 
 @app.route("/")
 def index():
-    return app.send_static_file("index.html")
+    resp = app.send_static_file("index.html")
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 @app.route("/api/init", methods=["POST"])
 def init_simulation():

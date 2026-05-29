@@ -403,11 +403,15 @@
                 
                 if(data.success) {
                     document.getElementById('setup-overlay').style.display = 'none';
-                    initChart();
                     
-                    // Fetch initial history for currentTF
-                    setTF(currentTF);
-                    document.getElementById('val-progress').innerText = `0 / ${data.total_bars} Bars`;
+                    try {
+                        initChart();
+                        setTF(currentTF);
+                        document.getElementById('val-progress').innerText = `0 / ${data.total_bars} Bars`;
+                    } catch (err) {
+                        alert("CRITICAL ERROR in Chart Setup: " + err.message);
+                        console.error(err);
+                    }
                 } else {
                     status.innerText = "Error: " + data.error;
                     btn.disabled = false;
