@@ -587,7 +587,7 @@ def run_simulation(
                 "trading_mode": trade_style
             }
 
-            print(f"\n[AI] Querying Gemini AI for {action} setup on {ts}...")
+            print(f"\n[AI] Querying Gemini AI for {signal['action']} setup on {ts}...")
             ai_signal = get_ai_signal(mock_indicators, bid=close, ask=close, trade_memory=None, symbol=cfg.symbol)
             
             # Rate limit protection (Google free tier is ~15 RPM)
