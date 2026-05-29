@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOLD AI - Visual Strategy Tester</title>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-panel: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --buy-color: #22c55e;
+            --sell-color: #ef4444;
+            --border-color: #334155;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        /* Header */
+        header {
+            background-color: var(--bg-panel);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fbbf24;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        button {
+            background-color: var(--border-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background-color: #475569;
+        }
+        button.primary {
+            background-color: var(--accent);
+        }
+        button.primary:hover {
+            background-color: #2563eb;
+        }
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        /* Chart Area */
+        .chart-section {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+        }
+        #chart-container {
+            flex: 1;
+            position: relative;
+        }
+        /* Sidebar */
+        .sidebar {
+            flex: 1;
+            background-color: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+        }
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .panel-header {
+            padding: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #0f172a;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            font-size: 13px;
+        }
+        /* Metrics */
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 12px;
+            background-color: var(--bg-dark);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .metric-box {
+            background: var(--bg-panel);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        .metric-title {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .metric-value {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        /* Speed Slider */
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+        }
+        /* Setup Overlay */
+        #setup-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .setup-box {
+            background: var(--bg-panel);
+            padding: 32px;
+            border-radius: 12px;
+            width: 400px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 6px;
+        }
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .profit-pos { color: var(--buy-color); }
+        .profit-neg { color: var(--sell-color); }
+        
+        .log-entry { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); }
+        .log-time { color: var(--accent); font-size: 11px; margin-bottom: 2px; }
+    </style>
+</head>
+<body>
+
+    <!-- Setup Overlay -->
+    <div id="setup-overlay">
+        <div class="setup-box">
+            <h2 style="margin-top:0; color:#fbbf24;">Start Visual Backtest</h2>
+            <p style="color:var(--text-muted); font-size:14px; margin-bottom:24px;">Configure your historical data feed.</p>
+            
+            <div class="form-group">
+                <label>Symbol</label>
+                <input type="text" id="cfg-symbol" value="XAUUSD">
+            </div>
+            <div class="form-group">
+                <label>Timeframe</label>
+                <select id="cfg-tf">
+                    <option value="1h">1 Hour (H1)</option>
+                    <option value="15m">15 Minute (M15)</option>
+                    <option value="5m">5 Minute (M5)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Days of History</label>
+                <input type="number" id="cfg-days" value="30">
+            </div>
+            
+            <button class="primary" style="width:100%; margin-top:12px; padding:12px;" onclick="initSimulation()">Load Data & Start</button>
+            <div id="setup-status" style="margin-top:12px; font-size:13px; color:var(--text-muted); text-align:center;"></div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <div class="logo">🪙 GOLD AI Visual Tester</div>
+        <div class="controls">
+            <div class="speed-control">
+                <span>Speed: <span id="speed-val">1x</span></span>
+                <input type="range" id="speed-slider" min="1" max="100" value="10" oninput="updateSpeed()">
+            </div>
+            <button id="btn-play" class="primary" onclick="togglePlay()">Play ▶</button>
+            <button onclick="stepForward()">Step ⏭</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Chart Section -->
+        <div class="chart-section">
+            <div class="metrics">
+                <div class="metric-box">
+                    <div class="metric-title">Account Balance</div>
+                    <div class="metric-value" id="val-balance">$10,000.00</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Simulation Progress</div>
+                    <div class="metric-value" id="val-progress">0 / 0 Bars</div>
+                </div>
+            </div>
+            <div id="chart-container"></div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-header">AI Thought Logs</div>
+                <div class="panel-content" id="ai-logs">
+                    <div style="color:var(--text-muted); font-style:italic;">Waiting for AI decisions...</div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Trade History</div>
+                <div class="panel-content" style="padding:0;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Price</th>
+                                <th>P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trade-history">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart, candleSeries;
+        let isPlaying = false;
+        let playInterval;
+        let msPerBar = 100;
+        let markers = [];
+        
+        // Init Chart
+        function initChart() {
+            const container = document.getElementById('chart-container');
+            chart = LightweightCharts.createChart(container, {
+                layout: {
+                    background: { type: 'solid', color: '#0f172a' },
+                    textColor: '#94a3b8',
+                },
+                grid: {
+                    vertLines: { color: '#1e293b' },
+                    horzLines: { color: '#1e293b' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                timeScale: {
+                    timeVisible: true,
+                    secondsVisible: false,
+                }
+            });
+
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#22c55e',
+                downColor: '#ef4444',
+                borderVisible: false,
+                wickUpColor: '#22c55e',
+                wickDownColor: '#ef4444',
+            });
+            
+            // Handle resize
+            new ResizeObserver(entries => {
+                if (entries.length === 0 || entries[0].target !== container) { return; }
+                const newRect = entries[0].contentRect;
+                chart.applyOptions({ height: newRect.height, width: newRect.width });
+            }).observe(container);
+        }
+
+        async function initSimulation() {
+            const btn = document.querySelector('.setup-box button');
+            const status = document.getElementById('setup-status');
+            btn.disabled = true;
+            status.innerText = "Downloading historical data... Please wait.";
+            
+            const payload = {
+                symbol: document.getElementById('cfg-symbol').value,
+                timeframe: document.getElementById('cfg-tf').value,
+                days: parseInt(document.getElementById('cfg-days').value)
+            };
+
+            try {
+                const res = await fetch('http://127.0.0.1:5000/api/init', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if(data.success) {
+                    document.getElementById('setup-overlay').style.display = 'none';
+                    initChart();
+                    document.getElementById('val-progress').innerText = `0 / ${data.total_bars} Bars`;
+                } else {
+                    status.innerText = "Error: " + data.error;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                status.innerText = "Error connecting to backend server.";
+                btn.disabled = false;
+            }
+        }
+
+        async function fetchNextBar() {
+            try {
+                const res = await fetch('http://127.0.0.1:5000/api/next_bar');
+                const data = await res.json();
+                
+                if(data.done) {
+                    togglePlay(true); // Force pause
+                    alert("Simulation Complete!");
+                    return;
+                }
+                
+                if(data.success) {
+                    // Update Chart
+                    candleSeries.update(data.candle);
+                    
+                    // Update Metrics
+                    document.getElementById('val-balance').innerText = `$${data.balance.toFixed(2)}`;
+                    let progressText = document.getElementById('val-progress').innerText;
+                    let total = progressText.split(' / ')[1];
+                    document.getElementById('val-progress').innerText = `${parseInt(progressText.split(' / ')[0])+1} / ${total}`;
+                    
+                    // Process Events
+                    data.events.forEach(ev => {
+                        if(ev.type === "AI_DECISION") {
+                            addLog(ev.time, `AI DECISION: ${ev.action}. Reason: ${ev.reason}`);
+                            if(ev.action === "BUY" || ev.action === "SELL") {
+                                markers.push({
+                                    time: data.candle.time,
+                                    position: ev.action === 'BUY' ? 'belowBar' : 'aboveBar',
+                                    color: ev.action === 'BUY' ? '#22c55e' : '#ef4444',
+                                    shape: ev.action === 'BUY' ? 'arrowUp' : 'arrowDown',
+                                    text: ev.action
+                                });
+                                candleSeries.setMarkers(markers);
+                            }
+                        }
+                        if(ev.type === "TRADE_CLOSE") {
+                            addTradeHistory(ev.trade);
+                        }
+                    });
+                }
+            } catch(e) {
+                console.error("Fetch error", e);
+                togglePlay(true);
+            }
+        }
+
+        function addLog(time, msg) {
+            const logs = document.getElementById('ai-logs');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<div class="log-time">${time}</div><div>${msg}</div>`;
+            logs.prepend(entry);
+        }
+
+        function addTradeHistory(trade) {
+            const tbody = document.getElementById('trade-history');
+            const tr = document.createElement('tr');
+            const profitClass = trade.profit >= 0 ? 'profit-pos' : 'profit-neg';
+            const sign = trade.profit >= 0 ? '+' : '';
+            tr.innerHTML = `
+                <td style="color: ${trade.action==='BUY'?'var(--buy-color)':'var(--sell-color)'}; font-weight:bold;">${trade.action}</td>
+                <td>${trade.open_price.toFixed(2)} → ${trade.close_price.toFixed(2)}</td>
+                <td class="${profitClass}">${sign}$${trade.profit.toFixed(2)}</td>
+            `;
+            tbody.prepend(tr);
+        }
+
+        function togglePlay(forcePause = false) {
+            const btn = document.getElementById('btn-play');
+            if (isPlaying || forcePause) {
+                isPlaying = false;
+                clearInterval(playInterval);
+                btn.innerText = "Play ▶";
+                btn.classList.add("primary");
+            } else {
+                isPlaying = true;
+                btn.innerText = "Pause ⏸";
+                btn.classList.remove("primary");
+                playInterval = setInterval(fetchNextBar, msPerBar);
+            }
+        }
+
+        function stepForward() {
+            if(isPlaying) togglePlay();
+            fetchNextBar();
+        }
+
+        function updateSpeed() {
+            const val = document.getElementById('speed-slider').value;
+            document.getElementById('speed-val').innerText = val + "x";
+            
+            // Map 1-100 to milliseconds (1 = 1000ms, 100 = 10ms)
+            msPerBar = 1000 - (val * 9.9);
+            
+            if (isPlaying) {
+                clearInterval(playInterval);
+                playInterval = setInterval(fetchNextBar, msPerBar);
+            }
+        }
+    </script>
+</body>
+</html>
