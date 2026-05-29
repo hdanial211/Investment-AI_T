@@ -30,6 +30,8 @@ python -m pip install --upgrade pip --quiet
 python -m pip install pandas --quiet
 python -m pip install numpy --quiet
 python -m pip install yfinance --quiet
+python -m pip install requests --quiet
+python -m pip install python-dotenv --quiet
 
 echo.
 echo Verifying yfinance...
@@ -62,26 +64,39 @@ echo   - YA: Keputusan lebih tepat/realistik tapi akan mengambil masa LEBIH LAMA
 echo   - TIDAK: Hanya gunakan technical indicator (Sangat pantas).
 echo ============================================================
 set /p use_ai="Guna REAL AI? (Y/N): "
-if /I "%use_ai%"=="Y" (
-    set USE_AI_FLAG=--use-ai
-    echo [INFO] REAL AI Filter dihidupkan!
-) else (
-    echo [INFO] AI Filter dimatikan (Fast mode).
-)
+if /I "%use_ai%"=="Y" goto AI_YES
+goto AI_NO
+
+:AI_YES
+set USE_AI_FLAG=--use-ai
+echo [INFO] REAL AI Filter dihidupkan!
+goto RUN_SCRIPT
+
+:AI_NO
+echo [INFO] AI Filter dimatikan (Fast mode).
+goto RUN_SCRIPT
+
+:RUN_SCRIPT
 echo.
 
-if exist "backtest_settings.json" (
-    echo [INFO] Settings file found - menggunakan custom settings...
-    echo.
-    python run_backtest.py %USE_AI_FLAG%
-) else (
-    echo [INFO] Tiada settings file - menggunakan defaults...
-    echo [INFO] Symbol: XAUUSD + EURUSD ^| Styles: All ^| Balance: $10,000
-    echo [INFO] Data: 1 tahun lepas sehingga hari ini ^(auto-download^)
-    echo.
-    python run_backtest.py --symbol XAUUSD EURUSD --style SCALPING INTRADAY SWING --balance 10000 %USE_AI_FLAG%
-)
+if exist "backtest_settings.json" goto RUN_CUSTOM
+goto RUN_DEFAULT
 
+:RUN_CUSTOM
+echo [INFO] Settings file found - menggunakan custom settings...
+echo.
+python run_backtest.py %USE_AI_FLAG%
+goto CHECK_ERROR
+
+:RUN_DEFAULT
+echo [INFO] Tiada settings file - menggunakan defaults...
+echo [INFO] Symbol: XAUUSD + EURUSD ^| Styles: All ^| Balance: $10,000
+echo [INFO] Data: 1 tahun lepas sehingga hari ini (auto-download)
+echo.
+python run_backtest.py --symbol XAUUSD EURUSD --style SCALPING INTRADAY SWING --balance 10000 %USE_AI_FLAG%
+goto CHECK_ERROR
+
+:CHECK_ERROR
 if errorlevel 1 (
     echo.
     echo [ERROR] Backtest gagal. Semak output di atas.
