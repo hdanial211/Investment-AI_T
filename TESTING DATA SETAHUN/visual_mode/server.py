@@ -397,21 +397,21 @@ def next_bar():
             if ind:
                 # Basic check before calling AI
                 h1_adx = ind.get("adx", 0)
-                if h1_adx > 20: # Example condition
+                if h1_adx > 15: # Lowered threshold to trigger more often
                     action = "BUY" if ind.get("h1_macd_trend") == "bullish" else "SELL"
-                    sim_state["ai_logs"].append(f"[{time_str}] Setup detected on H1 ADX > 20. Querying AI...")
                     
                     if config.AI_PROVIDER != "":
                         ai_response = get_ai_signal(ind, current_price, current_price, None, sim_state["symbol"])
                         final_action = ai_response.get("action", "HOLD")
                         reason = ai_response.get("reason", "")
                         
-                        sim_state["ai_logs"].append(f"[{time_str}] AI Decision: {final_action}. Reason: {reason}")
                         ai_event = {"type": "AI_DECISION", "action": final_action, "reason": reason, "time": time_str}
                         
                         if final_action in ["BUY", "SELL"]:
                             trade = simulate_trade_execution({'close': current_price, 'time': time_str}, ind, final_action)
                             events.append({"type": "TRADE_OPEN", "trade": trade})
+                    else:
+                        ai_event = {"type": "AI_DECISION", "action": "ERROR", "reason": "AI_PROVIDER is empty", "time": time_str}
         except Exception as e:
             logger.error(f"Error in strategy: {e}")
             sim_state["ai_logs"].append(f"[{time_str}] Error: {e}")
