@@ -243,6 +243,13 @@
     <header>
         <div class="logo">🪙 GOLD AI Visual Tester</div>
         <div class="controls">
+            <div style="background: var(--bg-dark); border-radius:6px; padding:4px; display:flex; gap:4px; margin-right:16px;">
+                <button class="tf-btn" data-tf="M1" onclick="setTF('M1')">M1</button>
+                <button class="tf-btn" data-tf="M5" onclick="setTF('M5')">M5</button>
+                <button class="tf-btn" data-tf="M15" onclick="setTF('M15')">M15</button>
+                <button class="tf-btn primary" data-tf="H1" onclick="setTF('H1')">H1</button>
+                <button class="tf-btn" data-tf="H4" onclick="setTF('H4')">H4</button>
+            </div>
             <div class="speed-control">
                 <span>Speed: <span id="speed-val">1x</span></span>
                 <input type="range" id="speed-slider" min="1" max="100" value="10" oninput="updateSpeed()">
@@ -303,6 +310,34 @@
         let markers = [];
         
         // Init Chart
+        let currentTF = "H1";
+
+        function setTF(tf) {
+            currentTF = tf;
+            document.querySelectorAll('.tf-btn').forEach(btn => {
+                if(btn.dataset.tf === tf) {
+                    btn.classList.add('primary');
+                } else {
+                    btn.classList.remove('primary');
+                }
+            });
+            // Fetch history for new TF and update chart
+            fetch(`/api/history?tf=${tf}`)
+                .then(r => r.json())
+                .then(data => {
+                    if(data.success && data.candles) {
+                        candleSeries.setData(data.candles);
+                        
+                        // Re-add markers
+                        let markers = [];
+                        document.getElementById('trade-list').querySelectorAll('.trade-item').forEach(el => {
+                            // simplistic re-plot of markers could go here if we saved them in state
+                        });
+                        // Wait, lightweight charts clears markers on setData. We can just skip re-adding historical markers for now to save complexity.
+                    }
+                });
+        }
+
         function initChart() {
             const container = document.getElementById('chart-container');
             chart = LightweightCharts.createChart(container, {
@@ -363,6 +398,9 @@
                 if(data.success) {
                     document.getElementById('setup-overlay').style.display = 'none';
                     initChart();
+                    
+                    // Fetch initial history for currentTF
+                    setTF(currentTF);
                     document.getElementById('val-progress').innerText = `0 / ${data.total_bars} Bars`;
                 } else {
                     status.innerText = "Error: " + data.error;
@@ -376,7 +414,7 @@
 
         async function fetchNextBar() {
             try {
-                const res = await fetch('http://127.0.0.1:5000/api/next_bar');
+                const res = await fetch(`/api/next_bar?tf=${currentTF}`);
                 const data = await res.json();
                 
                 if(data.done) {
@@ -385,17 +423,20 @@
                     return;
                 }
                 
-                if(data.success) {
+                if(data.success && data.candle) {
                     // Update Chart
                     candleSeries.update(data.candle);
                     
                     // Update Metrics
                     document.getElementById('val-balance').innerText = `$${data.balance.toFixed(2)}`;
                     let progressText = document.getElementById('val-progress').innerText;
-                    let total = progressText.split(' / ')[1];
-                    document.getElementById('val-progress').innerText = `${parseInt(progressText.split(' / ')[0])+1} / ${total}`;
+                    if (progressText && progressText.includes(' / ')) {
+                        let total = progressText.split(' / ')[1];
+                        document.getElementById('val-progress').innerText = `${data.current_idx} / ${total}`;
+                    }
                     
                     // Process Events
+                    let markers = [];
                     data.events.forEach(ev => {
                         if(ev.type === "AI_DECISION") {
                             addLog(ev.time, `AI DECISION: ${ev.action}. Reason: ${ev.reason}`);
