@@ -32,6 +32,7 @@ except ImportError:
 
 try:
     from ai_engine import get_ai_signal
+    import system_settings
     HAS_AI_ENGINE = True
 except ImportError:
     HAS_AI_ENGINE = False
@@ -738,6 +739,13 @@ def run_full_backtest(cfg: BacktestConfig) -> dict:
     print(f"  Symbol: {cfg.symbol} | Period: {cfg.start_date:%Y-%m-%d} to {cfg.end_date:%Y-%m-%d}")
     print(f"  Styles: {', '.join(cfg.trade_styles)}")
     print(f"{'='*60}\n")
+
+    if cfg.use_ai and HAS_AI_ENGINE:
+        print("[INFO] Loading API Keys from Supabase (Dashboard Settings)...")
+        if system_settings.fetch_and_apply_system_settings():
+            print("[INFO] System settings (API Keys) loaded successfully.")
+        else:
+            print("[WARNING] Failed to load system settings from Supabase. Falling back to .env")
 
     # Determine interval based on date range
     days = (cfg.end_date - cfg.start_date).days
