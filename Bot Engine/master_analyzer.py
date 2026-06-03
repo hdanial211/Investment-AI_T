@@ -267,8 +267,8 @@ def main():
         # 6. Disconnect MT5 to free it for Account Terminals
         connector.disconnect()
 
-        # Unload Master AI from GPU if it's Ollama
-        import config
+        # 7. Unload AI from memory if local models were used
+        # Construct the specific provider config for Master Analyzer
         from ai_engine import unload_ai
         
         master_ai_config = None
