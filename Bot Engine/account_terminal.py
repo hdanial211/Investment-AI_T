@@ -427,7 +427,7 @@ def main():
                 last_processed_signal[symbol] = signal_id
 
             # Unload GPU memory based on this account's specific provider sequence
-            if any(s.get("risk_review", {}).get("approved") for s in processed_signals):
+            if processed_any:
                 from ai_engine import unload_ai
                 unload_ai(provider_sequence=acct_settings.get_providers_list())
 

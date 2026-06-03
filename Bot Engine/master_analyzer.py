@@ -230,7 +230,7 @@ def main():
 
         # 2. AI Health check on first cycle
         if cycle_count == 1:
-            logger.info(f"Checking cloud AI ({config.AI_PROVIDER} / {config.AI_MAIN_MODEL})...")
+            logger.info(f"Checking cloud AI ({config.MASTER_AI_PROVIDER} / {config.MASTER_AI_MAIN_MODEL})...")
             if check_ai_health(role="main"):
                 logger.info("✔ Cloud AI main model ready")
             else:
