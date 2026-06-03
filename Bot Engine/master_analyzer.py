@@ -279,7 +279,10 @@ def main():
                 "risk_model": config.MASTER_AI_RISK_MODEL,
                 "api_key": config.HF_TOKEN if config.MASTER_AI_PROVIDER.lower() in ("hf", "huggingface") else config.OPENROUTER_API_KEY
             }
-        unload_ai(specific_provider_config=master_ai_config)
+        if master_ai_config:
+            unload_ai(provider_sequence=[master_ai_config])
+        else:
+            unload_ai()
 
         # 7. Sleep until next analysis cycle
         if not _shutdown_requested:
