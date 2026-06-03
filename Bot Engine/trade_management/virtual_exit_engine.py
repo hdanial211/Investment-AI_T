@@ -131,7 +131,6 @@ class VirtualExitEngine:
         if direction == "BUY":
             profit_distance = current - entry
             if profit_distance > stage1_distance:
-                import config
                 pip_size = config.get_pip_multiplier(state.get("symbol", ""))
                 be_plus = 2 * pip_size  # 2 pips BE+
                 # Only update profit_lock_level if we are improving it
@@ -148,7 +147,6 @@ class VirtualExitEngine:
         else:
             profit_distance = entry - current
             if profit_distance > stage1_distance:
-                import config
                 pip_size = config.get_pip_multiplier(state.get("symbol", ""))
                 be_plus = 2 * pip_size  # 2 pips BE+
                 new_lock = _round_price(entry - be_plus)
