@@ -203,6 +203,23 @@
     .status-bar.error { display: block; background: rgba(173, 79, 67, 0.12); color: var(--red); border: 1px solid rgba(173, 79, 67, 0.25); }
     .status-bar.info { display: block; background: rgba(47, 102, 143, 0.12); color: var(--blue); border: 1px solid rgba(47, 102, 143, 0.25); }
 
+    /* ── TABS ──────────────────────────────────────────────────────────── */
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 24px; margin-bottom: -10px; position: relative; z-index: 10; padding: 0 12px; }
+    .tab-btn {
+      padding: 12px 24px;
+      border-radius: 16px 16px 0 0;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-bottom: none;
+      background: rgba(245, 236, 216, 0.5);
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      color: var(--ink);
+    }
+    .tab-btn.active { background: var(--panel); box-shadow: 0 -4px 12px rgba(0,0,0,0.05); }
+    .tab-btn:hover:not(.active) { background: rgba(245, 236, 216, 0.8); }
+
     @media (max-width: 800px) {
       .form-row, .config-row { grid-template-columns: 1fr; }
     }
@@ -301,9 +318,15 @@
         <button id="loadBtn">Load Config</button>
       </div>
     </header>
+    <!-- TABS -->
+    <div class="tabs" id="accountTabs"></div>
 
     <!-- FORM -->
-    <section id="settingsPanel">
+    <section id="settingsPanel" style="border-top-left-radius: 4px;">
+      
+      <!-- Instructions / Context -->
+      <div id="tabDescription" style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;"></div>
+
       <div id="providersContainer"></div>
       <button class="add-provider-btn" onclick="addProvider()">+ Add AI Provider</button>
 
@@ -336,6 +359,8 @@
       url: localStorage.getItem("supabaseUrl") || DEFAULT_SUPABASE_URL,
       anon: localStorage.getItem("supabaseAnon") || DEFAULT_SUPABASE_ANON,
       sys: null,
+      accounts: [],
+      activeTab: 'global',
       providers: []
     };
 
@@ -343,10 +368,12 @@
     const MODEL_CATALOG = {
       openrouter: {
         free: [
+          { id: "openrouter/free", name: "⚡ Auto (OpenRouter Free Router)", desc: "Automatik route ke mana-mana model free yang available (Terbaik)" },
           { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B", desc: "Model versatil & stabil dari Meta" },
-          { id: "openai/gpt-oss-20b:free", name: "GPT-OSS 20B", desc: "Pantas & ringan untuk analisis" },
+          { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B", desc: "Sangat pintar (120B parameters) untuk reasoning mendalam" },
+          { id: "nousresearch/hermes-3-llama-3.1-405b:free", name: "Hermes 3 405B", desc: "Paling pintar (405B parameters) tapi kadang slow" },
           { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B", desc: "Model besar untuk logic mendalam" },
-          { id: "deepseek/deepseek-v4-flash:free", name: "DeepSeek V4 Flash", desc: "Sangat pantas, sesuai untuk log/test" },
+          { id: "qwen/qwen3-coder:free", name: "Qwen 3 Coder", desc: "Model coding/reasoning terbaik Qwen" },
           { id: "google/gemma-4-26b-a4b-it:free", name: "Gemma 4 26B", desc: "Model terbaru dari Google" },
           { id: "qwen/qwen3-next-80b-a3b-instruct:free", name: "Qwen3 Next 80B", desc: "Cemerlang untuk data teknikal" },
         ],
@@ -396,6 +423,7 @@
       },
       huggingface: {
         free: [
+          { id: "auto", name: "⚡ Auto (Smart Fallback)", desc: "Automatik tukar dari Qwen 72B -> Llama 70B bila sibuk" },
           { id: "Qwen/Qwen2.5-72B-Instruct", name: "Qwen 2.5 72B", desc: "Model paling pintar & pantas (Sangat disyorkan)" },
           { id: "Qwen/Qwen2.5-7B-Instruct", name: "Qwen 2.5 7B", desc: "Versi ringan & stabil" },
           { id: "meta-llama/Llama-3.1-8B-Instruct", name: "Llama 3.1 8B", desc: "Model versatil dari Meta" },
@@ -499,35 +527,81 @@
     // ── LOAD ─────────────────────────────────────────────────────────────
     async function loadSystemSettings() {
       try {
-        const rows = await sbGet("system_settings?id=eq.global");
-        if (rows.length > 0) {
-          state.sys = rows[0];
-          state.providers = state.sys.providers_list || [];
-          $("lastSavedTxt").innerText = `Last saved: ${state.sys.updated_at ? new Date(state.sys.updated_at).toLocaleString() : "never"}`;
-          
-          // Migrate old single provider layout to list if empty
-          if (state.providers.length === 0 && state.sys.ai_provider) {
-            state.providers.push({
-              provider: state.sys.ai_provider,
-              api_key: state.sys.ai_provider === 'openrouter' ? state.sys.openrouter_api_key : state.sys.hf_token,
-              main_model: state.sys.ai_main_model,
-              risk_model: state.sys.ai_risk_model
-            });
-          }
-        } else {
-          state.sys = { id: 'global' };
-          state.providers = [{
-            provider: 'openrouter',
-            api_key: '',
-            main_model: 'openai/gpt-oss-20b:free',
-            risk_model: 'openai/gpt-oss-120b:free'
-          }];
-        }
-        renderProviders();
+        const [sysRows, accRows] = await Promise.all([
+          sbGet("system_settings?id=eq.global"),
+          sbGet("account_settings?select=*&order=account_id.asc")
+        ]);
+        
+        state.sys = sysRows[0] || { id: 'global' };
+        state.accounts = accRows || [];
+        
+        renderTabs();
+        selectTab(state.activeTab || 'global');
+        
         showStatus(`Loaded configurations successfully.`, "success");
       } catch (err) {
         showStatus(`Load failed: ${err.message}`, "error");
       }
+    }
+
+    // ── TABS ─────────────────────────────────────────────────────────────
+    function renderTabs() {
+      const tabs = $("accountTabs");
+      if (!tabs) return;
+      tabs.innerHTML = "";
+      
+      const btnGlobal = document.createElement("button");
+      btnGlobal.className = `tab-btn ${state.activeTab === 'global' ? 'active' : ''}`;
+      btnGlobal.textContent = "Master Analyzer";
+      btnGlobal.onclick = () => selectTab('global');
+      tabs.appendChild(btnGlobal);
+
+      state.accounts.forEach(acc => {
+        const btn = document.createElement("button");
+        btn.className = `tab-btn ${state.activeTab === acc.account_id ? 'active' : ''}`;
+        btn.textContent = acc.account_label || acc.account_id;
+        btn.onclick = () => selectTab(acc.account_id);
+        tabs.appendChild(btn);
+      });
+    }
+
+    function selectTab(tabId) {
+      state.activeTab = tabId;
+      renderTabs();
+      
+      let sourceList = [];
+      let lastUpdated = null;
+      let desc = "";
+
+      if (tabId === 'global') {
+        sourceList = state.sys.providers_list || [];
+        lastUpdated = state.sys.updated_at;
+        desc = "Konfigurasi ini digunakan khas untuk <b>Master Analyzer</b>. Jika AI Provider #1 gagal, ia akan cuba #2, dan seterusnya.";
+      } else {
+        const acc = state.accounts.find(a => a.account_id === tabId);
+        if (acc) {
+          sourceList = acc.providers_list || [];
+          lastUpdated = acc.updated_at;
+          desc = `Konfigurasi khas untuk <b>Account: ${acc.account_label || acc.account_id}</b>. Digunakan untuk Risk Review trade akaun ini sahaja.`;
+        }
+      }
+
+      state.providers = JSON.parse(JSON.stringify(sourceList));
+      
+      if (state.providers.length === 0) {
+        state.providers.push({
+          provider: 'openrouter',
+          api_key: '',
+          main_model: 'openai/gpt-oss-20b:free',
+          risk_model: 'openai/gpt-oss-120b:free'
+        });
+      }
+
+      $("lastSavedTxt").innerText = `Last saved: ${lastUpdated ? new Date(lastUpdated).toLocaleString() : "never"}`;
+      $("tabDescription").innerHTML = desc;
+      
+      testedProviders.clear();
+      renderProviders();
     }
 
     // ── RENDER ───────────────────────────────────────────────────────────
@@ -579,6 +653,7 @@
             <div id="testRes_${index}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;"></div>
 
             <div class="form-row" style="margin-top:14px;">
+              ${state.activeTab === 'master' ? `
               <div class="field-group">
                 <label>Main Model</label>
                 <div style="display:flex;gap:8px;">
@@ -589,6 +664,7 @@
                   <button type="button" class="test-model-btn" title="Test Main Model" onclick="testModel(${index}, 'main_model')" ${!p.main_model || !testedProviders.has(index) ? 'disabled' : ''}>🧪</button>
                 </div>
               </div>
+              ` : ''}
               <div class="field-group">
                 <label>Risk Review Model</label>
                 <div style="display:flex;gap:8px;">
@@ -710,13 +786,76 @@
       for (const m of models) {
         const badgeLabel = type === 'local' ? 'INSTALLED' : (type === 'free' ? 'FREE' : 'PAID');
         const badgeClass = type === 'local' ? 'free' : type;
+        
+        const provider = state.providers[pickerState.index].provider;
+        let pullBtn = '';
+        if (provider === 'ollama' && type !== 'local') {
+          const isInstalled = (catalog._local || []).some(l => l.id === m.id);
+          if (!isInstalled) {
+             pullBtn = `<button class="test-model-btn" style="font-size: 0.8rem; padding: 4px 8px; margin-left: 10px;" onclick="event.stopPropagation(); pullOllamaModel('${m.id.replace(/'/g, "\\'")}', this, ${pickerState.index})">⬇️ Download</button>`;
+          }
+        }
+        
         html += `<div class="m-card" onclick="selectModel('${m.id.replace(/'/g, "\\'")}')">` +
-          `<div class="mi"><div class="mi-n">${safe(m.name)}</div>` +
+          `<div class="mi"><div class="mi-n" style="display:flex;align-items:center;">${safe(m.name)} ${pullBtn}</div>` +
           `<div class="mi-id">${safe(m.id)}</div>` +
           `<div class="mi-d">${safe(m.desc)}</div></div>` +
           `<span class="mb ${badgeClass}">${badgeLabel}</span></div>`;
       }
       $("modalBody").innerHTML = html;
+    }
+    
+    async function pullOllamaModel(modelName, btnElem, providerIndex) {
+      const p = state.providers[providerIndex];
+      const ollamaUrl = (p.base_url || 'http://localhost:11434').replace(/\/$/, '');
+      const originalText = btnElem.innerHTML;
+      btnElem.innerHTML = "⏳ Start...";
+      btnElem.disabled = true;
+      
+      try {
+        const response = await fetch(`${ollamaUrl}/api/pull`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: modelName })
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(l => l.trim());
+          for (let line of lines) {
+            try {
+              const data = JSON.parse(line);
+              if (data.status) {
+                if (data.total && data.completed) {
+                  const percent = Math.round((data.completed / data.total) * 100);
+                  btnElem.innerHTML = `⬇️ ${percent}%`;
+                } else {
+                  let shortStatus = data.status;
+                  if (shortStatus.includes("pulling")) shortStatus = "Pulling...";
+                  btnElem.innerHTML = `⏳ ${shortStatus}`;
+                }
+              }
+            } catch (e) {}
+          }
+        }
+        btnElem.innerHTML = "✅ Done";
+        
+        if (!ollamaLocalModels[providerIndex]) ollamaLocalModels[providerIndex] = [];
+        if (!ollamaLocalModels[providerIndex].includes(modelName)) {
+           ollamaLocalModels[providerIndex].push(modelName);
+        }
+        
+      } catch (err) {
+        btnElem.innerHTML = "❌ Fail";
+        console.error(err);
+        setTimeout(() => { btnElem.innerHTML = originalText; btnElem.disabled = false; }, 3000);
+      }
     }
 
     function selectModel(modelId) {
@@ -739,6 +878,7 @@
       const payload = {
         id: 'global',
         providers_list: state.providers,
+        master_ai_profile_index: state.masterIndex,
         updated_at: new Date().toISOString(),
         updated_by: "dashboard",
       };
@@ -786,12 +926,12 @@
 
       // Always use a known-reliable lightweight model to test API KEY validity
       const testModel = {
-        openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
+        openrouter: 'openrouter/free',
         openai: 'gpt-4.1-nano',
         anthropic: 'claude-3.5-haiku-20241022',
         grok: 'grok-3-mini-fast',
         deepseek: 'deepseek-chat',
-        huggingface: 'Qwen/Qwen3-4B-Instruct-2507'
+        huggingface: 'Qwen/Qwen2.5-72B-Instruct'
       }[p.provider] || 'meta-llama/llama-3.3-70b-instruct:free';
 
       const payload = {
@@ -845,7 +985,11 @@
         const data = await response.json();
         
         if (!response.ok) {
-          throw new Error(data.error?.message || JSON.stringify(data));
+          if (response.status !== 401 && response.status !== 403) {
+            // If it's a 429 or 502, it means the API key is valid but the model is busy/rate-limited.
+            throw new Error(`MODEL_ERROR: ${data.error?.message || JSON.stringify(data)}`);
+          }
+          throw new Error(`Auth Error: ${data.error?.message || 'Invalid API Key'}`);
         }
 
         let replyText = "";
@@ -859,7 +1003,14 @@
         testedProviders.add(index);
         renderProviders();
       } catch (err) {
-        resDiv.innerHTML = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
+        if (err.message.startsWith("MODEL_ERROR")) {
+          // Key is valid, just the test model is busy
+          resDiv.innerHTML = `<span style="color:var(--green)">✅ API Key Sah! <span style="color:var(--text-secondary);font-size:0.8rem;">(Tetapi free model test sedang sibuk: ${err.message.replace('MODEL_ERROR:', '')})</span></span>`;
+          testedProviders.add(index);
+          renderProviders();
+        } else {
+          resDiv.innerHTML = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
+        }
       }
     }
 
@@ -873,7 +1024,7 @@
       resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing model <strong>${safe(modelId)}</strong>...</span>`;
 
       const payload = {
-        model: modelId,
+        model: modelId === "auto" && p.provider === 'huggingface' ? "Qwen/Qwen2.5-72B-Instruct" : modelId,
         messages: [{ role: "user", content: "Reply with exactly the word OK." }],
         max_tokens: 5,
         temperature: 0.1
@@ -927,7 +1078,10 @@
         const data = await response.json();
         
         if (!response.ok) {
-          throw new Error(data.error?.message || JSON.stringify(data));
+          if (response.status !== 401 && response.status !== 403) {
+            throw new Error(`MODEL_ERROR: ${data.error?.message || JSON.stringify(data)}`);
+          }
+          throw new Error(`Auth Error: ${data.error?.message || 'Invalid API Key'}`);
         }
 
         let replyText = "";
@@ -941,7 +1095,16 @@
 
         resDiv.innerHTML = `<span style="color:var(--green)">✅ Model <strong>${safe(modelId)}</strong> sah! Reply: "${safe(replyText)}"</span>`;
       } catch (err) {
-        resDiv.innerHTML = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(err.message)}</span>`;
+        if (err.message.startsWith("MODEL_ERROR")) {
+          let cleanMsg = err.message.replace('MODEL_ERROR: ', '');
+          if (cleanMsg.includes("Provider returned error") || cleanMsg.includes("rate-limited")) {
+             resDiv.innerHTML = `<span style="color:var(--orange)">⚠️ Model <strong>${safe(modelId)}</strong> sibuk/rate-limit dari OpenRouter: ${safe(cleanMsg)}</span>`;
+          } else {
+             resDiv.innerHTML = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(cleanMsg)}</span>`;
+          }
+        } else {
+          resDiv.innerHTML = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(err.message)}</span>`;
+        }
       }
     }
 

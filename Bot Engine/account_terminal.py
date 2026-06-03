@@ -210,7 +210,12 @@ def process_signal(
 
     # 9. AI Risk Review (per-account)
     if config.ENABLE_RISK_REVIEW:
-        risk_review = review_trade_risk(ai_signal, indicators, trade_params, symbol)
+        account_ai_sequence = acct_settings.get_providers_list()
+        
+        risk_review = review_trade_risk(
+            ai_signal, indicators, trade_params, symbol, 
+            provider_sequence=account_ai_sequence
+        )
         ai_signal["risk_review"] = risk_review
         if not risk_review["approved"]:
             logger.warning(f"[{symbol}] Risk review rejected: {risk_review['reason']}")
@@ -388,6 +393,7 @@ def main():
         # ── PART B: Check for new signals from Master Analyzer ──
         try:
             signals = supabase.fetch_market_signals()
+            processed_any = False
             for sig in signals:
                 symbol = sig.get("symbol", "")
                 signal_id = sig.get("signal_id", "")
@@ -408,6 +414,7 @@ def main():
                 logger.info(f"[{account_id}][{symbol}] New signal detected: {sig.get('action')} (ID: {signal_id})")
 
                 try:
+                    processed_any = True
                     result = process_signal(
                         sig, symbol, connector, risk_mgr,
                         trade_memory, active_manager, acct_settings,
@@ -418,6 +425,11 @@ def main():
 
                 # Mark as processed regardless of result
                 last_processed_signal[symbol] = signal_id
+
+            # Unload GPU memory based on this account's specific provider sequence
+            if any(s.get("risk_review", {}).get("approved") for s in processed_signals):
+                from ai_engine import unload_ai
+                unload_ai(provider_sequence=acct_settings.get_providers_list())
 
         except Exception as e:
             logger.error(f"[{account_id}] Error fetching signals: {e}")

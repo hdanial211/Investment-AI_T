@@ -142,6 +142,14 @@ class AccountSettings:
         if not symbols:
             symbols.append(str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip())
         return symbols
+        
+    def get_providers_list(self) -> list:
+        """Get the fallback sequence of AI providers for this account."""
+        self._maybe_refresh()
+        pl = self._cache.get("providers_list")
+        if pl and isinstance(pl, list):
+            return pl
+        return []
 
     def is_style_enabled(self, trade_style: str) -> bool:
         """Check if SCALPING/INTRADAY/SWING is enabled for this account."""

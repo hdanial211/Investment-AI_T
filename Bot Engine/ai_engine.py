@@ -330,15 +330,20 @@ def _build_messages(prompt: str) -> list:
 
 def query_ai_provider(
     prompt: str,
-    model: str = None,
-    provider: str = None,
     role: str = "main",
-    timeout: int = None,
-    temperature: float = None,
-    max_tokens: int = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    timeout: Optional[int] = None,
+    provider_sequence: Optional[list] = None,
 ) -> Optional[str]:
-    # In the new setup, provider argument is largely ignored in favor of the configured sequence.
-    providers = get_provider_sequence()
+    # Use explicitly passed sequence (for account-level) or fallback to global master sequence
+    if provider_sequence and len(provider_sequence) > 0:
+        providers = provider_sequence
+    else:
+        providers = get_provider_sequence()
+        
     selected_timeout = timeout or config.AI_TIMEOUT
     selected_temperature = config.AI_TEMPERATURE if temperature is None else temperature
     selected_max_tokens = max_tokens or config.AI_MAX_TOKENS
@@ -467,7 +472,7 @@ def check_ai_health(provider: str = None, role: str = "main") -> bool:
 # MAIN PUBLIC INTERFACE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN") -> Dict:
+def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN", specific_provider_config: Dict = None) -> Dict:
     default_response = {
         "action":       "HOLD",
         "confidence":   0.0,
@@ -486,6 +491,7 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
         role="main",
         temperature=config.AI_TEMPERATURE,
         max_tokens=config.AI_MAX_TOKENS,
+        specific_provider_config=specific_provider_config,
     )
     if not raw_text:
         return {**default_response, "reason": "Cloud AI provider unreachable or timed out"}
@@ -652,7 +658,7 @@ def _validate_risk_review(data: Dict) -> Optional[Dict]:
     }
 
 
-def review_trade_risk(signal: Dict, indicators: Dict, trade_params: Dict, symbol: str) -> Dict:
+def review_trade_risk(signal: Dict, indicators: Dict, trade_params: Dict, symbol: str, provider_sequence: list = None) -> Dict:
     """Ask the optional risk model to approve/reject a proposed trade."""
     default_response = {
         "approved": True,
@@ -676,9 +682,9 @@ def review_trade_risk(signal: Dict, indicators: Dict, trade_params: Dict, symbol
         }
 
     raw_text = query_ai_provider(
-        prompt,
+        prompt=prompt,
         role="risk",
-        timeout=config.AI_TIMEOUT,
+        provider_sequence=provider_sequence,
         temperature=0.0,
         max_tokens=min(config.AI_MAX_TOKENS, 192),
     )
@@ -715,3 +721,33 @@ def review_trade_risk(signal: Dict, indicators: Dict, trade_params: Dict, symbol
         f"Reason: {result['reason']}"
     )
     return result
+
+def unload_ai(provider_sequence: list = None):
+    """
+    Unload the AI model from RAM/VRAM to rest the GPU.
+    Only applicable for Ollama right now.
+    """
+    if provider_sequence and len(provider_sequence) > 0:
+        providers = provider_sequence
+    else:
+        providers = get_provider_sequence()
+        
+    for provider_config in providers:
+        provider_name = provider_config.get("provider", "unknown").lower()
+        if provider_name == "ollama":
+            # For ollama, unload both main and risk models
+            from .ai_clients.ollama_client import OllamaClient
+            client = OllamaClient(base_url=provider_config.get("base_url", "http://localhost:11434"))
+            main_model = get_model_for_role(provider_config, "main")
+            risk_model = get_model_for_role(provider_config, "risk")
+            if main_model:
+                try:
+                    client.unload_model(main_model)
+                except Exception:
+                    pass
+            if risk_model and risk_model != main_model:
+                try:
+                    client.unload_model(risk_model)
+                except Exception:
+                    pass
+            logger.info(f"Unloaded Ollama models to rest GPU: {main_model}, {risk_model}")

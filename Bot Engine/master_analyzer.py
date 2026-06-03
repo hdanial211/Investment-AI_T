@@ -97,7 +97,24 @@ def analyze_symbol(
 
     # 4. Query Text AI
     logger.info("Querying text AI model...")
-    text_signal = get_ai_signal(indicators, bid, ask, trade_memory=None, symbol=symbol)
+    import config
+    master_ai_config = None
+    if config.MASTER_AI_PROVIDER:
+        master_ai_config = {
+            "provider": config.MASTER_AI_PROVIDER,
+            "main_model": config.MASTER_AI_MAIN_MODEL,
+            "risk_model": config.MASTER_AI_RISK_MODEL,
+        }
+        # In case it's huggingface/openrouter, fetch global api keys
+        if config.MASTER_AI_PROVIDER.lower() in ("huggingface", "hf"):
+            master_ai_config["api_key"] = config.HF_TOKEN
+        elif config.MASTER_AI_PROVIDER.lower() in ("openrouter", "or"):
+            master_ai_config["api_key"] = config.OPENROUTER_API_KEY
+            
+    text_signal = get_ai_signal(
+        indicators, bid, ask, trade_memory=None, symbol=symbol, 
+        specific_provider_config=master_ai_config
+    )
 
     # 5. Query Vision AI + Merge (if enabled)
     if config.VISION_AI_ENABLED and chart_paths:
@@ -249,6 +266,20 @@ def main():
 
         # 6. Disconnect MT5 to free it for Account Terminals
         connector.disconnect()
+
+        # Unload Master AI from GPU if it's Ollama
+        import config
+        from ai_engine import unload_ai
+        
+        master_ai_config = None
+        if config.MASTER_AI_PROVIDER:
+            master_ai_config = {
+                "provider": config.MASTER_AI_PROVIDER,
+                "main_model": config.MASTER_AI_MAIN_MODEL,
+                "risk_model": config.MASTER_AI_RISK_MODEL,
+                "api_key": config.HF_TOKEN if config.MASTER_AI_PROVIDER.lower() in ("hf", "huggingface") else config.OPENROUTER_API_KEY
+            }
+        unload_ai(specific_provider_config=master_ai_config)
 
         # 7. Sleep until next analysis cycle
         if not _shutdown_requested:

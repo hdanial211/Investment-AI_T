@@ -74,3 +74,17 @@ class OllamaClient:
             raise AIProviderError(f"Ollama malformed response: {data}") from exc
 
         return str(content or "").strip()
+
+    def unload_model(self, model: str):
+        """Unload model from RAM/VRAM immediately."""
+        if requests is None:
+            return
+            
+        payload = {
+            "model": model,
+            "keep_alive": 0
+        }
+        try:
+            requests.post(f"{self.base_url}/api/chat", json=payload, timeout=5)
+        except Exception:
+            pass

@@ -254,6 +254,8 @@
       url: localStorage.getItem("supabaseUrl") || DEFAULT_SUPABASE_URL,
       anon: localStorage.getItem("supabaseAnon") || DEFAULT_SUPABASE_ANON,
       accounts: [],
+      sys: {},
+      providers: [],
       activeTab: null,
     };
 
@@ -307,7 +309,16 @@
     // ── LOAD ACCOUNTS ────────────────────────────────────────────────────
     async function loadAccounts() {
       try {
-        state.accounts = await sbGet("account_settings?select=*&order=account_id.asc");
+        const [accRows, sysRows] = await Promise.all([
+          sbGet("account_settings?select=*&order=account_id.asc"),
+          sbGet("system_settings?id=eq.global")
+        ]);
+        state.accounts = accRows;
+        if (sysRows && sysRows.length > 0) {
+          state.sys = sysRows[0];
+          state.providers = state.sys.providers_list || [];
+        }
+        
         renderTabs();
         if (state.accounts.length > 0) {
           selectTab(state.activeTab || state.accounts[0].account_id);

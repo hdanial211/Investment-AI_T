@@ -98,6 +98,10 @@ AI_STARTUP_HEALTHCHECK = _env_bool("AI_STARTUP_HEALTHCHECK", "False")
 # Dynamic Providers Configuration injected from Supabase
 PROVIDERS_CONFIG = []
 
+MASTER_AI_PROVIDER = None
+MASTER_AI_MAIN_MODEL = None
+MASTER_AI_RISK_MODEL = None
+
 # ─────────────────────────────────────────────────────────────────────────────
 # FUTURE VISION AI / CHART SCREENSHOT SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────

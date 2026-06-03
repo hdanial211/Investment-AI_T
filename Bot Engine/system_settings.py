@@ -31,6 +31,16 @@ def fetch_and_apply_system_settings() -> bool:
             logger.info(f"Loaded {len(providers_list)} API providers directly from Supabase.")
         else:
             logger.warning("No providers_list found in Supabase settings.")
+        if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
+            master_provider = config.PROVIDERS_CONFIG[0]
+            config.MASTER_AI_PROVIDER = master_provider.get("provider")
+            config.MASTER_AI_MAIN_MODEL = master_provider.get("main_model")
+            config.MASTER_AI_RISK_MODEL = master_provider.get("risk_model")
+        else:
+            # Fallback
+            config.MASTER_AI_PROVIDER = sys_data.get("master_ai_provider")
+            config.MASTER_AI_MAIN_MODEL = sys_data.get("master_ai_main_model")
+            config.MASTER_AI_RISK_MODEL = sys_data.get("master_ai_risk_model")
             
         return True
         
