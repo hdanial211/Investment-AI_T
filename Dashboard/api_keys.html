@@ -407,11 +407,57 @@
           { id: "Qwen/Qwen3-4B-Instruct-2507", name: "Qwen3 4B", desc: "Sangat ringan & pantas" }
         ],
         paid: []
+      },
+      ollama: {
+        free: [
+          { id: "qwen3:latest", name: "Qwen 3", desc: "Model terbaru Alibaba — all-rounder terbaik" },
+          { id: "qwen3:4b", name: "Qwen 3 4B", desc: "Ringan & pantas, sesuai untuk analisis" },
+          { id: "qwen3:8b", name: "Qwen 3 8B", desc: "Keseimbangan kualiti/kelajuan" },
+          { id: "qwen3:14b", name: "Qwen 3 14B", desc: "Lebih berkuasa untuk reasoning" },
+          { id: "qwen3:30b-a3b", name: "Qwen 3 30B (MoE)", desc: "Model MoE — prestasi tinggi, RAM rendah" },
+          { id: "llama3.1:latest", name: "Llama 3.1 8B", desc: "Model versatil Meta (8B default)" },
+          { id: "llama3.1:70b", name: "Llama 3.1 70B", desc: "Model besar Meta — sangat berkuasa" },
+          { id: "llama3.2:latest", name: "Llama 3.2 3B", desc: "Model kompak Meta (3B default)" },
+          { id: "llama3.2:1b", name: "Llama 3.2 1B", desc: "Ultra ringan, sangat pantas" },
+          { id: "llama3.3:latest", name: "Llama 3.3 70B", desc: "Terbaru Meta — sesuai RAG" },
+          { id: "deepseek-r1:latest", name: "DeepSeek R1", desc: "Reasoning chain-of-thought mendalam" },
+          { id: "deepseek-r1:7b", name: "DeepSeek R1 7B", desc: "Reasoning ringan" },
+          { id: "deepseek-r1:8b", name: "DeepSeek R1 8B", desc: "Reasoning imbangan" },
+          { id: "deepseek-r1:14b", name: "DeepSeek R1 14B", desc: "Reasoning lebih berkuasa" },
+          { id: "deepseek-r1:32b", name: "DeepSeek R1 32B", desc: "Reasoning aras tertinggi" },
+          { id: "gemma3:latest", name: "Gemma 3", desc: "Model terkini Google — vision + text" },
+          { id: "gemma3:4b", name: "Gemma 3 4B", desc: "Model Google yang ringan" },
+          { id: "gemma3:12b", name: "Gemma 3 12B", desc: "Model Google sederhana" },
+          { id: "gemma3:27b", name: "Gemma 3 27B", desc: "Model Google yang berkuasa" },
+          { id: "gemma4:latest", name: "Gemma 4", desc: "Model terbaru Google 2025" },
+          { id: "phi4:latest", name: "Phi 4", desc: "Model Microsoft — ringan & bijak" },
+          { id: "phi4-mini:latest", name: "Phi 4 Mini", desc: "Sangat ringan, sesuai entry-level" },
+          { id: "mistral:latest", name: "Mistral 7B", desc: "Model Eropah serba boleh" },
+          { id: "mixtral:latest", name: "Mixtral 8x7B", desc: "Model MoE Mistral — berkuasa" },
+          { id: "qwen2.5:latest", name: "Qwen 2.5", desc: "Model stabil Alibaba" },
+          { id: "qwen2.5:7b", name: "Qwen 2.5 7B", desc: "Versi ringan" },
+          { id: "qwen2.5:14b", name: "Qwen 2.5 14B", desc: "Versi sederhana" },
+          { id: "qwen2.5:32b", name: "Qwen 2.5 32B", desc: "Versi berkuasa" },
+          { id: "qwen2.5:72b", name: "Qwen 2.5 72B", desc: "Versi penuh — terbaik" },
+          { id: "qwen2.5-coder:latest", name: "Qwen 2.5 Coder", desc: "Khusus untuk pengekodan" },
+          { id: "qwen2.5-coder:32b", name: "Qwen 2.5 Coder 32B", desc: "Pengekod terbaik" },
+          { id: "command-r:latest", name: "Command R", desc: "Model Cohere — sesuai RAG" },
+          { id: "command-r-plus:latest", name: "Command R+", desc: "Model Cohere premium" },
+          { id: "codellama:latest", name: "Code Llama", desc: "Model pengekod Meta" },
+          { id: "starcoder2:latest", name: "StarCoder 2", desc: "Model pengekodan BigCode" },
+          { id: "yi:latest", name: "Yi", desc: "Model 01.AI — serba boleh" },
+          { id: "glm4:latest", name: "GLM 4", desc: "Model Zhipu AI" },
+          { id: "falcon3:latest", name: "Falcon 3", desc: "Model TII — pantas" },
+          { id: "vicuna:latest", name: "Vicuna", desc: "Fine-tune Llama klasik" },
+          { id: "nous-hermes2:latest", name: "Nous Hermes 2", desc: "Model instruction-tuned berkualiti" },
+        ],
+        paid: []
       }
     };
 
     let pickerState = { index: -1, field: "" };
     const testedProviders = new Set();
+    const ollamaLocalModels = {};  // index -> [model names detected locally]
 
     $("supabaseUrl").value = state.url;
     $("supabaseAnon").value = state.anon;
@@ -517,11 +563,12 @@
                   <option value="grok" ${p.provider === 'grok' ? 'selected' : ''}>Grok (xAI)</option>
                   <option value="deepseek" ${p.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
                   <option value="huggingface" ${p.provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
+                  <option value="ollama" ${p.provider === 'ollama' ? 'selected' : ''}>🦙 Ollama (Local)</option>
                 </select>
               </div>
               <div class="field-group">
-                <label>API Key</label>
-                <input type="password" value="${safe(p.api_key)}" placeholder="sk-..." onchange="updateProvider(${index}, 'api_key', this.value)">
+                <label>${p.provider === 'ollama' ? 'Ollama URL (optional)' : 'API Key'}</label>
+                <input type="${p.provider === 'ollama' ? 'text' : 'password'}" value="${safe(p.provider === 'ollama' ? (p.base_url || 'http://localhost:11434') : p.api_key)}" placeholder="${p.provider === 'ollama' ? 'http://localhost:11434' : 'sk-...'}" onchange="updateProvider(${index}, '${p.provider === 'ollama' ? 'base_url' : 'api_key'}', this.value)">
               </div>
             </div>
 
@@ -609,16 +656,29 @@
       const label = field === 'main_model' ? 'Main Model' : 'Risk Review Model';
       $("modalTitle").textContent = `Pilih ${label}`;
 
+      // For Ollama: add locally detected models as a "local" tab
+      let localModels = [];
+      if (provider === 'ollama' && ollamaLocalModels[index]) {
+        localModels = ollamaLocalModels[index]
+          .filter(name => !catalog.free.some(m => m.id === name))
+          .map(name => ({ id: name, name: name, desc: 'Model yang telah di-pull di mesin anda' }));
+      }
+
       // Build tabs
       const hasFree = catalog.free.length > 0;
       const hasPaid = catalog.paid.length > 0;
+      const hasLocal = localModels.length > 0;
       let tabsHtml = '';
-      if (hasFree) tabsHtml += `<button class="modal-tab act" onclick="switchTab(this,'free')">🆓 Percuma (${catalog.free.length})</button>`;
-      if (hasPaid) tabsHtml += `<button class="modal-tab ${!hasFree ? 'act tp' : 'tp'}" onclick="switchTab(this,'paid')">💎 Berbayar (${catalog.paid.length})</button>`;
+      if (hasLocal) tabsHtml += `<button class="modal-tab act" onclick="switchTab(this,'local')">💻 Installed (${localModels.length})</button>`;
+      if (hasFree) tabsHtml += `<button class="modal-tab ${!hasLocal ? 'act' : ''}" onclick="switchTab(this,'free')">${provider === 'ollama' ? '📦 Semua Model' : '🆓 Percuma'} (${catalog.free.length})</button>`;
+      if (hasPaid) tabsHtml += `<button class="modal-tab ${!hasFree && !hasLocal ? 'act tp' : 'tp'}" onclick="switchTab(this,'paid')">💎 Berbayar (${catalog.paid.length})</button>`;
       $("modalTabs").innerHTML = tabsHtml;
 
+      // Store local models temporarily for rendering
+      catalog._local = localModels;
+
       // Show first available tab
-      const defaultTab = hasFree ? 'free' : 'paid';
+      const defaultTab = hasLocal ? 'local' : (hasFree ? 'free' : 'paid');
       renderModelList(catalog, defaultTab);
       $("modelModal").classList.add('open');
     }
@@ -632,18 +692,21 @@
     }
 
     function renderModelList(catalog, type) {
-      const models = catalog[type] || [];
+      const models = type === 'local' ? (catalog._local || []) : (catalog[type] || []);
       if (models.length === 0) {
-        $("modalBody").innerHTML = `<div class="m-empty">Tiada model ${type === 'free' ? 'percuma' : 'berbayar'} untuk provider ini.</div>`;
+        const labels = { free: 'percuma', paid: 'berbayar', local: 'installed' };
+        $("modalBody").innerHTML = `<div class="m-empty">Tiada model ${labels[type] || type} untuk provider ini.</div>`;
         return;
       }
       let html = '';
       for (const m of models) {
+        const badgeLabel = type === 'local' ? 'INSTALLED' : (type === 'free' ? 'FREE' : 'PAID');
+        const badgeClass = type === 'local' ? 'free' : type;
         html += `<div class="m-card" onclick="selectModel('${m.id.replace(/'/g, "\\'")}')">` +
           `<div class="mi"><div class="mi-n">${safe(m.name)}</div>` +
           `<div class="mi-id">${safe(m.id)}</div>` +
           `<div class="mi-d">${safe(m.desc)}</div></div>` +
-          `<span class="mb ${type}">${type === 'free' ? 'FREE' : 'PAID'}</span></div>`;
+          `<span class="mb ${badgeClass}">${badgeLabel}</span></div>`;
       }
       $("modalBody").innerHTML = html;
     }
@@ -686,6 +749,27 @@
       const p = state.providers[index];
       const resDiv = $(`testRes_${index}`);
       resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing connection...</span>`;
+
+      // Ollama: no API key needed, test via /api/tags
+      if (p.provider === 'ollama') {
+        const ollamaUrl = (p.base_url || 'http://localhost:11434').replace(/\/$/, '');
+        try {
+          const response = await fetch(`${ollamaUrl}/api/tags`, { method: "GET" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          const modelNames = (data.models || []).map(m => m.name);
+          
+          // Store detected models for the picker
+          ollamaLocalModels[index] = modelNames;
+          
+          resDiv.innerHTML = `<span style="color:var(--green)">✅ Ollama aktif! ${modelNames.length} model ditemui: ${modelNames.slice(0, 5).join(', ')}${modelNames.length > 5 ? '...' : ''}</span>`;
+          testedProviders.add(index);
+          renderProviders();
+        } catch (err) {
+          resDiv.innerHTML = `<span style="color:var(--red)">❌ Gagal sambung ke Ollama di ${ollamaUrl}. Pastikan Ollama sedang berjalan (ollama serve).<br>Error: ${safe(err.message)}</span>`;
+        }
+        return;
+      }
 
       if (!p.api_key) {
         resDiv.innerHTML = `<span style="color:var(--red)">❌ Sila masukkan API Key dahulu</span>`;
@@ -816,6 +900,13 @@
         payload.messages = [{ role: "user", content: "Reply with exactly the word OK." }];
       } else if (p.provider === 'huggingface') {
         url = "https://router.huggingface.co/v1/chat/completions";
+      } else if (p.provider === 'ollama') {
+        url = ((p.base_url || 'http://localhost:11434').replace(/\/$/, '')) + '/api/chat';
+        headers = { "Content-Type": "application/json" };
+        payload.stream = false;
+        payload.options = { temperature: 0.1, num_predict: 5 };
+        delete payload.max_tokens;
+        delete payload.temperature;
       }
 
       try {
@@ -834,6 +925,8 @@
         let replyText = "";
         if (p.provider === 'anthropic') {
           replyText = data.content?.[0]?.text;
+        } else if (p.provider === 'ollama') {
+          replyText = data.message?.content;
         } else {
           replyText = data.choices?.[0]?.message?.content;
         }

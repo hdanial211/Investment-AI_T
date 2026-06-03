@@ -7,6 +7,7 @@ from .huggingface_client import HuggingFaceClient
 from .openrouter_client import OpenRouterClient
 from .openai_client import OpenAIClient
 from .anthropic_client import AnthropicClient
+from .ollama_client import OllamaClient
 
 def _normalize_provider(provider: str) -> str:
     return str(provider or "").strip().lower().replace("-", "_")
@@ -22,6 +23,11 @@ def get_client(provider_config: Dict):
         return OpenAIClient(api_key=provider_config.get("api_key"), provider_type=provider)
     if provider in ("anthropic", "claude"):
         return AnthropicClient(api_key=provider_config.get("api_key"))
+    if provider == "ollama":
+        return OllamaClient(
+            api_key=provider_config.get("api_key", ""),
+            base_url=provider_config.get("base_url", "http://localhost:11434"),
+        )
         
     raise ValueError(f"Unsupported AI provider: {provider}")
 

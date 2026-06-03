@@ -415,6 +415,11 @@ def query_ai_provider(
 def _provider_has_credentials(provider_config: dict) -> bool:
     provider = str(provider_config.get("provider", "")).strip().lower()
     api_key = provider_config.get("api_key")
+
+    # Ollama runs locally — no API key required
+    if provider == "ollama":
+        return True
+
     if api_key and api_key != "CHANGE_ME":
         return True
         
