@@ -28,7 +28,7 @@ def fetch_and_apply_system_settings() -> bool:
         providers_list = sys_data.get("providers_list", [])
         if isinstance(providers_list, list) and len(providers_list) > 0:
             config.PROVIDERS_CONFIG = providers_list
-            logger.info(f"Loaded {len(providers_list)} API providers directly from Supabase.")
+            logger.debug(f"Loaded {len(providers_list)} API providers directly from Supabase.")
         else:
             logger.warning("No providers_list found in Supabase settings.")
         if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
