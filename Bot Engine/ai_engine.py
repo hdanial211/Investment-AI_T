@@ -491,7 +491,7 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
         role="main",
         temperature=config.AI_TEMPERATURE,
         max_tokens=config.AI_MAX_TOKENS,
-        specific_provider_config=specific_provider_config,
+        provider_sequence=[specific_provider_config] if specific_provider_config else None,
     )
     if not raw_text:
         return {**default_response, "reason": "Cloud AI provider unreachable or timed out"}

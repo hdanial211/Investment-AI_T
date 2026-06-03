@@ -299,6 +299,7 @@ class MT5Connector:
             spread = 0.0003 if "USD" in symbol and "XAU" not in symbol else 0.30
             return {"bid": round(price - spread / 2, 5), "ask": round(price + spread / 2, 5)}
 
+        mt5.symbol_select(symbol, True)
         tick = mt5.symbol_info_tick(symbol)
         if tick is None:
             logger.error(f"Cannot get tick for {symbol}: {mt5.last_error()}")
