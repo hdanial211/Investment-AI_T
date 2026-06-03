@@ -97,7 +97,6 @@ def analyze_symbol(
 
     # 4. Query Text AI
     logger.info("Querying text AI model...")
-    import config
     master_ai_config = None
     if config.MASTER_AI_PROVIDER:
         master_ai_config = {
