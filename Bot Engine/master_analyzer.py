@@ -98,7 +98,9 @@ def analyze_symbol(
     # 4. Query Text AI
     logger.info("Querying text AI model...")
     master_ai_config = None
-    if config.MASTER_AI_PROVIDER:
+    if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
+        master_ai_config = config.PROVIDERS_CONFIG[0]
+    elif config.MASTER_AI_PROVIDER:
         master_ai_config = {
             "provider": config.MASTER_AI_PROVIDER,
             "main_model": config.MASTER_AI_MAIN_MODEL,
@@ -271,7 +273,9 @@ def main():
         from ai_engine import unload_ai
         
         master_ai_config = None
-        if config.MASTER_AI_PROVIDER:
+        if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
+            master_ai_config = config.PROVIDERS_CONFIG[0]
+        elif config.MASTER_AI_PROVIDER:
             master_ai_config = {
                 "provider": config.MASTER_AI_PROVIDER,
                 "main_model": config.MASTER_AI_MAIN_MODEL,
