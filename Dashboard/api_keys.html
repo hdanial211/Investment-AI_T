@@ -610,6 +610,14 @@
     // ── MUTATIONS ────────────────────────────────────────────────────────
     function updateProvider(index, field, value) {
       state.providers[index][field] = value.trim();
+      // Re-render when provider type changes (to update label/placeholder)
+      if (field === 'provider') {
+        // Reset model selections when switching provider
+        state.providers[index].main_model = '';
+        state.providers[index].risk_model = '';
+        testedProviders.delete(index);
+        renderProviders();
+      }
     }
 
     function addProvider() {
