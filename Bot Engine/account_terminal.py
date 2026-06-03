@@ -269,6 +269,9 @@ def main():
     logger.info(f"  ACCOUNT TERMINAL — {account_id}")
     logger.info("=" * 60)
 
+    # 0. Live Update System Settings (API keys, AI models)
+    system_settings.fetch_and_apply_system_settings()
+
     # Initialize components
     acct_settings = AccountSettings(account_id)
     connector = MT5Connector()
@@ -288,6 +291,10 @@ def main():
 
         # Check if account is still enabled
         acct_settings.force_refresh()
+        
+        # Also refresh global system settings (AI models & API keys)
+        system_settings.fetch_and_apply_system_settings()
+
         if not acct_settings.enabled:
             logger.info(f"[{account_id}] Account is DISABLED. Sleeping 30s...")
             time.sleep(30)
