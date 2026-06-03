@@ -875,17 +875,30 @@
 
     // ── SAVE ─────────────────────────────────────────────────────────────
     async function saveSettings() {
-      const payload = {
-        id: 'global',
-        providers_list: state.providers,
-        master_ai_profile_index: state.masterIndex,
-        updated_at: new Date().toISOString(),
-        updated_by: "dashboard",
-      };
+      let payload;
+      let table;
+
+      if (state.activeTab === 'global') {
+        payload = {
+          id: 'global',
+          providers_list: state.providers,
+          master_ai_profile_index: state.masterIndex,
+          updated_at: new Date().toISOString(),
+          updated_by: "dashboard",
+        };
+        table = "system_settings";
+      } else {
+        payload = {
+          account_id: state.activeTab,
+          providers_list: state.providers,
+          updated_at: new Date().toISOString(),
+        };
+        table = "account_settings";
+      }
 
       try {
-        await sbUpsert("system_settings", payload);
-        showStatus(`✅ Configurations saved successfully at ${new Date().toLocaleTimeString()}`, "success");
+        await sbUpsert(table, payload);
+        showStatus(`✅ Configurations saved successfully for ${state.activeTab} at ${new Date().toLocaleTimeString()}`, "success");
         await loadSystemSettings();
       } catch (err) {
         showStatus(`❌ Save failed: ${err.message}`, "error");
