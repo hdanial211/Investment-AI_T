@@ -194,6 +194,25 @@ class AccountSettings:
             "max_steps": _get("grid_max", int, 3)
         }
 
+    def get_trailing_settings(self, trade_style: str) -> dict:
+        """Get trailing stop and BE settings for a specific trade style."""
+        self._maybe_refresh()
+        prefix = trade_style.lower()
+        
+        # Helper to get typed val or default (None if empty/missing)
+        def _get_opt(key):
+            v = self._cache.get(f"{prefix}_{key}")
+            if v is None or str(v).strip() == "":
+                return None
+            try: return float(v)
+            except: return None
+
+        return {
+            "trail_stage1": _get_opt("trail_stage1"),
+            "trail_stage2": _get_opt("trail_stage2"),
+            "trail_distance": _get_opt("trail_distance")
+        }
+
     @property
     def mt5_path(self) -> str:
         """Get MT5 terminal path for this account."""

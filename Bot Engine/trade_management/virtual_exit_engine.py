@@ -111,7 +111,7 @@ class VirtualExitEngine:
 
         try:
             from style_params import get_style_params
-            params = get_style_params(trade_style, symbol)
+            params = get_style_params(trade_style, symbol).copy()
         except Exception:
             # Fallback to original hardcoded values
             params = {
@@ -119,6 +119,22 @@ class VirtualExitEngine:
                 "trail_stage2": 1.5,
                 "trail_distance": 1.0,
             }
+
+        # Override with individual trailing settings from dashboard if available
+        try:
+            from account_settings import AccountSettings
+            acct = AccountSettings(getattr(config, 'ACCOUNT_ID', 'acc_1'))
+            dashboard_trailing = acct.get_trailing_settings(trade_style)
+            
+            if dashboard_trailing.get("trail_stage1") is not None:
+                params["trail_stage1"] = dashboard_trailing["trail_stage1"]
+            if dashboard_trailing.get("trail_stage2") is not None:
+                params["trail_stage2"] = dashboard_trailing["trail_stage2"]
+            if dashboard_trailing.get("trail_distance") is not None:
+                params["trail_distance"] = dashboard_trailing["trail_distance"]
+        except Exception as e:
+            pass
+
 
         # If trailing is disabled for this style (e.g. EUR/USD scalping)
         if params.get("trail_stage1") is None:
