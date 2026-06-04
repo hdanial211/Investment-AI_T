@@ -26,11 +26,11 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
     # ──────────────── SCALPING ────────────────
     "SCALPING": {
         "XAUUSD": {
-            "sl_atr_multi": 1.0,        # SL = 1.0 × ATR
-            "tp_atr_multi": 1.5,        # TP = 1.5 × ATR
-            "min_sl_pips": 20,          # SL minimum 20 pip
-            "max_sl_pips": 80,          # SL maximum 80 pip
-            "min_rr": 1.0,             # R:R minimum 1:1
+            "sl_atr_multi": 1.5,        # SL = 1.5 × ATR
+            "tp_atr_multi": 2.0,        # TP = 2.0 × ATR
+            "min_sl_pips": 150,         # SL minimum $1.50
+            "max_sl_pips": 250,         # SL maximum $2.50
+            "min_rr": 1.0,              # R:R minimum 1:1
             "risk_percent": 0.5,        # 0.5% risiko per trade
             "trail_stage1": 0.3,        # Profit lock at 0.3×ATR
             "trail_stage2": 0.8,        # Trail start at 0.8×ATR
@@ -58,11 +58,11 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
     # ──────────────── INTRADAY ────────────────
     "INTRADAY": {
         "XAUUSD": {
-            "sl_atr_multi": 1.5,
-            "tp_atr_multi": 3.0,
-            "min_sl_pips": 50,
-            "max_sl_pips": 250,
-            "min_rr": 2.0,
+            "sl_atr_multi": 2.5,
+            "tp_atr_multi": 4.0,
+            "min_sl_pips": 250,
+            "max_sl_pips": 500,
+            "min_rr": 1.5,
             "risk_percent": 1.5,
             "trail_stage1": 0.5,
             "trail_stage2": 1.5,
