@@ -418,3 +418,17 @@ def get_all_enabled_accounts() -> list[str]:
     if config.ACCOUNT_ID:
         return [config.ACCOUNT_ID]
     return []
+
+
+def account_has_active_trades(acc_id: str) -> bool:
+    """Check if an account has any open positions in Supabase active_trades table."""
+    try:
+        from trade_management.supabase_sync import SupabaseSync
+        sync = SupabaseSync()
+        result = sync.client.table("active_trades").select("ticket").eq("account_id", acc_id).execute()
+        return len(result.data) > 0
+    except Exception as e:
+        logger.warning(f"account_has_active_trades check failed for {acc_id}: {e}")
+        # If we can't confirm, assume no active trades — safer to allow shutdown
+        return False
+

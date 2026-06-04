@@ -11,7 +11,7 @@ import queue
 # For importing account_settings from Bot Engine
 sys.path.append(os.path.join(os.path.dirname(__file__), "Bot Engine"))
 try:
-    from account_settings import get_all_enabled_accounts
+    from account_settings import get_all_enabled_accounts, account_has_active_trades
     from system_settings import fetch_and_apply_system_settings
 except ImportError:
     pass
@@ -257,13 +257,23 @@ class LauncherApp:
                 
                 # 5. Stop & Remove inactive terminals
                 # (Keep watchdog and master alone)
+                # RULE: Never kill a terminal that has active trades — wait until trades are closed.
                 existing_term_ids = list(self.terminals.keys())
                 for term_id in existing_term_ids:
                     if term_id.startswith("acc_"):
                         acc_id_str = term_id.replace("acc_", "")
                         if acc_id_str not in active_accounts:
-                            self._log_to_watchdog(f"[WATCHDOG] Account {acc_id_str} is disabled. Terminating its terminal...")
-                            self.root.after(0, lambda t=term_id: self.remove_terminal(t))
+                            # Check if there are still active trades before killing
+                            try:
+                                has_trades = account_has_active_trades(acc_id_str)
+                            except Exception:
+                                has_trades = False
+                                
+                            if has_trades:
+                                self._log_to_watchdog(f"[WATCHDOG] ⚠ Account {acc_id_str} is disabled but has ACTIVE TRADES. Terminal will stay alive until all trades are closed.")
+                            else:
+                                self._log_to_watchdog(f"[WATCHDOG] Account {acc_id_str} is disabled and has no active trades. Terminating its terminal...")
+                                self.root.after(0, lambda t=term_id: self.remove_terminal(t))
                             
             except Exception as e:
                 self._log_to_watchdog(f"[WATCHDOG] ⚠ Error during check: {e}")

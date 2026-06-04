@@ -166,18 +166,6 @@ class MT5Connector:
             self.connected = True
             return True
 
-        target_login = int(login) if login is not None else (int(config.MT5_LOGIN) if config.MT5_LOGIN else 0)
-        target_password = password if password is not None else config.MT5_PASSWORD
-        target_server = server if server is not None else config.MT5_SERVER
-
-        # Check if already connected to the target account
-        if self.connected and self._account_cache and self._account_cache.get("login") == target_login:
-            # Quick ping to ensure it's still alive
-            if mt5.terminal_info() is not None:
-                return True
-            else:
-                self.connected = False
-
         # ── Step 1: Auto-launch MT5 if not running ───────────────────────────
         if not _is_mt5_running():
             exe = path if path else _find_mt5_exe()
@@ -188,6 +176,10 @@ class MT5Connector:
                     "MT5 executable not found. "
                     "Set MT5_PATH in your .env or Supabase to the full path of terminal64.exe."
                 )
+
+        target_login = int(login) if login is not None else int(config.MT5_LOGIN)
+        target_password = password if password is not None else config.MT5_PASSWORD
+        target_server = server if server is not None else config.MT5_SERVER
 
         # ── Step 2: Initialize (attach to running terminal & auto-download server if missing) ──
         target_path = path if path else (config.MT5_PATH if config.MT5_PATH else None)
