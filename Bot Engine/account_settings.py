@@ -43,6 +43,7 @@ _DEFAULTS = {
     "max_risk_percent": config.MAX_RISK_PERCENT,
     "symbol_xauusd": "XAUUSD",
     "symbol_eurusd": "EURUSD",
+    "trade_during_events": False,
     "news_close_profit": False,
     "manage_manual_sl": False,
     "manage_manual_tp": False,

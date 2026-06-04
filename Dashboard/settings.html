@@ -833,7 +833,8 @@
 
     // ── DELETE ACCOUNT ───────────────────────────────────────────────────
     async function deleteAccount(accId, label) {
-      if (!confirm(`Delete "${label}" (${accId})? This cannot be undone.`)) return;
+      if (!confirm(`⚠️ AMARAN: Adakah awak pasti mahu memadam akaun "${label}" (${accId})?`)) return;
+      if (!confirm(`Sila sahkan sekali lagi. Segala setting untuk akaun ini akan hilang dan tidak boleh dikembalikan (undo). Teruskan padam?`)) return;
 
       try {
         await sbDelete("account_settings", "account_id", accId);
