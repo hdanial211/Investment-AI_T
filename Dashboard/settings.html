@@ -588,29 +588,7 @@
           </div>
         </div>
 
-        <!-- Grid Recovery & Averaging -->
-        <label style="margin-bottom:10px; margin-top:20px;">Grid Recovery & Averaging</label>
-        <div class="limits-row" style="margin-bottom:18px">
-          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-            <label>Enable Grid Recovery <span class="tooltip" data-title="Buka layer baru bila floating loss untuk mempuratakan harga (averaging).">i</span></label>
-            <div class="toggle-row" style="margin-top:8px">
-              <div class="toggle generic-toggle ${acc.grid_recovery_enabled ? "on" : ""}" id="f_grid_enabled"></div>
-              <span class="toggle-label">${acc.grid_recovery_enabled ? "Enabled" : "Disabled"}</span>
-            </div>
-          </div>
-          <div class="field-group">
-            <label>Dynamic Distance (ATR) <span class="tooltip" data-title="Jarak antara layer diukur mengikut ATR (contoh: 1.0 ATR).">i</span></label>
-            <input type="number" id="f_grid_atr" value="${acc.grid_atr_multiplier ?? 1.0}" step="0.1" min="0.1">
-          </div>
-          <div class="field-group">
-            <label>Lot Multiplier <span class="tooltip" data-title="Gandaan lot untuk layer seterusnya (contoh: 1.0 untuk lot kekal, 2.0 untuk Martingale).">i</span></label>
-            <input type="number" id="f_grid_lot_mult" value="${acc.grid_lot_multiplier ?? 1.0}" step="0.1" min="1.0">
-          </div>
-          <div class="field-group">
-            <label>Max Grid Steps <span class="tooltip" data-title="Jumlah layer maksimum yang dibenarkan untuk satu bakul.">i</span></label>
-            <input type="number" id="f_grid_max" value="${acc.grid_max_steps ?? 3}" min="1">
-          </div>
-        </div>
+
 
         <!-- Hedging Strategy -->
         <label style="margin-bottom:10px; margin-top:20px;">Hedging Strategy</label>
@@ -783,6 +761,30 @@
             <label>Max Concurrent Trades <span class="tooltip" data-title="Had maksimum jumlah trade serentak yang dibenarkan untuk stail ini.">i</span></label>
             <input id="f_${key}_max" type="number" min="0" max="50" step="1" value="${maxT}">
           </div>
+          <div style="margin-top:16px; border-top:1px solid rgba(0,0,0,0.05); padding-top:12px;">
+            <div style="font-weight:600; font-size:0.85rem; margin-bottom:12px; color:var(--text)">Grid Recovery Settings</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+                <label>Enable Grid <span class="tooltip" data-title="Buka layer baru bila floating loss untuk mempuratakan harga (averaging).">i</span></label>
+                <div class="toggle-row" style="margin-top:8px">
+                  <div class="toggle generic-toggle ${acc[`${key}_grid_enabled`] ? "on" : ""}" id="f_${key}_grid_enabled"></div>
+                  <span class="toggle-label">${acc[`${key}_grid_enabled`] ? "Enabled" : "Disabled"}</span>
+                </div>
+              </div>
+              <div class="field-group">
+                <label>Distance (ATR) <span class="tooltip" data-title="Jarak antara layer diukur mengikut ATR (contoh: 1.0 ATR).">i</span></label>
+                <input type="number" id="f_${key}_grid_atr" value="${acc[`${key}_grid_atr`] ?? 1.0}" step="0.1" min="0.1">
+              </div>
+              <div class="field-group">
+                <label>Lot Multiplier <span class="tooltip" data-title="Gandaan lot untuk layer seterusnya (contoh: 1.0 untuk lot kekal, 2.0 untuk Martingale).">i</span></label>
+                <input type="number" id="f_${key}_grid_lot_mult" value="${acc[`${key}_grid_lot_mult`] ?? 1.0}" step="0.1" min="1.0">
+              </div>
+              <div class="field-group">
+                <label>Max Grid Steps <span class="tooltip" data-title="Jumlah layer maksimum yang dibenarkan untuk bakul ini.">i</span></label>
+                <input type="number" id="f_${key}_grid_max" value="${acc[`${key}_grid_max`] ?? 3}" min="1">
+              </div>
+            </div>
+          </div>
         </div>
       `;
     }
@@ -829,10 +831,20 @@
         block_asia_session: $("f_block_asia").classList.contains("on"),
         allow_hedging: $("f_allow_hedging").classList.contains("on"),
 
-        grid_recovery_enabled: $("f_grid_enabled").classList.contains("on"),
-        grid_atr_multiplier: parseFloat($("f_grid_atr").value) || 1.0,
-        grid_lot_multiplier: parseFloat($("f_grid_lot_mult").value) || 1.0,
-        grid_max_steps: parseInt($("f_grid_max").value) || 3,
+        scalping_grid_enabled: $("f_scalping_grid_enabled").classList.contains("on"),
+        scalping_grid_atr: parseFloat($("f_scalping_grid_atr").value) || 1.0,
+        scalping_grid_lot_mult: parseFloat($("f_scalping_grid_lot_mult").value) || 1.0,
+        scalping_grid_max: parseInt($("f_scalping_grid_max").value) || 3,
+
+        intraday_grid_enabled: $("f_intraday_grid_enabled").classList.contains("on"),
+        intraday_grid_atr: parseFloat($("f_intraday_grid_atr").value) || 1.0,
+        intraday_grid_lot_mult: parseFloat($("f_intraday_grid_lot_mult").value) || 1.0,
+        intraday_grid_max: parseInt($("f_intraday_grid_max").value) || 3,
+
+        swing_grid_enabled: $("f_swing_grid_enabled").classList.contains("on"),
+        swing_grid_atr: parseFloat($("f_swing_grid_atr").value) || 1.0,
+        swing_grid_lot_mult: parseFloat($("f_swing_grid_lot_mult").value) || 1.0,
+        swing_grid_max: parseInt($("f_swing_grid_max").value) || 3,
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),

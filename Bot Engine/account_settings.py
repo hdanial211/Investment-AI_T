@@ -53,10 +53,18 @@ _DEFAULTS = {
     "daily_profit_target_pct": 2.0,
     "min_ai_confidence": 0.70,
     "max_spread_points": 50,
-    "grid_recovery_enabled": False,
-    "grid_atr_multiplier": 1.0,
-    "grid_lot_multiplier": 1.0,
-    "grid_max_steps": 3,
+    "scalping_grid_enabled": False,
+    "scalping_grid_atr": 1.0,
+    "scalping_grid_lot_mult": 1.0,
+    "scalping_grid_max": 3,
+    "intraday_grid_enabled": False,
+    "intraday_grid_atr": 1.0,
+    "intraday_grid_lot_mult": 1.0,
+    "intraday_grid_max": 3,
+    "swing_grid_enabled": False,
+    "swing_grid_atr": 1.0,
+    "swing_grid_lot_mult": 1.0,
+    "swing_grid_max": 3,
     "allow_hedging": False,
 }
 
@@ -168,29 +176,23 @@ class AccountSettings:
         self._maybe_refresh()
         return bool(self._cache.get("allow_hedging", False))
 
-    @property
-    def grid_recovery_enabled(self) -> bool:
+    def get_grid_settings(self, trade_style: str) -> dict:
+        """Get grid recovery settings for a specific trade style."""
         self._maybe_refresh()
-        val = self._cache.get("grid_recovery_enabled", _DEFAULTS["grid_recovery_enabled"])
-        return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+        prefix = trade_style.lower()
+        
+        # Helper to get typed val or default
+        def _get(key, typ, default):
+            v = self._cache.get(f"{prefix}_{key}", default)
+            try: return typ(v)
+            except: return default
 
-    @property
-    def grid_atr_multiplier(self) -> float:
-        self._maybe_refresh()
-        try: return float(self._cache.get("grid_atr_multiplier", _DEFAULTS["grid_atr_multiplier"]))
-        except: return _DEFAULTS["grid_atr_multiplier"]
-
-    @property
-    def grid_lot_multiplier(self) -> float:
-        self._maybe_refresh()
-        try: return float(self._cache.get("grid_lot_multiplier", _DEFAULTS["grid_lot_multiplier"]))
-        except: return _DEFAULTS["grid_lot_multiplier"]
-
-    @property
-    def grid_max_steps(self) -> int:
-        self._maybe_refresh()
-        try: return int(self._cache.get("grid_max_steps", _DEFAULTS["grid_max_steps"]))
-        except: return _DEFAULTS["grid_max_steps"]
+        return {
+            "enabled": str(self._cache.get(f"{prefix}_grid_enabled", False)).lower() == "true",
+            "atr_multiplier": _get("grid_atr", float, 1.0),
+            "lot_multiplier": _get("grid_lot_mult", float, 1.0),
+            "max_steps": _get("grid_max", int, 3)
+        }
 
     @property
     def mt5_path(self) -> str:

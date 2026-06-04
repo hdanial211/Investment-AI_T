@@ -21,9 +21,7 @@ class GridManager:
             from account_settings import AccountSettings
             acct = AccountSettings(getattr(config, 'ACCOUNT_ID', 'acc_1'))
             
-            if not acct.grid_recovery_enabled:
-                return closed_tickets
-                
+
             atr = (indicators or {}).get("atr")
             if not atr or atr <= 0:
                 return closed_tickets
@@ -57,6 +55,11 @@ class GridManager:
                 if len(items) == 0:
                     continue
                     
+                # Fetch grid settings for this specific style
+                grid_settings = acct.get_grid_settings(trade_style)
+                if not grid_settings["enabled"]:
+                    continue
+                    
                 # Calculate net profit
                 net_profit = sum(float(item["position"].get("profit", 0.0)) for item in items)
                 
@@ -79,7 +82,7 @@ class GridManager:
                 prices = [float(item["position"]["price_open"]) for item in items]
                 current_price = float(items[0]["position"]["price_current"])
                 
-                grid_distance = acct.grid_atr_multiplier * atr
+                grid_distance = grid_settings["atr_multiplier"] * atr
                 should_open_grid = False
                 
                 if action == "BUY":
@@ -91,7 +94,7 @@ class GridManager:
                     if current_price >= (highest_price + grid_distance):
                         should_open_grid = True
                         
-                if should_open_grid and len(items) < (acct.grid_max_steps + 1):
+                if should_open_grid and len(items) < (grid_settings["max_steps"] + 1):
                     # Find the lot of the most recent trade (the one with the lowest price for BUY)
                     if action == "BUY":
                         last_trade = min(items, key=lambda x: float(x["position"]["price_open"]))
@@ -99,7 +102,7 @@ class GridManager:
                         last_trade = max(items, key=lambda x: float(x["position"]["price_open"]))
                         
                     last_lot = float(last_trade["position"]["volume"])
-                    new_lot = round(last_lot * acct.grid_lot_multiplier, 2)
+                    new_lot = round(last_lot * grid_settings["lot_multiplier"], 2)
                     
                     # Ensure minimum lot step (0.01)
                     if new_lot < 0.01:
