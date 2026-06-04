@@ -47,6 +47,11 @@ _DEFAULTS = {
     "manage_manual_sl": False,
     "manage_manual_tp": False,
     "manage_manual_be": False,
+    "block_asia_session": True,
+    "max_daily_drawdown_pct": 5.0,
+    "daily_profit_target_pct": 2.0,
+    "min_ai_confidence": 0.70,
+    "max_spread_points": 50,
 }
 
 
@@ -121,6 +126,36 @@ class AccountSettings:
         self._maybe_refresh()
         val = self._cache.get("manage_manual_be", _DEFAULTS["manage_manual_be"])
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+
+    @property
+    def block_asia_session(self) -> bool:
+        self._maybe_refresh()
+        val = self._cache.get("block_asia_session", _DEFAULTS["block_asia_session"])
+        return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+
+    @property
+    def max_daily_drawdown_pct(self) -> float:
+        self._maybe_refresh()
+        try: return float(self._cache.get("max_daily_drawdown_pct", _DEFAULTS["max_daily_drawdown_pct"]))
+        except: return _DEFAULTS["max_daily_drawdown_pct"]
+
+    @property
+    def daily_profit_target_pct(self) -> float:
+        self._maybe_refresh()
+        try: return float(self._cache.get("daily_profit_target_pct", _DEFAULTS["daily_profit_target_pct"]))
+        except: return _DEFAULTS["daily_profit_target_pct"]
+
+    @property
+    def min_ai_confidence(self) -> float:
+        self._maybe_refresh()
+        try: return float(self._cache.get("min_ai_confidence", _DEFAULTS["min_ai_confidence"]))
+        except: return _DEFAULTS["min_ai_confidence"]
+
+    @property
+    def max_spread_points(self) -> int:
+        self._maybe_refresh()
+        try: return int(self._cache.get("max_spread_points", _DEFAULTS["max_spread_points"]))
+        except: return _DEFAULTS["max_spread_points"]
 
     @property
     def mt5_path(self) -> str:

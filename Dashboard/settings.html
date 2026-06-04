@@ -204,6 +204,52 @@
     .status-bar.success { display: block; background: rgba(44, 139, 103, 0.12); color: var(--green); border: 1px solid rgba(44, 139, 103, 0.25); }
     .status-bar.error { display: block; background: rgba(173, 79, 67, 0.12); color: var(--red); border: 1px solid rgba(173, 79, 67, 0.25); }
 
+    /* ── TOOLTIPS ──────────────────────────────────────────────────────── */
+    .tooltip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(103, 113, 106, 0.2);
+      color: var(--muted);
+      font-size: 0.65rem;
+      font-weight: bold;
+      margin-left: 6px;
+      cursor: help;
+      position: relative;
+    }
+    .tooltip:hover::after {
+      content: attr(data-title);
+      position: absolute;
+      bottom: 150%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: normal;
+      white-space: pre-wrap;
+      width: 220px;
+      text-transform: none;
+      letter-spacing: normal;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      pointer-events: none;
+    }
+    .tooltip:hover::before {
+      content: "";
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--ink);
+    }
+
     .save-row { display: flex; gap: 10px; align-items: center; }
     .save-row button { padding: 13px 28px; font-size: 1rem; }
     .delete-btn { background: var(--red) !important; font-size: 0.85rem !important; padding: 10px 18px !important; }
@@ -488,25 +534,41 @@
         <label style="margin-bottom:10px">Global Limits</label>
         <div class="limits-row" style="margin-bottom:18px">
           <div class="field-group">
-            <label>Max Total Trades (all styles)</label>
+            <label>Max Total Trades (all styles) <span class="tooltip" data-title="Jumlah maksimum keseluruhan posisi trade yang dibenarkan berjalan serentak untuk semua pair dan stail.">i</span></label>
             <input id="f_max_total" type="number" min="1" max="50" step="1" value="${acc.max_total_trades ?? 5}">
           </div>
           <div class="field-group">
-            <label>Max Risk % Per Trade</label>
+            <label>Max Risk % Per Trade <span class="tooltip" data-title="Saiz lot akan dikira secara automatik supaya jika kena Stop Loss, kerugian terhad kepada peratusan (%) modal ini.">i</span></label>
             <input id="f_max_risk" type="number" min="0.1" max="10" step="0.1" value="${acc.max_risk_percent ?? 2.0}">
+          </div>
+          <div class="field-group">
+            <label>Max Daily Drawdown % <span class="tooltip" data-title="Jika akaun rugi mencecah peratusan (%) ini dalam sehari (floating + closed), bot akan berhenti trade sehingga esok. Letak 0 untuk matikan fungsi ini.">i</span></label>
+            <input id="f_max_dd" type="number" min="0" max="20" step="0.1" value="${acc.max_daily_drawdown_pct ?? 5.0}">
+          </div>
+          <div class="field-group">
+            <label>Daily Profit Target % <span class="tooltip" data-title="Jika akaun untung mencecah peratusan (%) ini dalam sehari (floating + closed), bot akan berhenti trade untuk simpan profit. Letak 0 untuk matikan fungsi ini.">i</span></label>
+            <input id="f_profit_target" type="number" min="0" max="20" step="0.1" value="${acc.daily_profit_target_pct ?? 2.0}">
+          </div>
+          <div class="field-group">
+            <label>Min AI Confidence <span class="tooltip" data-title="Tahap keyakinan isyarat AI (0.0 hingga 1.0) yang diperlukan untuk masuk trade. Contoh: 0.75 bermaksud 75% yakin.">i</span></label>
+            <input id="f_min_conf" type="number" min="0" max="1.0" step="0.05" value="${acc.min_ai_confidence ?? 0.70}">
+          </div>
+          <div class="field-group">
+            <label>Max Spread (Points) <span class="tooltip" data-title="Jika spread semasa melebihi point ini (contoh: 30 point = 3 pip), isyarat AI akan diabaikan untuk elak entry yang teruk.">i</span></label>
+            <input id="f_max_spread" type="number" min="0" max="500" step="1" value="${acc.max_spread_points ?? 50}">
           </div>
         <!-- News Filter -->
         <label style="margin-bottom:10px; margin-top:20px;">High-Impact News Action</label>
         <div class="limits-row" style="margin-bottom:18px">
           <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-            <label>Block New Entries</label>
+            <label>Block New Entries <span class="tooltip" data-title="Jika diaktifkan, bot tidak akan buka posisi baru ketika ada news berimpak tinggi.">i</span></label>
             <div class="toggle-row" style="margin-top:8px">
               <div class="toggle generic-toggle ${!acc.trade_during_events ? "on" : ""}" id="f_news_block"></div>
               <span class="toggle-label">${!acc.trade_during_events ? "Enabled" : "Disabled"}</span>
             </div>
           </div>
           <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-            <label>Close Profitable Trades</label>
+            <label>Close Profitable Trades <span class="tooltip" data-title="Jika diaktifkan, bot akan tutup automatik posisi yang sedang untung (profit) sebelum news berimpak tinggi.">i</span></label>
             <div class="toggle-row" style="margin-top:8px">
               <div class="toggle generic-toggle ${acc.news_close_profit ? "on" : ""}" id="f_news_close"></div>
               <span class="toggle-label">${acc.news_close_profit ? "Enabled" : "Disabled"}</span>
@@ -514,25 +576,37 @@
           </div>
         </div>
         
+        <!-- Session Filters -->
+        <label style="margin-bottom:10px; margin-top:20px;">Market Session Filters</label>
+        <div class="limits-row" style="margin-bottom:18px">
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Block Asia Session (Avoid Fakeout) <span class="tooltip" data-title="Menghalang trade semasa sesi Asia untuk elak fakeout disebabkan volum pasaran yang rendah.">i</span></label>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.block_asia_session !== false ? "on" : ""}" id="f_block_asia"></div>
+              <span class="toggle-label">${acc.block_asia_session !== false ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Manual Trade Management -->
         <label style="margin-bottom:10px; margin-top:20px;">Manual Trade Management</label>
         <div class="limits-row" style="margin-bottom:18px">
           <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-            <label>Bot Urus SL Manual Trade</label>
+            <label>Bot Urus SL Manual Trade <span class="tooltip" data-title="Jika aktif, bot akan pasangkan Stop Loss automatik untuk posisi yang awak buka secara manual di MT5.">i</span></label>
             <div class="toggle-row" style="margin-top:8px">
               <div class="toggle generic-toggle ${acc.manage_manual_sl ? "on" : ""}" id="f_manual_sl"></div>
               <span class="toggle-label">${acc.manage_manual_sl ? "Enabled" : "Disabled"}</span>
             </div>
           </div>
           <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-            <label>Bot Urus TP Manual Trade</label>
+            <label>Bot Urus TP Manual Trade <span class="tooltip" data-title="Jika aktif, bot akan pasangkan Take Profit automatik untuk posisi yang awak buka secara manual di MT5.">i</span></label>
             <div class="toggle-row" style="margin-top:8px">
               <div class="toggle generic-toggle ${acc.manage_manual_tp ? "on" : ""}" id="f_manual_tp"></div>
               <span class="toggle-label">${acc.manage_manual_tp ? "Enabled" : "Disabled"}</span>
             </div>
           </div>
           <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-            <label>Bot Urus BE Manual Trade</label>
+            <label>Bot Urus BE Manual Trade <span class="tooltip" data-title="Jika aktif, bot akan ubah Stop Loss ke harga entry (Break Even) apabila profit manual trade dah mencukupi.">i</span></label>
             <div class="toggle-row" style="margin-top:8px">
               <div class="toggle generic-toggle ${acc.manage_manual_be ? "on" : ""}" id="f_manual_be"></div>
               <span class="toggle-label">${acc.manage_manual_be ? "Enabled" : "Disabled"}</span>
@@ -666,11 +740,11 @@
             <span class="toggle-label">${enabled ? "Enabled" : "Disabled"}</span>
           </div>
           <div class="field-group">
-            <label>Lot Size</label>
+            <label>Lot Size <span class="tooltip" data-title="Saiz lot tetap yang akan digunakan untuk trade stail ini.">i</span></label>
             <input id="f_${key}_lot" type="number" min="0.01" max="100" step="0.01" value="${lot}">
           </div>
           <div class="field-group">
-            <label>Max Concurrent Trades</label>
+            <label>Max Concurrent Trades <span class="tooltip" data-title="Had maksimum jumlah trade serentak yang dibenarkan untuk stail ini.">i</span></label>
             <input id="f_${key}_max" type="number" min="0" max="50" step="1" value="${maxT}">
           </div>
         </div>
@@ -716,6 +790,7 @@
         manage_manual_sl: $("f_manual_sl").classList.contains("on"),
         manage_manual_tp: $("f_manual_tp").classList.contains("on"),
         manage_manual_be: $("f_manual_be").classList.contains("on"),
+        block_asia_session: $("f_block_asia").classList.contains("on"),
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),
@@ -731,6 +806,11 @@
 
         max_total_trades: parseInt($("f_max_total").value) || 5,
         max_risk_percent: parseFloat($("f_max_risk").value) || 2.0,
+        
+        max_daily_drawdown_pct: parseFloat($("f_max_dd").value) || 0,
+        daily_profit_target_pct: parseFloat($("f_profit_target").value) || 0,
+        min_ai_confidence: parseFloat($("f_min_conf").value) || 0,
+        max_spread_points: parseInt($("f_max_spread").value) || 500,
 
         updated_at: new Date().toISOString(),
         updated_by: "dashboard",

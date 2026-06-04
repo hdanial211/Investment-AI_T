@@ -184,9 +184,13 @@ def run_cycle(
     # ── STEP 6.1: Session filter (hard block) ─────────────────────────────────
     session_ok, session_reason = risk_mgr.validate_session(trade_style, symbol)
     if not session_ok:
-        logger.info(f"[{symbol}] {session_reason}")
-        trade_logger.log_skipped(symbol, session_reason, signal=signal, indicators=indicators)
-        return "skipped"
+        # Check if the user disabled the Asia Session Block in the dashboard
+        if acct_settings and "Asia" in session_reason and not acct_settings.block_asia_session:
+            logger.info(f"[{symbol}] Asia session blocked by style, but account settings allowed it. ALLOWING TRADE.")
+        else:
+            logger.info(f"[{symbol}] {session_reason}")
+            trade_logger.log_skipped(symbol, session_reason, signal=signal, indicators=indicators)
+            return "skipped"
 
     # ── STEP 6.1b: Min ATR filter (scalping guard) ────────────────────────────
     atr_ok, atr_reason = risk_mgr.validate_min_atr(trade_style, symbol, indicators)

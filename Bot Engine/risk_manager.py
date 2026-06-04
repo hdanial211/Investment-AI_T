@@ -374,6 +374,65 @@ class RiskManager:
         from style_params import is_session_allowed
         return is_session_allowed(trade_style, symbol)
 
+    # ── DAILY LIMITS & SPREAD VALIDATION ─────────────────────────────────────
+
+    def check_daily_limits(self, connector, acct_settings) -> Tuple[bool, str]:
+        max_dd_pct = acct_settings.max_daily_drawdown_pct
+        target_pct = acct_settings.daily_profit_target_pct
+
+        if max_dd_pct <= 0 and target_pct <= 0:
+            return True, "No daily limits set"
+
+        acc_info = connector.get_account_info()
+        balance = acc_info.get("balance", 0)
+        if balance <= 0:
+            return True, "Balance 0, skipping limit check"
+
+        # Closed profit today
+        trades = connector.get_trade_history(days=1)
+        today = datetime.now().date()
+        closed_profit = 0.0
+        for t in trades:
+            if t["time"].date() == today:
+                closed_profit += t["profit"] + t["commission"] + t["swap"]
+
+        # Floating profit
+        positions = connector.get_open_positions() or []
+        floating_profit = sum(p.get("profit", 0) + p.get("swap", 0) for p in positions)
+
+        total_pnl = closed_profit + floating_profit
+        pnl_pct = (total_pnl / balance) * 100
+
+        if max_dd_pct > 0 and pnl_pct <= -max_dd_pct:
+            return False, f"Daily Drawdown {pnl_pct:.2f}% exceeds max -{max_dd_pct}%"
+        
+        if target_pct > 0 and pnl_pct >= target_pct:
+            return False, f"Daily Profit {pnl_pct:.2f}% hit target +{target_pct}%"
+
+        return True, f"Daily PnL: {pnl_pct:.2f}%"
+
+    @staticmethod
+    def validate_spread(connector, symbol: str, max_spread_points: int) -> Tuple[bool, str]:
+        if max_spread_points <= 0:
+            return True, "Spread limit disabled"
+            
+        tick = connector.get_tick(symbol)
+        if not tick:
+            return False, "Cannot get tick for spread"
+            
+        if connector.demo_mode:
+            point = 0.01 if "XAU" in symbol else 0.00001
+        else:
+            import MetaTrader5 as mt5
+            info = mt5.symbol_info(symbol)
+            point = info.point if info else (0.01 if "XAU" in symbol else 0.00001)
+            
+        spread_points = (tick["ask"] - tick["bid"]) / point
+        if spread_points > max_spread_points:
+            return False, f"Spread {spread_points:.0f} pts exceeds {max_spread_points} pts limit"
+            
+        return True, f"Spread {spread_points:.0f} pts OK"
+
     # ── MIN ATR VALIDATION (SCALPING) ────────────────────────────────────────
 
     @staticmethod

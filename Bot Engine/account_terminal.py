@@ -89,6 +89,11 @@ def process_signal(
         logger.info(f"[{symbol}] Signal not actionable: {signal_reason}")
         return "skipped"
 
+    # 1.5 Account-Level Confidence Filter
+    if confidence < acct_settings.min_ai_confidence:
+        logger.info(f"[{symbol}] AI Confidence {confidence:.2f} below minimum {acct_settings.min_ai_confidence}")
+        return "skipped"
+
     logger.info(
         f"[{symbol}] ✔ Signal: {action} | Style: {trade_style} | "
         f"Confidence: {confidence:.2f} | Reason: {reason}"
@@ -97,8 +102,12 @@ def process_signal(
     # 2. Session filter
     session_ok, session_reason = risk_mgr.validate_session(trade_style, symbol)
     if not session_ok:
-        logger.info(f"[{symbol}] {session_reason}")
-        return "skipped"
+        # Check if the user disabled the Asia Session Block in the dashboard
+        if "Asia" in session_reason and not acct_settings.block_asia_session:
+            logger.info(f"[{symbol}] Asia session blocked by style, but account settings allowed it. ALLOWING TRADE.")
+        else:
+            logger.info(f"[{symbol}] {session_reason}")
+            return "skipped"
 
     # 3. Min ATR filter
     indicators_snapshot = signal_data.get("indicators_snapshot") or {}
@@ -133,9 +142,20 @@ def process_signal(
     open_pos_count = len(open_positions)
 
     # Pre-trade risk check
-    can_trade, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators, trade_memory)
+    can_trade, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators, trade_memory, acct_settings)
     if not can_trade:
         logger.info(f"[{symbol}] Trade blocked: {risk_reason}")
+        return "skipped"
+
+    # Advanced Daily & Spread Limits
+    daily_ok, daily_reason = risk_mgr.check_daily_limits(connector, acct_settings)
+    if not daily_ok:
+        logger.info(f"[{symbol}] {daily_reason}")
+        return "skipped"
+
+    spread_ok, spread_reason = risk_mgr.validate_spread(connector, symbol, acct_settings.max_spread_points)
+    if not spread_ok:
+        logger.info(f"[{symbol}] {spread_reason}")
         return "skipped"
 
     # Max trades per style
