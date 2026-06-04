@@ -211,8 +211,8 @@ def run_cycle(
             return "skipped"
 
     # ── STEP 6.5: AI Position Closure ────────────────────────────────────────
-    # If we have open positions and the AI thesis is opposite, close them!
-    if open_pos_count > 0 and action in ("BUY", "SELL"):
+    # If we have open positions and the AI thesis is opposite (and hedging is OFF), close them!
+    if not (acct_settings and acct_settings.allow_hedging) and open_pos_count > 0 and action in ("BUY", "SELL"):
         closed_any = False
         with MT5Lock():
             try:

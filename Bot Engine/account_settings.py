@@ -57,6 +57,7 @@ _DEFAULTS = {
     "grid_atr_multiplier": 1.0,
     "grid_lot_multiplier": 1.0,
     "grid_max_steps": 3,
+    "allow_hedging": False,
 }
 
 
@@ -161,6 +162,11 @@ class AccountSettings:
         self._maybe_refresh()
         try: return int(self._cache.get("max_spread_points", _DEFAULTS["max_spread_points"]))
         except: return _DEFAULTS["max_spread_points"]
+        
+    @property
+    def allow_hedging(self) -> bool:
+        self._maybe_refresh()
+        return bool(self._cache.get("allow_hedging", False))
 
     @property
     def grid_recovery_enabled(self) -> bool:

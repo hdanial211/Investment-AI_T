@@ -612,6 +612,18 @@
           </div>
         </div>
 
+        <!-- Hedging Strategy -->
+        <label style="margin-bottom:10px; margin-top:20px;">Hedging Strategy</label>
+        <div class="limits-row" style="margin-bottom:18px">
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Allow Hedging (Dua Arah) <span class="tooltip" data-title="Benarkan bot buka posisi Buy dan Sell serentak untuk pair yang sama. Jika dimatikan (OFF), bot akan tutup posisi yang bertentangan.">i</span></label>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.allow_hedging ? "on" : ""}" id="f_allow_hedging"></div>
+              <span class="toggle-label">${acc.allow_hedging ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Manual Trade Management -->
         <label style="margin-bottom:10px; margin-top:20px;">Manual Trade Management</label>
         <div class="limits-row" style="margin-bottom:18px">
@@ -815,6 +827,7 @@
         manage_manual_tp: $("f_manual_tp").classList.contains("on"),
         manage_manual_be: $("f_manual_be").classList.contains("on"),
         block_asia_session: $("f_block_asia").classList.contains("on"),
+        allow_hedging: $("f_allow_hedging").classList.contains("on"),
 
         grid_recovery_enabled: $("f_grid_enabled").classList.contains("on"),
         grid_atr_multiplier: parseFloat($("f_grid_atr").value) || 1.0,

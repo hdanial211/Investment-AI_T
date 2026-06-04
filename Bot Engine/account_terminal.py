@@ -179,8 +179,8 @@ def process_signal(
         logger.info(f"[{symbol}] Max total trades ({total_max}) reached.")
         return "skipped"
 
-    # 6. Close opposing positions if AI says opposite
-    if open_pos_count > 0 and action in ("BUY", "SELL"):
+    # 6. Close opposing positions if AI says opposite (and hedging is OFF)
+    if not acct_settings.allow_hedging and open_pos_count > 0 and action in ("BUY", "SELL"):
         closed_any = False
         for pos in open_positions:
             if pos["direction"] != action:
