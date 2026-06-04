@@ -127,10 +127,59 @@ class GridManager:
                             "reason": f"Grid Recovery ({len(items)} layers)",
                             "trade_style": trade_style,
                             "pattern_snapshot": pattern_snapshot,
-                            "grid_basket": True
+                            "grid_basket": True,
+                            "virtual_sl": None,
+                            "virtual_tp": None
                         }
+                        
+                        # --- Calculate Average Price and Unify Virtual SL/TP ---
+                        try:
+                            total_volume = sum(float(item["position"]["volume"]) for item in items) + new_lot
+                            total_cost = sum(float(item["position"]["price_open"]) * float(item["position"]["volume"]) for item in items) + (current_price * new_lot)
+                            avg_price = total_cost / total_volume
+                            
+                            from style_params import get_style_params
+                            style_p = get_style_params(trade_style, symbol)
+                            
+                            sl_dist = style_p.get("sl_atr_multi", 1.5) * atr
+                            tp_dist = style_p.get("tp_atr_multi", 2.0) * atr
+                            
+                            if action == "BUY":
+                                new_sl = round(avg_price - sl_dist, 5)
+                                new_tp = round(avg_price + tp_dist, 5)
+                            else:
+                                new_sl = round(avg_price + sl_dist, 5)
+                                new_tp = round(avg_price - tp_dist, 5)
+                                
+                            logger.info(f"[{symbol}] Basket Average Price updated to {avg_price:.5f}. Unified SL: {new_sl:.5f}, TP: {new_tp:.5f}")
+                            
+                            state["virtual_sl"] = new_sl
+                            state["virtual_tp"] = new_tp
+                            
+                            # Also update existing layers
+                            from trade_management.supabase_sync import SupabaseSync
+                            sb = SupabaseSync()
+                            
+                            for item in items:
+                                tkt = int(item["position"]["ticket"])
+                                old_state = self.trade_memory.get_trade_state(tkt)
+                                if old_state:
+                                    old_state["virtual_sl"] = new_sl
+                                    old_state["virtual_tp"] = new_tp
+                                    # Clear trailing stop logic so it restarts from the new average
+                                    old_state["profit_lock_level"] = None
+                                    old_state["virtual_trailing_stop"] = None
+                                    self.trade_memory.add_trade_state(tkt, old_state)
+                                    try:
+                                        sb.upsert_active_trade(old_state)
+                                    except Exception as e2:
+                                        logger.error(f"Failed to upsert old grid trade {tkt}: {e2}")
+                                        
+                        except Exception as calc_err:
+                            logger.error(f"Error calculating unified basket SL/TP: {calc_err}")
+
                         self.trade_memory.add_trade_state(order_ticket, state)
-                        # We also upsert to supabase to make it permanent
+                        # We also upsert the new trade to supabase to make it permanent
                         try:
                             from trade_management.supabase_sync import SupabaseSync
                             sb = SupabaseSync()
