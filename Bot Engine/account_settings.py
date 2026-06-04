@@ -53,6 +53,10 @@ _DEFAULTS = {
     "daily_profit_target_pct": 2.0,
     "min_ai_confidence": 0.70,
     "max_spread_points": 50,
+    "grid_recovery_enabled": False,
+    "grid_atr_multiplier": 1.0,
+    "grid_lot_multiplier": 1.0,
+    "grid_max_steps": 3,
 }
 
 
@@ -157,6 +161,30 @@ class AccountSettings:
         self._maybe_refresh()
         try: return int(self._cache.get("max_spread_points", _DEFAULTS["max_spread_points"]))
         except: return _DEFAULTS["max_spread_points"]
+
+    @property
+    def grid_recovery_enabled(self) -> bool:
+        self._maybe_refresh()
+        val = self._cache.get("grid_recovery_enabled", _DEFAULTS["grid_recovery_enabled"])
+        return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+
+    @property
+    def grid_atr_multiplier(self) -> float:
+        self._maybe_refresh()
+        try: return float(self._cache.get("grid_atr_multiplier", _DEFAULTS["grid_atr_multiplier"]))
+        except: return _DEFAULTS["grid_atr_multiplier"]
+
+    @property
+    def grid_lot_multiplier(self) -> float:
+        self._maybe_refresh()
+        try: return float(self._cache.get("grid_lot_multiplier", _DEFAULTS["grid_lot_multiplier"]))
+        except: return _DEFAULTS["grid_lot_multiplier"]
+
+    @property
+    def grid_max_steps(self) -> int:
+        self._maybe_refresh()
+        try: return int(self._cache.get("grid_max_steps", _DEFAULTS["grid_max_steps"]))
+        except: return _DEFAULTS["grid_max_steps"]
 
     @property
     def mt5_path(self) -> str:

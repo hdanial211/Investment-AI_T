@@ -588,6 +588,30 @@
           </div>
         </div>
 
+        <!-- Grid Recovery & Averaging -->
+        <label style="margin-bottom:10px; margin-top:20px;">Grid Recovery & Averaging</label>
+        <div class="limits-row" style="margin-bottom:18px">
+          <div class="field-group" style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+            <label>Enable Grid Recovery <span class="tooltip" data-title="Buka layer baru bila floating loss untuk mempuratakan harga (averaging).">i</span></label>
+            <div class="toggle-row" style="margin-top:8px">
+              <div class="toggle generic-toggle ${acc.grid_recovery_enabled ? "on" : ""}" id="f_grid_enabled"></div>
+              <span class="toggle-label">${acc.grid_recovery_enabled ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Dynamic Distance (ATR) <span class="tooltip" data-title="Jarak antara layer diukur mengikut ATR (contoh: 1.0 ATR).">i</span></label>
+            <input type="number" id="f_grid_atr" value="${acc.grid_atr_multiplier ?? 1.0}" step="0.1" min="0.1">
+          </div>
+          <div class="field-group">
+            <label>Lot Multiplier <span class="tooltip" data-title="Gandaan lot untuk layer seterusnya (contoh: 1.0 untuk lot kekal, 2.0 untuk Martingale).">i</span></label>
+            <input type="number" id="f_grid_lot_mult" value="${acc.grid_lot_multiplier ?? 1.0}" step="0.1" min="1.0">
+          </div>
+          <div class="field-group">
+            <label>Max Grid Steps <span class="tooltip" data-title="Jumlah layer maksimum yang dibenarkan untuk satu bakul.">i</span></label>
+            <input type="number" id="f_grid_max" value="${acc.grid_max_steps ?? 3}" min="1">
+          </div>
+        </div>
+
         <!-- Manual Trade Management -->
         <label style="margin-bottom:10px; margin-top:20px;">Manual Trade Management</label>
         <div class="limits-row" style="margin-bottom:18px">
@@ -791,6 +815,11 @@
         manage_manual_tp: $("f_manual_tp").classList.contains("on"),
         manage_manual_be: $("f_manual_be").classList.contains("on"),
         block_asia_session: $("f_block_asia").classList.contains("on"),
+
+        grid_recovery_enabled: $("f_grid_enabled").classList.contains("on"),
+        grid_atr_multiplier: parseFloat($("f_grid_atr").value) || 1.0,
+        grid_lot_multiplier: parseFloat($("f_grid_lot_mult").value) || 1.0,
+        grid_max_steps: parseInt($("f_grid_max").value) || 3,
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),

@@ -7,6 +7,7 @@ from typing import Dict, List
 from .pattern_usage_tracker import build_pattern_snapshot
 from .supabase_sync import SupabaseSync
 from .virtual_exit_engine import VirtualExitEngine
+from .grid_manager import GridManager
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,6 +33,7 @@ class ActiveTradeManager:
         self.supabase = SupabaseSync()
         self.pending_adoptions = {}
         self.news_filter = NewsFilter()
+        self.grid_manager = GridManager(connector, trade_memory, risk_mgr)
 
     def manage_symbol(self, symbol: str, positions: List[Dict], indicators: Dict) -> List[Dict]:
         closed = []
@@ -47,6 +49,19 @@ class ActiveTradeManager:
         )
         for closed_state in closed_by_broker:
             self._sync_closed_state(closed_state, event_type="broker_closed")
+
+        # Grid Recovery / Basket Closure Check
+        closed_by_grid = self.grid_manager.manage_baskets(symbol, positions, indicators)
+        for tkt in closed_by_grid:
+            closed.append({
+                "ticket": tkt,
+                "symbol": symbol,
+                "profit": 0.0, # Logging profit handled inside GridManager
+                "exit_reason": "BASKET_RECOVERY",
+            })
+            
+        # Filter out positions closed by grid so we don't double-process them
+        positions = [p for p in positions if int(p["ticket"]) not in closed_by_grid]
 
         current_loop_tickets = set()
 
