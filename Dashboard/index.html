@@ -400,7 +400,7 @@
           <thead>
             <tr>
               <th>Ticket</th><th>Opened</th><th>Symbol</th><th>Direction</th><th>Lot</th><th>Style</th><th>Pattern</th><th>Combo</th>
-              <th>Vision</th><th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
+              <th>Virtual SL</th><th>Virtual TP</th><th>Trail</th><th>P/L</th><th>Status</th>
             </tr>
           </thead>
           <tbody id="activeRows"></tbody>
@@ -537,14 +537,13 @@
           <td>${styleTag(r.trade_style)}</td>
           <td>${safe(r.primary_pattern)}</td>
           <td class="muted">${safe(r.confluence_combo)}</td>
-          <td>${visionTag(r.vision_bias)}</td>
           <td>${price(r.virtual_sl)}</td>
           <td>${price(r.virtual_tp)}</td>
           <td>${price(r.virtual_trailing_stop)}</td>
           <td class="${Number(r.floating_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.floating_profit)}</td>
           <td>${safe(r.current_status)}</td>
         </tr>
-      `).join("") || emptyRow(14);
+      `).join("") || emptyRow(13);
     }
 
     function renderSignals(rows) {
