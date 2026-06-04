@@ -818,8 +818,8 @@
 
       // Validation
       if (payload.max_risk_percent > 5) {
-        showStatus("⚠ Max Risk % capped at 5.0 for safety.", "error");
-        return;
+        if (!confirm(`⚠️ AMARAN: Awak letak Max Risk sebanyak ${payload.max_risk_percent}%. Ini adalah risiko yang sangat tinggi dan berbahaya. Teruskan?`)) return;
+        if (!confirm(`Sahkan sekali lagi. Adakah awak betul-betul pasti nak ambil risiko setinggi ini?`)) return;
       }
 
       try {
