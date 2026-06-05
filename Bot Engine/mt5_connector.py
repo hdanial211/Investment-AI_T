@@ -254,6 +254,21 @@ class MT5Connector:
         self.connected = False
         logger.info("🔌 MT5 Disconnected")
 
+    def is_connected(self) -> bool:
+        """Check if MT5 is still connected."""
+        if not self.connected:
+            return False
+        if self.demo_mode:
+            return True
+        if MT5_AVAILABLE:
+            try:
+                info = mt5.account_info()
+                return info is not None
+            except Exception:
+                self.connected = False
+                return False
+        return False
+
     # ── ACCOUNT ───────────────────────────────────────────────────────────────
 
     def get_account_info(self) -> dict:

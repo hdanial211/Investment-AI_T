@@ -263,6 +263,63 @@ class SupabaseSync:
             logger.warning(f"Error fetching pattern_usage_stats: {e}")
         return {}
 
+    # ── TRADE COMMANDS (Decoupled Architecture) ────────────────────────────
+
+    def insert_trade_command(self, account_id: str, command_type: str, symbol: str,
+                              payload: Dict, signal_id: str = "") -> None:
+        """Analyzer writes a new command for an Executor to pick up."""
+        if not self.enabled:
+            return
+        row = {
+            "account_id": account_id,
+            "command_type": command_type,
+            "symbol": symbol,
+            "payload": payload,
+            "signal_id": signal_id,
+            "status": "pending",
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        self._insert("trade_commands", row)
+
+    def fetch_pending_commands(self, account_id: str) -> List[Dict]:
+        """Executor reads pending commands for its account."""
+        if not self.enabled:
+            return []
+        url = (
+            f"{self.base_url}/rest/v1/trade_commands"
+            f"?account_id=eq.{account_id}&status=eq.pending"
+            f"&order=created_at.asc"
+        )
+        try:
+            import requests as _req
+            resp = _req.get(url, headers=self.headers, timeout=self.timeout)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                logger.warning(f"fetch_pending_commands failed: {resp.text[:240]}")
+        except Exception as e:
+            logger.warning(f"fetch_pending_commands error: {e}")
+        return []
+
+    def update_command_status(self, command_id: str, status: str,
+                               result: Dict = None) -> None:
+        """Executor marks a command as completed/failed after processing."""
+        if not self.enabled:
+            return
+        url = f"{self.base_url}/rest/v1/trade_commands?id=eq.{command_id}"
+        patch = {
+            "status": status,
+            "result": result or {},
+            "processed_at": datetime.utcnow().isoformat(),
+        }
+        try:
+            import requests as _req
+            resp = _req.patch(url, headers=self.headers, json=patch, timeout=self.timeout)
+            if resp.status_code >= 400:
+                logger.warning(f"update_command_status failed: {resp.text[:240]}")
+        except Exception as e:
+            logger.warning(f"update_command_status error: {e}")
+
     def _upsert(self, table: str, payload: Dict, conflict: str = "") -> None:
         if not self.enabled:
             return

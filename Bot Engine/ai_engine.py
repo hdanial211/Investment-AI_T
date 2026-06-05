@@ -199,6 +199,33 @@ Evaluate the timeframes logically based on the MARKET REGIME above:
     return prompt
 
 
+def build_trade_eval_prompt(trade_summary: str) -> str:
+    """Build a prompt to evaluate an active trade: HOLD, CLOSE_TRADE, or UPDATE_SL_TP."""
+    return f"""You are an AI trade management assistant. You must evaluate the following active trade and decide what to do.
+
+{trade_summary}
+
+Analyze the trade and respond with EXACTLY one JSON object:
+{{
+  "action": "HOLD" or "CLOSE_TRADE" or "UPDATE_SL_TP",
+  "confidence": 0.0 to 1.0,
+  "reason": "Brief explanation",
+  "sl": null or new_sl_price,
+  "tp": null or new_tp_price
+}}
+
+Rules:
+- HOLD: Trade is healthy, let it run. No changes needed.
+- CLOSE_TRADE: Trade should be closed (loss too deep, reversal detected, target reached).
+- UPDATE_SL_TP: Adjust SL/TP to lock in profit or reduce risk. Provide new sl/tp values.
+- If profit > 0 and trend still favourable, prefer HOLD or tighten SL (UPDATE_SL_TP).
+- If trade is losing and no recovery sign, prefer CLOSE_TRADE.
+- Be conservative. Only CLOSE if clearly necessary.
+
+Return the JSON now.
+"""
+
+
 def build_risk_review_prompt(
     signal: Dict,
     indicators: Dict,
@@ -473,7 +500,7 @@ def check_ai_health(provider: str = None, role: str = "main") -> bool:
 # MAIN PUBLIC INTERFACE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN", specific_provider_config: Dict = None) -> Dict:
+def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN", specific_provider_config: Dict = None, trade_eval_mode: bool = False) -> Dict:
     default_response = {
         "action":       "HOLD",
         "confidence":   0.0,
@@ -482,7 +509,10 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
     }
 
     try:
-        prompt = build_prompt(indicators, bid, ask, trade_memory, symbol)
+        if trade_eval_mode and indicators.get("trade_eval"):
+            prompt = build_trade_eval_prompt(indicators["trade_eval"])
+        else:
+            prompt = build_prompt(indicators, bid, ask, trade_memory, symbol)
     except Exception as e:
         logger.error(f"Failed to build prompt: {e}")
         return default_response
@@ -500,6 +530,22 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
     parsed = _extract_json(raw_text)
     if not parsed:
         return {**default_response, "reason": "Invalid JSON response", "raw_response": raw_text}
+
+    if trade_eval_mode:
+        # For trade eval, accept HOLD / CLOSE_TRADE / UPDATE_SL_TP
+        eval_action = str(parsed.get("action", "HOLD")).upper().strip()
+        if eval_action not in ("HOLD", "CLOSE_TRADE", "UPDATE_SL_TP"):
+            eval_action = "HOLD"
+        result = {
+            "action": eval_action,
+            "confidence": float(parsed.get("confidence", 0.5)),
+            "reason": parsed.get("reason", ""),
+            "sl": parsed.get("sl"),
+            "tp": parsed.get("tp"),
+            "raw_response": raw_text,
+        }
+        logger.info(f"AI Trade Eval → {result['action']} | Reason: {result['reason']}")
+        return result
 
     signal = _validate_signal(parsed)
     if not signal:

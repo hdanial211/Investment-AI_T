@@ -55,9 +55,10 @@ class FileMutex:
             logger.error(f"Error releasing lock {self.lock_file}: {e}")
 
 class MT5Lock(FileMutex):
-    """Specific lock for MT5 Terminal access."""
-    def __init__(self):
-        super().__init__("mt5_terminal.lock", timeout=120.0)
+    """Specific lock for MT5 Terminal access. Per-account when account_id given."""
+    def __init__(self, account_id: str = ""):
+        lock_name = f"mt5_lock_{account_id}.lock" if account_id else "mt5_terminal.lock"
+        super().__init__(lock_name, timeout=120.0)
 
     def __enter__(self):
         if not self.acquire():
