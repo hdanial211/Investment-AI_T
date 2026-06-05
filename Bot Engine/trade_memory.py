@@ -222,6 +222,7 @@ class TradeMemory:
             "max_drawdown": 0.0,
             "current_status": "ADOPTED",
             "exit_reason": None,
+            "trade_style": "MANUAL",
             "pattern_snapshot": {},
         }
         self.data["active_trades"][str(ticket)] = state
