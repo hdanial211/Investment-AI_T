@@ -156,6 +156,13 @@ class VirtualExitEngine:
         stage2_distance = params["trail_stage2"] * atr
         trail_distance = params["trail_distance"] * atr
 
+        # Provide a helpful string to the dashboard showing activation price
+        if state.get("virtual_trailing_stop") is None:
+            if direction == "BUY":
+                state["virtual_trailing_stop"] = f"start: {_round_price(entry + stage2_distance)}"
+            else:
+                state["virtual_trailing_stop"] = f"start: {_round_price(entry - stage2_distance)}"
+
         if direction == "BUY":
             profit_distance = current - entry
             if profit_distance > stage1_distance:

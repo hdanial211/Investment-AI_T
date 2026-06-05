@@ -291,9 +291,19 @@ def main():
         if not _shutdown_requested:
             logger.info(f"Next analysis in {ANALYSIS_INTERVAL}s ({ANALYSIS_INTERVAL // 60} min)...")
             # Sleep in small chunks so shutdown is responsive
-            for _ in range(ANALYSIS_INTERVAL):
+            current_provider = config.MASTER_AI_PROVIDER
+            
+            for i in range(ANALYSIS_INTERVAL):
                 if _shutdown_requested:
                     break
+                    
+                # Check for settings changes every 60 seconds so we respond quickly to dashboard updates
+                if i > 0 and i % 60 == 0:
+                    system_settings.fetch_and_apply_system_settings()
+                    if config.MASTER_AI_PROVIDER != current_provider:
+                        logger.info(f"🔄 AI Provider changed from {current_provider} to {config.MASTER_AI_PROVIDER}! Restarting analysis cycle immediately...")
+                        break
+                        
                 time.sleep(1)
 
     logger.info("\n" + "=" * 60)
