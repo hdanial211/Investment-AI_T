@@ -1036,7 +1036,49 @@
           replyText = data.choices?.[0]?.message?.content;
         }
 
-        resDiv.innerHTML = `<span style="color:var(--green)">✅ API Key sah! Model replied: "${safe(replyText)}"</span>`;
+        let balanceHtml = "";
+        if (p.provider === 'openrouter') {
+          try {
+            const orRes = await fetch("https://openrouter.ai/api/v1/auth/key", {
+              headers: { "Authorization": `Bearer ${p.api_key}` }
+            });
+            if (orRes.ok) {
+              const orData = await orRes.json();
+              if (orData.data) {
+                const limit = orData.data.limit;
+                const usage = orData.data.usage;
+                if (limit !== null && limit !== undefined) {
+                  const remaining = Math.max(0, limit - usage);
+                  balanceHtml = `<br><span style="color:var(--gold);font-size:0.85rem;">💰 Limit & Baki: $${remaining.toFixed(4)} remaining (Guna: $${usage.toFixed(4)} / Had: $${limit.toFixed(2)})</span>`;
+                  if (remaining <= 0) {
+                    balanceHtml = `<br><span style="color:var(--red);font-size:0.85rem;font-weight:bold;">❌ AMARAN: API KEY INI TELAH HABIS LIMIT (Out of Credits)! Sila topup!</span>`;
+                  }
+                } else if (usage !== undefined) {
+                   balanceHtml = `<br><span style="color:var(--gold);font-size:0.85rem;">💰 Penggunaan Semasa: $${usage.toFixed(4)} (Tiada Had Ditetapkan)</span>`;
+                }
+              }
+            }
+          } catch(e) { console.error("OR Balance Check Error:", e); }
+        } else if (p.provider === 'deepseek') {
+          try {
+            const dsRes = await fetch("https://api.deepseek.com/user/balance", {
+              headers: { "Authorization": `Bearer ${p.api_key}` }
+            });
+            if (dsRes.ok) {
+              const dsData = await dsRes.json();
+              if (dsData.is_available && dsData.balance_infos && dsData.balance_infos.length > 0) {
+                 const bal = dsData.balance_infos[0].total_balance;
+                 const curr = dsData.balance_infos[0].currency;
+                 balanceHtml = `<br><span style="color:var(--gold);font-size:0.85rem;">💰 Baki: ${bal} ${curr}</span>`;
+                 if (parseFloat(bal) <= 0) {
+                    balanceHtml = `<br><span style="color:var(--red);font-size:0.85rem;font-weight:bold;">❌ AMARAN: BAKI DEEPSEEK ANDA HABIS! Sila topup!</span>`;
+                 }
+              }
+            }
+          } catch(e) { console.error("DS Balance Check Error:", e); }
+        }
+
+        resDiv.innerHTML = `<span style="color:var(--green)">✅ API Key sah! Model replied: "${safe(replyText)}"</span>${balanceHtml}`;
         testedProviders.add(index);
         renderProviders();
       } catch (err) {
