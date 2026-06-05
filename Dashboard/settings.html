@@ -401,6 +401,7 @@
       tabs.appendChild(masterBtn);
 
       state.accounts.forEach((acc) => {
+        if (acc.account_id === "master") return;
         const btn = document.createElement("button");
         btn.className = `tab-btn ${acc.account_id === state.activeTab ? "active" : ""}`;
         btn.textContent = acc.account_label || acc.account_id;
@@ -467,7 +468,17 @@
 
     // ── RENDER MASTER FORM ───────────────────────────────────────────────
     function renderMasterForm() {
-      const sys = state.sys || {};
+      let acc = state.accounts.find(a => a.account_id === "master");
+      if (!acc) {
+        acc = {
+          account_id: "master",
+          mt5_login: "", mt5_password: "", mt5_server: "", mt5_path: "",
+          symbol_xauusd: "XAUUSD", symbol_eurusd: "EURUSD",
+          xauusd_enabled: true, eurusd_enabled: true
+        };
+      }
+      const enabled = true;
+      
       $("formContainer").innerHTML = `
         <div style="background: rgba(196, 145, 61, 0.08); border: 1px solid rgba(196, 145, 61, 0.2); padding: 18px; border-radius: 16px; margin-bottom: 20px;">
           <h3 style="color: var(--gold); margin-top: 0;">🧠 Master Analyzer MT5 Settings</h3>
@@ -479,22 +490,54 @@
         <div class="form-row">
           <div class="field-group">
             <label>Master MT5 Login</label>
-            <input id="f_master_login" value="${safe(sys.master_mt5_login || "")}" placeholder="e.g. 87654321">
+            <input id="f_mt5login" value="${safe(acc.mt5_login || "")}" placeholder="e.g. 12345678">
           </div>
           <div class="field-group">
-            <label>Master MT5 Password</label>
-            <input id="f_master_password" type="password" value="${safe(sys.master_mt5_password || "")}" placeholder="Enter password">
+            <label>Master MT5 Server</label>
+            <input id="f_mt5server" value="${safe(acc.mt5_server || "")}" placeholder="e.g. RoboForex-Pro">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field-group" style="flex:2;">
+            <label>Master MT5 Terminal Path</label>
+            <input id="f_mt5path" value="${safe(acc.mt5_path || "")}" placeholder="e.g. C:/Program Files/MetaTrader 5/terminal64.exe">
+          </div>
+          <div class="field-group" style="flex:1;">
+            <label>Connection Status</label>
+            <div style="padding:12px; border-radius:8px; background: rgba(0,0,0,0.03); border:1px solid var(--line); font-size:0.9rem;">
+              ${acc.mt5_status === 'Connected' ? '<span style="color:var(--green);font-weight:bold;">✅ Connected</span>' : (acc.mt5_status === 'Failed' ? '<span style="color:var(--red);font-weight:bold;">❌ Failed</span>' : '<span style="color:var(--muted)">⏳ Bot belum run</span>')}
+              ${acc.mt5_checked_at ? '<br><span style="color:var(--muted);font-size:0.75rem;">Checked: ' + new Date(acc.mt5_checked_at).toLocaleString() + '</span>' : ''}
+            </div>
           </div>
         </div>
         
         <div class="form-row">
           <div class="field-group">
-            <label>Master MT5 Server</label>
-            <input id="f_master_server" value="${safe(sys.master_mt5_server || "")}" placeholder="e.g. MetaQuotes-Demo">
+            <label>Master MT5 Password</label>
+            <input id="f_mt5password" type="password" value="${safe(acc.mt5_password || "")}" placeholder="Enter MT5 password">
+          </div>
+        </div>
+
+        <!-- MT5 Diagnostic Info Panel -->
+        ${buildDiagnosticPanel(acc)}
+
+        <!-- Symbol Mapping -->
+        <label style="margin-bottom:10px">Trading Pairs <span style="color:var(--muted);font-weight:400;font-size:0.8rem">(pilih pair yang nak trade & nama tick ikut broker)</span></label>
+        <div class="form-row" style="margin-bottom:18px">
+          <div class="field-group">
+            <div class="toggle-row" style="margin-bottom:8px">
+              <div class="toggle pair-toggle ${acc.xauusd_enabled !== false ? 'on' : ''}" data-key="xauusd_enabled"></div>
+              <span class="toggle-label">XAUUSD (Gold) — ${acc.xauusd_enabled !== false ? 'Active' : 'Off'}</span>
+            </div>
+            <input id="f_sym_xauusd" value="${safe(acc.symbol_xauusd || 'XAUUSD')}" placeholder="e.g. XAUUSD, XAUUSDc, GOLD">
           </div>
           <div class="field-group">
-            <label>Master MT5 Terminal Path</label>
-            <input id="f_master_path" value="${safe(sys.master_mt5_path || "")}" placeholder="e.g. C:/Program Files/MetaTrader 5/terminal64.exe">
+            <div class="toggle-row" style="margin-bottom:8px">
+              <div class="toggle pair-toggle ${acc.eurusd_enabled !== false ? 'on' : ''}" data-key="eurusd_enabled"></div>
+              <span class="toggle-label">EURUSD — ${acc.eurusd_enabled !== false ? 'Active' : 'Off'}</span>
+            </div>
+            <input id="f_sym_eurusd" value="${safe(acc.symbol_eurusd || 'EURUSD')}" placeholder="e.g. EURUSD, EURUSDc, EURUSD.s">
           </div>
         </div>
 
@@ -502,16 +545,48 @@
           <button onclick="saveMasterSettings()">💾 Save Master Settings</button>
         </div>
       `;
+      
+      // Attach listeners for pair toggles
+      document.querySelectorAll(".pair-toggle").forEach(el => {
+        el.onclick = () => {
+          el.classList.toggle("on");
+          const key = el.getAttribute("data-key");
+          const isActive = el.classList.contains("on");
+          acc[key] = isActive;
+          const labelSpan = el.nextElementSibling;
+          if (key === "xauusd_enabled") labelSpan.textContent = `XAUUSD (Gold) — ${isActive ? 'Active' : 'Off'}`;
+          if (key === "eurusd_enabled") labelSpan.textContent = `EURUSD — ${isActive ? 'Active' : 'Off'}`;
+        };
+      });
     }
 
     async function saveMasterSettings() {
-      const newSys = {
-        id: "global",
-        master_mt5_login: $("f_master_login").value.trim(),
-        master_mt5_password: $("f_master_password").value,
-        master_mt5_server: $("f_master_server").value.trim(),
-        master_mt5_path: $("f_master_path").value.trim()
-      };
+      let acc = state.accounts.find(a => a.account_id === "master") || { account_id: "master", enabled: false };
+      
+      acc.mt5_login = $("f_mt5login").value.trim();
+      if ($("f_mt5password").value) acc.mt5_password = $("f_mt5password").value;
+      acc.mt5_server = $("f_mt5server").value.trim();
+      acc.mt5_path = $("f_mt5path").value.trim();
+      
+      acc.symbol_xauusd = $("f_sym_xauusd").value.trim();
+      acc.symbol_eurusd = $("f_sym_eurusd").value.trim();
+      
+      const xauToggle = document.querySelector(".pair-toggle[data-key='xauusd_enabled']");
+      const eurToggle = document.querySelector(".pair-toggle[data-key='eurusd_enabled']");
+      acc.xauusd_enabled = xauToggle ? xauToggle.classList.contains("on") : true;
+      acc.eurusd_enabled = eurToggle ? eurToggle.classList.contains("on") : true;
+      
+      acc.updated_at = new Date().toISOString();
+      acc.updated_by = "dashboard";
+
+      try {
+        await sbUpsert("account_settings", acc);
+        showStatus("Master Analyzer MT5 Settings saved!", "success");
+        await loadAccounts();
+      } catch (err) {
+        showStatus(`Failed to save Master Settings: ${err.message}`, "error");
+      }
+    };
       
       try {
         await sbUpsert("system_settings", newSys);

@@ -342,6 +342,19 @@ def main():
 
     trading_symbols = acct_settings.get_symbols()
     
+    # Map Master symbols to this account's symbols
+    master_settings = AccountSettings("master")
+    master_settings.force_refresh()
+    master_xau = str(master_settings._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
+    master_eur = str(master_settings._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
+    
+    my_xau = str(acct_settings._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
+    my_eur = str(acct_settings._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
+    
+    master_to_my_symbol = {}
+    if master_xau: master_to_my_symbol[master_xau] = my_xau
+    if master_eur: master_to_my_symbol[master_eur] = my_eur
+
     # ── Read signals from local JSON ──
     signals_file = os.path.join(config.LOG_DIR, "latest_signals.json")
     if not os.path.exists(signals_file):
@@ -354,36 +367,41 @@ def main():
             signals = json.load(f)
         
         processed_any = False
-        for symbol, sig in signals.items():
+        for master_sym, sig in signals.items():
             signal_id = sig.get("signal_id", "")
 
+            # Map symbol
+            my_symbol = master_to_my_symbol.get(master_sym)
+            if not my_symbol:
+                continue
+
             # Skip if we already processed this signal
-            if last_processed_signal.get(symbol) == signal_id:
+            if last_processed_signal.get(my_symbol) == signal_id:
                 continue
 
             # Skip if this symbol is not in our trading list
-            if symbol not in trading_symbols:
+            if my_symbol not in trading_symbols:
                 continue
 
             # Skip HOLD signals
             if sig.get("action", "HOLD") == "HOLD":
-                last_processed_signal[symbol] = signal_id
+                last_processed_signal[my_symbol] = signal_id
                 continue
 
-            logger.info(f"[{account_id}][{symbol}] New signal detected: {sig.get('action')} (ID: {signal_id})")
+            logger.info(f"[{account_id}][{my_symbol}] New signal detected: {sig.get('action')} (ID: {signal_id})")
 
             try:
                 processed_any = True
                 result = process_signal(
-                    sig, symbol, connector, risk_mgr,
+                    sig, my_symbol, connector, risk_mgr,
                     trade_memory, active_manager, acct_settings,
                 )
-                logger.info(f"[{account_id}][{symbol}] Signal result: {result}")
+                logger.info(f"[{account_id}][{my_symbol}] Signal result: {result}")
             except Exception as e:
-                logger.error(f"[{account_id}][{symbol}] Signal processing error: {e}", exc_info=True)
+                logger.error(f"[{account_id}][{my_symbol}] Signal processing error: {e}", exc_info=True)
 
             # Mark as processed regardless of result
-            last_processed_signal[symbol] = signal_id
+            last_processed_signal[my_symbol] = signal_id
 
         # Save the updated last processed signals
         with open(last_processed_file, "w") as f:

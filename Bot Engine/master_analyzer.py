@@ -222,39 +222,43 @@ def main():
                 server_val = config.MASTER_MT5_SERVER
                 path_val = config.MASTER_MT5_PATH
             except ValueError:
-                pass
-
         # 2. AI Health check on first cycle
         if cycle_count == 1:
             logger.info(f"Checking cloud AI ({config.MASTER_AI_PROVIDER} / {config.MASTER_AI_MAIN_MODEL})...")
-            if check_ai_health(role="main"):
-                logger.info("✔ Cloud AI main model ready")
-            else:
-                logger.warning("⚠ Cloud AI not ready — signals may fail")
+            account_settings = AccountSettings("master")
 
-        # 3. Connect to MT5 for market data
-        mt5_connected = connector.connect(
-            login=login_val, password=password_val,
-            server=server_val, path=path_val,
-        )
-        if not mt5_connected:
-            logger.warning("MT5 connection failed for market data. Retrying in 30s...")
+        # Override broker connection with Master config
+        mt5_login = str(account_settings._cache.get("mt5_login", "")).strip()
+        mt5_pwd = account_settings._cache.get("mt5_password", "")
+        mt5_server = str(account_settings._cache.get("mt5_server", "")).strip()
+        mt5_path = str(account_settings._cache.get("mt5_path", "")).strip()
+
+        logger.info(f"Connecting to Master MT5 Terminal: Login={mt5_login}, Server={mt5_server}")
+        if not connector.connect(
+            login=int(mt5_login) if mt5_login else 0,
+            password=mt5_pwd,
+            server=mt5_server,
+            path=mt5_path if mt5_path else config.MT5_PATH
+        ):
+            logger.error("❌ Failed to connect to Master MT5 Terminal. Exiting cycle.")
+            # Update connection status
+            account_settings._cache["mt5_status"] = "Failed"
+            account_settings.update_mt5_status("Failed", account_settings._cache)
             time.sleep(30)
             continue
 
-        # 4. Determine all unique symbols across all accounts
-        accounts = get_all_enabled_accounts()
-        all_symbols = set()
-        for acc_id in accounts:
-            acc = AccountSettings(acc_id)
-            for sym in acc.get_symbols():
-                all_symbols.add(sym)
+        logger.info("✅ Connected to Master MT5 Terminal successfully.")
+        account_settings._cache["mt5_status"] = "Connected"
+        account_settings.update_mt5_status("Connected", account_settings._cache)
 
-        logger.info(f"Symbols to analyze: {list(all_symbols)}")
+        # Use master symbols, fallback to standard if not set
+        trading_symbols = account_settings.get_symbols()
+        if not trading_symbols:
+            trading_symbols = ["XAUUSD", "EURUSD"]
 
         # 5. Analyze each symbol
         cycle_signals = {}
-        for symbol in all_symbols:
+        for symbol in trading_symbols:
             if _shutdown_requested:
                 break
             try:
