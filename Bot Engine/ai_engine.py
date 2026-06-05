@@ -34,8 +34,9 @@ an accurate trading decision with the appropriate trade style.
 
 CRITICAL JSON OUTPUT RULES:
 1. Respond ONLY with a valid JSON object.
-2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "brief explanation"}
-3. No markdown blocks, no extra text.
+2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "brief explanation", "sl_price": 0.0, "tp_price": 0.0}
+3. IMPORTANT: For sl_price and tp_price, provide the EXACT numerical price levels based on your analysis of Support/Resistance and ATR.
+4. No markdown blocks, no extra text.
 """
 
 # Dynamic instruction injected based on ADX market regime

@@ -147,6 +147,7 @@ class TradeMemory:
             "current_status": "OPEN",
             "exit_reason": None,
             "pattern_snapshot": pattern_snapshot or {},
+            "last_ai_eval_time": datetime.now().isoformat(),
         }
         self.data["active_trades"][str(ticket)] = state
         if pattern_snapshot:
@@ -227,6 +228,7 @@ class TradeMemory:
             "exit_reason": None,
             "trade_style": "MANUAL",
             "pattern_snapshot": {},
+            "last_ai_eval_time": datetime.now().isoformat(),
         }
         self.data["active_trades"][str(ticket)] = state
         self._save()

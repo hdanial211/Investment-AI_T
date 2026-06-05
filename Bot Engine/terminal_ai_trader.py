@@ -117,9 +117,63 @@ def run_cycle(
         finally:
             connector.disconnect()
         
-    # Active manager logic removed (handled by Terminal 3)
-    
+    # ── STEP 2: AI Trade Management for Active Trades ─────────────────────────
+    # Every 20 minutes, ask the AI to manage active trades
+    if open_positions:
+        from ai_engine import get_trade_management_signal
+        from datetime import timezone
+        for pos in open_positions:
+            ticket = pos.get("ticket")
+            state = trade_memory.get_trade_state(ticket) if trade_memory else None
+            if state:
+                last_eval_str = state.get("last_ai_eval_time")
+                needs_eval = True
+                if last_eval_str:
+                    try:
+                        last_eval = datetime.fromisoformat(last_eval_str).replace(tzinfo=None)
+                        now_time = datetime.now(timezone.utc).replace(tzinfo=None)
+                        if (now_time - last_eval).total_seconds() < 1200: # 20 minutes
+                            needs_eval = False
+                    except Exception:
+                        pass
+                
+                if needs_eval:
+                    logger.info(f"[{symbol}] Asking AI to manage active trade {ticket}...")
+                    mgmt_signal = get_trade_management_signal(state, indicators)
+                    action = mgmt_signal.get("action", "HOLD")
+                    reason = mgmt_signal.get("reason", "No reason provided")
+                    
+                    logger.info(f"[{symbol}] AI Management Signal for {ticket}: {action} - {reason}")
+                    
+                    if action == "CLOSE_NOW":
+                        with MT5Lock():
+                            try:
+                                connector.connect(login=login_val, password=password_val, server=server_val, path=path_val)
+                                if connector.close_trade(ticket, symbol):
+                                    active_manager.mark_position_closed(
+                                        ticket,
+                                        symbol,
+                                        profit=pos.get("profit", 0.0),
+                                        reason="ai_manual_close"
+                                    )
+                                    logger.info(f"[{symbol}] Trade {ticket} closed by AI.")
+                            finally:
+                                connector.disconnect()
+                    elif action == "UPDATE_SL_TP":
+                        new_sl = float(mgmt_signal.get("new_sl", 0.0))
+                        new_tp = float(mgmt_signal.get("new_tp", 0.0))
+                        if new_sl > 0 or new_tp > 0:
+                            state["virtual_sl"] = new_sl if new_sl > 0 else state.get("virtual_sl")
+                            state["virtual_tp"] = new_tp if new_tp > 0 else state.get("virtual_tp")
+                            logger.info(f"[{symbol}] Trade {ticket} updated SL/TP by AI -> SL: {state['virtual_sl']}, TP: {state['virtual_tp']}")
+                    
+                    # Update evaluation time
+                    state["last_ai_eval_time"] = datetime.now().isoformat()
+                    if trade_memory:
+                        trade_memory._save()
+        
     # ── STEP 2.6: Chart screenshot capture (if vision AI enabled) ────────────
+    chart_paths = []
     open_pos_count = len(open_positions)
     allowed, risk_reason = risk_mgr.can_trade(symbol, open_pos_count, indicators, trade_memory, acct_settings)
     if not allowed:
@@ -249,12 +303,14 @@ def run_cycle(
     trade_params = risk_mgr.get_trade_params(
         symbol        = symbol,
         action        = action,
-        price         = ask if action == "BUY" else bid,
+        price         = bid if action == "SELL" else ask,
         balance       = balance,
         pip_value     = pip_value,
         contract_size = contract,
         indicators    = indicators,
         trade_style   = trade_style,
+        ai_sl_price   = float(signal.get("sl_price", 0.0) or 0.0),
+        ai_tp_price   = float(signal.get("tp_price", 0.0) or 0.0),
     )
 
     # Override lot with per-style lot from dashboard settings

@@ -263,12 +263,14 @@ class RiskManager:
         contract_size: float,
         indicators:    Dict = None,
         trade_style:   str = "INTRADAY",
+        ai_sl_price:   float = 0.0,
+        ai_tp_price:   float = 0.0,
     ) -> Dict:
         """
         Calculate all parameters needed to place a trade.
 
-        Uses per-style per-symbol parameters from style_params when dynamic
-        SL is enabled, otherwise falls back to config.SL_PIPS / TP_PIPS.
+        Uses AI-provided SL/TP prices if valid. Otherwise falls back to ATR dynamic
+        SL, or config.SL_PIPS / TP_PIPS.
 
         Returns dict with: lot, sl, tp, sl_pips, tp_pips, trade_style
         """
@@ -279,8 +281,37 @@ class RiskManager:
         sl_pips = config.SL_PIPS
         tp_pips = config.TP_PIPS
         risk_pct = style_p["risk_percent"]
+        pip_size = config.get_pip_multiplier(symbol)
+        
+        sl_price = 0.0
+        tp_price = 0.0
+        
+        # 1. Use AI-provided exact prices if valid
+        if ai_sl_price > 0 and ai_tp_price > 0:
+            sl_price = ai_sl_price
+            tp_price = ai_tp_price
+            
+            # Reverse-calculate pips for risk validation
+            if action == "BUY":
+                sl_pips = int(abs(price - sl_price) / pip_size)
+                tp_pips = int(abs(tp_price - price) / pip_size)
+            else:
+                sl_pips = int(abs(sl_price - price) / pip_size)
+                tp_pips = int(abs(price - tp_price) / pip_size)
+                
+            logger.debug(f"Using AI-provided SL/TP: SL={sl_price} ({sl_pips}pips), TP={tp_price} ({tp_pips}pips)")
+            
+            # Enforce max catastrophic SL bounds just in case AI gives crazy numbers
+            if sl_pips > style_p["max_sl_pips"] * 2:
+                logger.warning(f"AI SL {sl_pips} pips exceeds 2x catastrophic max. Clamping.")
+                sl_pips = style_p["max_sl_pips"] * 2
+                if action == "BUY":
+                    sl_price = price - (sl_pips * pip_size)
+                else:
+                    sl_price = price + (sl_pips * pip_size)
 
-        if config.USE_DYNAMIC_SL and indicators and "atr" in indicators:
+        # 2. Fallback to ATR logic
+        elif config.USE_DYNAMIC_SL and indicators and "atr" in indicators:
             atr = indicators["atr"]
             pip_multiplier = 10000
             if "XAU" in symbol or "XAG" in symbol:
@@ -297,6 +328,13 @@ class RiskManager:
             # Clamp SL within per-style min/max bounds
             sl_pips = max(style_p["min_sl_pips"], min(style_p["max_sl_pips"], dynamic_sl))
             tp_pips = max(dynamic_tp, sl_pips)  # TP should never be less than SL
+            
+            if action == "BUY":
+                sl_price = price - (sl_pips * pip_size)
+                tp_price = price + (tp_pips * pip_size)
+            else:
+                sl_price = price + (sl_pips * pip_size)
+                tp_price = price - (tp_pips * pip_size)
 
             logger.debug(
                 f"Style-aware SL/TP: style={trade_style}, ATR={atr_pips:.0f}pips, "
@@ -304,6 +342,14 @@ class RiskManager:
                 f"TP={tp_pips}pips (multi={style_p['tp_atr_multi']}), "
                 f"risk={risk_pct}%"
             )
+        else:
+            # Absolute fallback
+            if action == "BUY":
+                sl_price = price - (sl_pips * pip_size)
+                tp_price = price + (tp_pips * pip_size)
+            else:
+                sl_price = price + (sl_pips * pip_size)
+                tp_price = price - (tp_pips * pip_size)
 
         lot = calculate_lot_size(
             balance       = balance,
@@ -313,15 +359,6 @@ class RiskManager:
             pip_value     = pip_value,
             contract_size = contract_size,
         )
-
-        pip_size = config.get_pip_multiplier(symbol)
-
-        if action == "BUY":
-            sl_price = price - (sl_pips * pip_size)
-            tp_price = price + (tp_pips * pip_size)
-        else:
-            sl_price = price + (sl_pips * pip_size)
-            tp_price = price - (tp_pips * pip_size)
 
         return {
             "lot":         lot,
