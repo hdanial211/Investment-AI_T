@@ -586,15 +586,6 @@
       } catch (err) {
         showStatus(`Failed to save Master Settings: ${err.message}`, "error");
       }
-    };
-      
-      try {
-        await sbUpsert("system_settings", newSys);
-        showStatus("Master Analyzer MT5 Settings saved!", "success");
-        await loadAccounts(); // reload sys state
-      } catch (err) {
-        showStatus(`Failed to save Master Settings: ${err.message}`, "error");
-      }
     }
 
     // ── RENDER FORM ──────────────────────────────────────────────────────
