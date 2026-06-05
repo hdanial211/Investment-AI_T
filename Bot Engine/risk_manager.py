@@ -310,6 +310,16 @@ class RiskManager:
                 else:
                     sl_price = price + (sl_pips * pip_size)
 
+            # Enforce max catastrophic TP bounds
+            max_tp_pips = style_p.get("max_sl_pips", 500) * 5
+            if tp_pips > max_tp_pips:
+                logger.warning(f"AI TP {tp_pips} pips exceeds 5x max limit. Clamping.")
+                tp_pips = max_tp_pips
+                if action == "BUY":
+                    tp_price = price + (tp_pips * pip_size)
+                else:
+                    tp_price = price - (tp_pips * pip_size)
+
         # 2. Fallback to ATR logic
         elif config.USE_DYNAMIC_SL and indicators and "atr" in indicators:
             atr = indicators["atr"]

@@ -177,7 +177,7 @@ def get_pip_multiplier(symbol: str = "") -> float:
     """Return pip size for a given symbol."""
     symbol = symbol.upper()
     if "XAU" in symbol or "XAG" in symbol:
-        return 0.1  # Gold/Silver standard pip (1 pip = 0.1)
+        return 0.01  # Gold/Silver standard pip (1 pip = 0.01 points)
     if "JPY" in symbol:
         return 0.01
     return 0.0001
