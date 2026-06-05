@@ -246,11 +246,11 @@ class LauncherApp:
                         "master", "🧠 Master Analyzer", ["python", "master_analyzer.py"], "#101018", "#E6E6FA"
                     ))
                 
-                # 4. Ensure Account Terminals are running
+                # 4. Ensure Trade Monitors are running
                 for acc_id in active_accounts:
                     term_id = f"acc_{acc_id}"
-                    title = f"📈 Terminal: Account {acc_id}"
-                    cmd = ["python", "account_terminal.py", str(acc_id)]
+                    title = f"📈 Monitor: Account {acc_id}"
+                    cmd = ["python", "trade_monitor.py", str(acc_id)]
                     self.root.after(0, lambda t=term_id, ti=title, c=cmd: self.ensure_terminal_exists(
                         t, ti, c, "#181818", "#DCDCAA"
                     ))
@@ -280,9 +280,43 @@ class LauncherApp:
 
             # Sleep for 5 minutes (300 seconds), broken down into small chunks to allow quick exit
             self.root.after(0, lambda: self.lbl_watchdog.config(text="✅ Supervisor active. Sleeping..."))
+            
+            # Setup signal watching
+            import os, config, subprocess
+            signals_file = os.path.join(config.LOG_DIR, "latest_signals.json")
+            last_mtime = 0
+            if os.path.exists(signals_file):
+                last_mtime = os.path.getmtime(signals_file)
+                
             for _ in range(300):
                 if not self.running:
                     break
+                    
+                # Check for new signals
+                if os.path.exists(signals_file):
+                    current_mtime = os.path.getmtime(signals_file)
+                    if current_mtime > last_mtime:
+                        last_mtime = current_mtime
+                        self._log_to_watchdog("\n[WATCHDOG] 🚨 New signals detected! Launching Entry Terminals...")
+                        
+                        try:
+                            # Re-fetch active accounts just in case
+                            from system_settings import get_all_enabled_accounts
+                            active_accounts = get_all_enabled_accounts()
+                            
+                            for acc_id in active_accounts:
+                                self._log_to_watchdog(f"[WATCHDOG] Spawning Entry Terminal for {acc_id}...")
+                                # Spawn detached subprocess so it runs and dies on its own
+                                # Pipe output to DEVNULL to avoid filling up the main terminal stdout, 
+                                # but we could also read it. For now, it will log to its own file.
+                                subprocess.Popen(
+                                    ["python", "entry_terminal.py", str(acc_id)],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                )
+                        except Exception as e:
+                            self._log_to_watchdog(f"[WATCHDOG] Error launching entry terminals: {e}")
+                            
                 time.sleep(1)
 
     def _log_to_watchdog(self, msg):

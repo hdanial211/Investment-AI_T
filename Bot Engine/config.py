@@ -20,12 +20,20 @@ def _env_bool(name: str, default: str = "False") -> bool:
     return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "y", "on")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MT5 CONNECTION SETTINGS
+# MT5 CONNECTION SETTINGS (Default)
 # ─────────────────────────────────────────────────────────────────────────────
 MT5_LOGIN    = int(os.getenv("MT5_LOGIN",    "12345678"))
 MT5_PASSWORD = os.getenv("MT5_PASSWORD",     "your_password")
 MT5_SERVER   = os.getenv("MT5_SERVER",       "Broker-Server")
 MT5_PATH     = os.getenv("MT5_PATH",         "")   # e.g. C:/Program Files/MetaTrader 5/terminal64.exe
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MASTER ANALYZER MT5 SETTINGS (Dedicated MT5 for market analysis)
+# ─────────────────────────────────────────────────────────────────────────────
+MASTER_MT5_LOGIN    = os.getenv("MASTER_MT5_LOGIN",    "")
+MASTER_MT5_PASSWORD = os.getenv("MASTER_MT5_PASSWORD", "")
+MASTER_MT5_SERVER   = os.getenv("MASTER_MT5_SERVER",   "")
+MASTER_MT5_PATH     = os.getenv("MASTER_MT5_PATH",     "")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ACCOUNT ID (for multi-account settings via Supabase)

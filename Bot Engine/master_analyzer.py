@@ -18,6 +18,7 @@ import os
 import sys
 import time
 import uuid
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -191,8 +192,10 @@ def main():
     connector = MT5Connector()
     supabase = SupabaseSync()
 
-    # We need at least one MT5 connection for market data.
-    # Use the first enabled account's MT5 path for reading.
+    # Ensure log directory exists
+    os.makedirs(config.LOG_DIR, exist_ok=True)
+    
+    # Track accounts for symbol collection
     from account_settings import AccountSettings, get_all_enabled_accounts
 
     cycle_count = 0
@@ -206,26 +209,18 @@ def main():
         # 0. Refresh system settings (API keys, models)
         system_settings.fetch_and_apply_system_settings()
 
-        # 1. Find an MT5 connection for market data
-        accounts = get_all_enabled_accounts()
-        if not accounts:
-            logger.warning("No enabled accounts. Waiting...")
-            time.sleep(30)
-            continue
-
-        # Use the first account just for reading market data
-        acct = AccountSettings(accounts[0])
+        # 1. MT5 connection config for Master Analyzer
         login_val = None
         password_val = None
         server_val = None
         path_val = None
-        s_login = acct.mt5_login
-        if s_login and s_login != "12345678" and s_login != "":
+        
+        if config.MASTER_MT5_LOGIN and config.MASTER_MT5_LOGIN != "":
             try:
-                login_val = int(s_login)
-                password_val = acct.mt5_password
-                server_val = acct.mt5_server
-                path_val = acct.mt5_path
+                login_val = int(config.MASTER_MT5_LOGIN)
+                password_val = config.MASTER_MT5_PASSWORD
+                server_val = config.MASTER_MT5_SERVER
+                path_val = config.MASTER_MT5_PATH
             except ValueError:
                 pass
 
@@ -248,6 +243,7 @@ def main():
             continue
 
         # 4. Determine all unique symbols across all accounts
+        accounts = get_all_enabled_accounts()
         all_symbols = set()
         for acc_id in accounts:
             acc = AccountSettings(acc_id)
@@ -257,13 +253,26 @@ def main():
         logger.info(f"Symbols to analyze: {list(all_symbols)}")
 
         # 5. Analyze each symbol
+        cycle_signals = {}
         for symbol in all_symbols:
             if _shutdown_requested:
                 break
             try:
-                analyze_symbol(symbol, connector, supabase, cycle_count)
+                sig_data = analyze_symbol(symbol, connector, supabase, cycle_count)
+                if sig_data:
+                    cycle_signals[symbol] = sig_data
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}", exc_info=True)
+
+        # Broadcast all signals to local JSON for Watchdog to trigger Entry Terminals
+        if cycle_signals:
+            try:
+                sig_file = os.path.join(config.LOG_DIR, "latest_signals.json")
+                with open(sig_file, "w") as f:
+                    json.dump(cycle_signals, f, indent=4)
+                logger.info(f"✅ Local trigger updated: latest_signals.json")
+            except Exception as e:
+                logger.error(f"Failed to write latest_signals.json: {e}")
 
         # 6. Disconnect MT5 to free it for Account Terminals
         connector.disconnect()

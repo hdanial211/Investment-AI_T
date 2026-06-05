@@ -1,15 +1,14 @@
 """
-account_terminal.py - Per-Account Trading Terminal
+entry_terminal.py - Ephemeral Entry Execution Terminal
 
-Each account gets its own instance of this script. It:
+Each account gets its own instance of this script when a new signal arrives. It:
 1. Connects to its own MT5 instance (unique mt5_path per account)
-2. Reads AI signals from Supabase `market_signals` (produced by Master Analyzer)
-3. Validates signals against its own Risk Manager + AI Risk Review
-4. Executes trades on MT5
-5. Manages floating trades: Virtual SL/TP, BE+ Trailing Stop
-6. Syncs every action to Supabase immediately (for Dashboard)
+2. Reads the latest AI signal from `latest_signals.json`
+3. Validates the signal against Risk Manager + AI Risk Review
+4. Executes the trade on MT5
+5. Exits immediately after processing
 
-Usage: python account_terminal.py <account_id>
+Usage: python entry_terminal.py <account_id>
 """
 
 import logging
@@ -274,13 +273,10 @@ def process_signal(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN LOOP
+# MAIN EXECUTION
 # ─────────────────────────────────────────────────────────────────────────────
 
-TRADE_MANAGEMENT_INTERVAL = 2  # seconds between each management loop
-
 def main():
-    global _shutdown_requested
 
     # Get account_id from command line
     if len(sys.argv) < 2:
@@ -291,7 +287,7 @@ def main():
     config.ACCOUNT_ID = account_id
 
     logger.info("=" * 60)
-    logger.info(f"  ACCOUNT TERMINAL — {account_id}")
+    logger.info(f"  ENTRY TERMINAL — {account_id}")
     logger.info("=" * 60)
 
     # 0. Live Update System Settings (API keys, AI models)
@@ -305,162 +301,105 @@ def main():
     active_manager = ActiveTradeManager(connector, trade_memory, risk_mgr)
     supabase = SupabaseSync()
 
-    # Track which signal_id we last processed (to avoid duplicate entries)
-    last_processed_signal = {}  # {symbol: signal_id}
-
-    cycle_count = 0
-    startup_done = False
-
-    while not _shutdown_requested:
-        cycle_count += 1
-
-        # Check if account is still enabled
-        acct_settings.force_refresh()
-        
-        # Also refresh global system settings (AI models & API keys)
-        system_settings.fetch_and_apply_system_settings()
-
-        if not acct_settings.enabled:
-            logger.info(f"[{account_id}] Account is DISABLED. Sleeping 30s...")
-            time.sleep(30)
-            continue
-
-        # Connect to this account's MT5
-        login_val = None
-        password_val = None
-        server_val = None
-        path_val = None
-        s_login = acct_settings.mt5_login
-        if s_login and s_login != "12345678" and s_login != "":
-            try:
-                login_val = int(s_login)
-                password_val = acct_settings.mt5_password
-                server_val = acct_settings.mt5_server
-                path_val = acct_settings.mt5_path
-            except ValueError:
-                pass
-
-        mt5_ok = connector.connect(
-            login=login_val, password=password_val,
-            server=server_val, path=path_val,
-        )
-        if not mt5_ok:
-            logger.warning(f"[{account_id}] MT5 connection failed. Retrying in 10s...")
-            time.sleep(10)
-            continue
-
-        # Startup sync (once)
-        if not startup_done:
-            logger.info(f"[{account_id}] Performing Startup Sync...")
-            try:
-                db_trades = active_manager.supabase.fetch_active_trades(account_id)
-                mt5_positions = connector.get_open_positions()
-                mt5_tickets = [str(p["ticket"]) for p in mt5_positions]
-                cleaned = 0
-                for db_trade in db_trades:
-                    t_str = str(db_trade["ticket"])
-                    if t_str not in mt5_tickets:
-                        logger.info(f"[{account_id}] Sync: Trade {t_str} not in MT5. Closing in Supabase.")
-                        db_trade["current_status"] = "CLOSED"
-                        db_trade["exit_reason"] = "broker_closed"
-                        active_manager.supabase.mark_trade_closed(db_trade)
-                        if t_str in trade_memory.data.get("active_trades", {}):
-                            trade_memory.mark_trade_closed(
-                                int(t_str), db_trade.get("symbol", ""), 0.0, "broker_closed"
-                            )
-                        cleaned += 1
-                if cleaned:
-                    logger.info(f"[{account_id}] Sync: Cleaned {cleaned} stuck trade(s).")
-                else:
-                    logger.info(f"[{account_id}] Sync: All trades are synced correctly.")
-            except Exception as e:
-                logger.error(f"[{account_id}] Startup sync failed: {e}")
-
-            # Report connection status
-            acct_info = connector.get_account_info() or {}
-            acct_settings.update_connection_status(
-                connected=True,
-                error_msg="",
-                account_info=acct_info,
-                symbol_status={},
-            )
-            startup_done = True
-
-        # ── Heartbeat ──
-        active_manager.sync_heartbeat(cycle_count, message="account_terminal_running")
-
-        # ── PART A: Manage existing trades (SL/TP/BE+/Trailing) ──
-        trading_symbols = acct_settings.get_symbols()
-        for symbol in trading_symbols:
-            if _shutdown_requested:
-                break
-            open_positions = connector.get_open_positions(symbol)
-            if open_positions:
-                try:
-                    # Get fresh indicators for trailing stop calculations
-                    mdf = connector.get_multi_timeframe(symbol, timeframes=["M5", "M1"], bars=50)
-                    indicators = {}
-                    if mdf and len(mdf) >= 1:
-                        from strategy import calculate_multi_indicators
-                        indicators = calculate_multi_indicators(mdf, symbol=symbol) or {}
-
-                    closed = active_manager.manage_symbol(symbol, open_positions, indicators)
-                    if closed:
-                        logger.info(f"[{account_id}][{symbol}] Closed {len(closed)} position(s).")
-                except Exception as e:
-                    logger.error(f"[{account_id}][{symbol}] Trade management error: {e}", exc_info=True)
-
-        # ── PART B: Check for new signals from Master Analyzer ──
+    # Track which signal_id we last processed
+    last_processed_file = os.path.join(config.LOG_DIR, f"last_processed_{account_id}.json")
+    last_processed_signal = {}
+    if os.path.exists(last_processed_file):
         try:
-            signals = supabase.fetch_market_signals()
-            processed_any = False
-            for sig in signals:
-                symbol = sig.get("symbol", "")
-                signal_id = sig.get("signal_id", "")
+            with open(last_processed_file, "r") as f:
+                last_processed_signal = json.load(f)
+        except:
+            pass
 
-                # Skip if we already processed this signal
-                if last_processed_signal.get(symbol) == signal_id:
-                    continue
+    # Check if account is enabled
+    acct_settings.force_refresh()
+    if not acct_settings.enabled:
+        logger.info(f"[{account_id}] Account is DISABLED. Exiting.")
+        return
 
-                # Skip if this symbol is not in our trading list
-                if symbol not in trading_symbols:
-                    continue
+    # Connect to MT5
+    login_val = None
+    password_val = None
+    server_val = None
+    path_val = None
+    s_login = acct_settings.mt5_login
+    if s_login and s_login != "12345678" and s_login != "":
+        try:
+            login_val = int(s_login)
+            password_val = acct_settings.mt5_password
+            server_val = acct_settings.mt5_server
+            path_val = acct_settings.mt5_path
+        except ValueError:
+            pass
 
-                # Skip HOLD signals
-                if sig.get("action", "HOLD") == "HOLD":
-                    last_processed_signal[symbol] = signal_id
-                    continue
+    mt5_ok = connector.connect(
+        login=login_val, password=password_val,
+        server=server_val, path=path_val,
+    )
+    if not mt5_ok:
+        logger.error(f"[{account_id}] MT5 connection failed. Exiting.")
+        return
 
-                logger.info(f"[{account_id}][{symbol}] New signal detected: {sig.get('action')} (ID: {signal_id})")
+    trading_symbols = acct_settings.get_symbols()
+    
+    # ── Read signals from local JSON ──
+    signals_file = os.path.join(config.LOG_DIR, "latest_signals.json")
+    if not os.path.exists(signals_file):
+        logger.info(f"[{account_id}] No latest_signals.json found. Exiting.")
+        connector.disconnect()
+        return
 
-                try:
-                    processed_any = True
-                    result = process_signal(
-                        sig, symbol, connector, risk_mgr,
-                        trade_memory, active_manager, acct_settings,
-                    )
-                    logger.info(f"[{account_id}][{symbol}] Signal result: {result}")
-                except Exception as e:
-                    logger.error(f"[{account_id}][{symbol}] Signal processing error: {e}", exc_info=True)
+    try:
+        with open(signals_file, "r") as f:
+            signals = json.load(f)
+        
+        processed_any = False
+        for symbol, sig in signals.items():
+            signal_id = sig.get("signal_id", "")
 
-                # Mark as processed regardless of result
+            # Skip if we already processed this signal
+            if last_processed_signal.get(symbol) == signal_id:
+                continue
+
+            # Skip if this symbol is not in our trading list
+            if symbol not in trading_symbols:
+                continue
+
+            # Skip HOLD signals
+            if sig.get("action", "HOLD") == "HOLD":
                 last_processed_signal[symbol] = signal_id
+                continue
 
-            # Unload GPU memory based on this account's specific provider sequence
-            if processed_any:
-                from ai_engine import unload_ai
-                unload_ai(provider_sequence=acct_settings.get_providers_list())
+            logger.info(f"[{account_id}][{symbol}] New signal detected: {sig.get('action')} (ID: {signal_id})")
 
-        except Exception as e:
-            logger.error(f"[{account_id}] Error fetching signals: {e}")
+            try:
+                processed_any = True
+                result = process_signal(
+                    sig, symbol, connector, risk_mgr,
+                    trade_memory, active_manager, acct_settings,
+                )
+                logger.info(f"[{account_id}][{symbol}] Signal result: {result}")
+            except Exception as e:
+                logger.error(f"[{account_id}][{symbol}] Signal processing error: {e}", exc_info=True)
 
-        # Sleep before next management cycle
-        if not _shutdown_requested:
-            time.sleep(TRADE_MANAGEMENT_INTERVAL)
+            # Mark as processed regardless of result
+            last_processed_signal[symbol] = signal_id
+
+        # Save the updated last processed signals
+        with open(last_processed_file, "w") as f:
+            json.dump(last_processed_signal, f)
+
+        # Unload GPU memory based on this account's specific provider sequence
+        if processed_any:
+            from ai_engine import unload_ai
+            unload_ai(provider_sequence=acct_settings.get_providers_list())
+
+    except Exception as e:
+        logger.error(f"[{account_id}] Error processing signals: {e}", exc_info=True)
 
     # ── SHUTDOWN ──
-    logger.info(f"\n{'='*60}")
-    logger.info(f"ACCOUNT TERMINAL [{account_id}] SHUTTING DOWN")
+    logger.info(f"{'='*60}")
+    logger.info(f"ENTRY TERMINAL [{account_id}] FINISHED")
     logger.info(f"{'='*60}")
     connector.disconnect()
 
