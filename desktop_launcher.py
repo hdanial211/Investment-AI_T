@@ -261,7 +261,7 @@ class LauncherApp:
                 existing_term_ids = list(self.terminals.keys())
                 for term_id in existing_term_ids:
                     if term_id.startswith("acc_"):
-                        acc_id_str = term_id.replace("acc_", "")
+                        acc_id_str = term_id[4:]
                         if acc_id_str not in active_accounts:
                             # Check if there are still active trades before killing
                             try:
