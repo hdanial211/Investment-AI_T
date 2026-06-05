@@ -671,7 +671,7 @@
               <button class="test-api-btn" onclick="testApi(${index})">⚡ Test Connection & API Key</button>
             </div>
             
-            <div id="testRes_${index}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;"></div>
+            <div id="testRes_${index}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;">${p._testResult || ''}</div>
 
             <div class="form-row" style="margin-top:14px;">
               ${state.activeTab === 'global' ? `
@@ -944,17 +944,19 @@
           // Store detected models for the picker
           ollamaLocalModels[index] = modelNames;
           
-          resDiv.innerHTML = `<span style="color:var(--green)">✅ Ollama aktif! ${modelNames.length} model ditemui: ${modelNames.slice(0, 5).join(', ')}${modelNames.length > 5 ? '...' : ''}</span>`;
+          p._testResult = `<span style="color:var(--green)">✅ Ollama aktif! ${modelNames.length} model ditemui: ${modelNames.slice(0, 5).join(', ')}${modelNames.length > 5 ? '...' : ''}</span>`;
           testedProviders.add(index);
           renderProviders();
         } catch (err) {
-          resDiv.innerHTML = `<span style="color:var(--red)">❌ Gagal sambung ke Ollama di ${ollamaUrl}. Pastikan Ollama sedang berjalan (ollama serve).<br>Error: ${safe(err.message)}</span>`;
+          p._testResult = `<span style="color:var(--red)">❌ Gagal sambung ke Ollama di ${ollamaUrl}. Pastikan Ollama sedang berjalan (ollama serve).<br>Error: ${safe(err.message)}</span>`;
+          resDiv.innerHTML = p._testResult;
         }
         return;
       }
 
       if (!p.api_key) {
-        resDiv.innerHTML = `<span style="color:var(--red)">❌ Sila masukkan API Key dahulu</span>`;
+        p._testResult = `<span style="color:var(--red)">❌ Sila masukkan API Key dahulu</span>`;
+        resDiv.innerHTML = p._testResult;
         return;
       }
 
@@ -1008,7 +1010,8 @@
       } else if (p.provider === 'huggingface') {
         url = "https://router.huggingface.co/v1/chat/completions";
       } else {
-        resDiv.innerHTML = `<span style="color:var(--red)">❌ Unsupported provider for test</span>`;
+        p._testResult = `<span style="color:var(--red)">❌ Unsupported provider for test</span>`;
+        resDiv.innerHTML = p._testResult;
         return;
       }
 
@@ -1077,18 +1080,19 @@
             }
           } catch(e) { console.error("DS Balance Check Error:", e); }
         }
-
-        resDiv.innerHTML = `<span style="color:var(--green)">✅ API Key sah! Model replied: "${safe(replyText)}"</span>${balanceHtml}`;
+        
+        p._testResult = `<span style="color:var(--green)">✅ API Key sah! Model replied: "${safe(replyText)}"</span>${balanceHtml}`;
         testedProviders.add(index);
         renderProviders();
       } catch (err) {
         if (err.message.startsWith("MODEL_ERROR")) {
           // Key is valid, just the test model is busy
-          resDiv.innerHTML = `<span style="color:var(--green)">✅ API Key Sah! <span style="color:var(--text-secondary);font-size:0.8rem;">(Tetapi free model test sedang sibuk: ${err.message.replace('MODEL_ERROR:', '')})</span></span>`;
+          p._testResult = `<span style="color:var(--green)">✅ API Key Sah! <span style="color:var(--text-secondary);font-size:0.8rem;">(Tetapi free model test sedang sibuk: ${err.message.replace('MODEL_ERROR:', '')})</span></span>`;
           testedProviders.add(index);
           renderProviders();
         } else {
-          resDiv.innerHTML = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
+          p._testResult = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
+          resDiv.innerHTML = p._testResult;
         }
       }
     }
@@ -1180,18 +1184,20 @@
           replyText = data.choices?.[0]?.message?.content;
         }
 
-        resDiv.innerHTML = `<span style="color:var(--green)">✅ Model <strong>${safe(modelId)}</strong> sah! Reply: "${safe(replyText)}"</span>`;
+        p._testResult = `<span style="color:var(--green)">✅ Model <strong>${safe(modelId)}</strong> sah! Reply: "${safe(replyText)}"</span>`;
+        resDiv.innerHTML = p._testResult;
       } catch (err) {
         if (err.message.startsWith("MODEL_ERROR")) {
           let cleanMsg = err.message.replace('MODEL_ERROR: ', '');
           if (cleanMsg.includes("Provider returned error") || cleanMsg.includes("rate-limited")) {
-             resDiv.innerHTML = `<span style="color:var(--orange)">⚠️ Model <strong>${safe(modelId)}</strong> sibuk/rate-limit dari OpenRouter: ${safe(cleanMsg)}</span>`;
+             p._testResult = `<span style="color:var(--orange)">⚠️ Model <strong>${safe(modelId)}</strong> sibuk/rate-limit dari OpenRouter: ${safe(cleanMsg)}</span>`;
           } else {
-             resDiv.innerHTML = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(cleanMsg)}</span>`;
+             p._testResult = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(cleanMsg)}</span>`;
           }
         } else {
-          resDiv.innerHTML = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(err.message)}</span>`;
+          p._testResult = `<span style="color:var(--red)">❌ Error dari model <strong>${safe(modelId)}</strong>: ${safe(err.message)}</span>`;
         }
+        resDiv.innerHTML = p._testResult;
       }
     }
 
