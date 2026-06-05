@@ -126,18 +126,19 @@ class VirtualExitEngine:
             acct = AccountSettings(getattr(config, 'ACCOUNT_ID', 'acc_1'))
             dashboard_trailing = acct.get_trailing_settings(trade_style)
             
-            if dashboard_trailing.get("trail_stage1") is not None:
-                params["trail_stage1"] = dashboard_trailing["trail_stage1"]
-            if dashboard_trailing.get("trail_stage2") is not None:
-                params["trail_stage2"] = dashboard_trailing["trail_stage2"]
-            if dashboard_trailing.get("trail_distance") is not None:
-                params["trail_distance"] = dashboard_trailing["trail_distance"]
+            # If dashboard returned None or 0, the user left it empty to DISABLE trailing.
+            for key in ["trail_stage1", "trail_stage2", "trail_distance"]:
+                if key in dashboard_trailing:
+                    val = dashboard_trailing[key]
+                    if val in (None, 0, 0.0):
+                        params[key] = None
+                    else:
+                        params[key] = val
         except Exception as e:
             pass
 
-
-        # If trailing is disabled for this style (e.g. EUR/USD scalping)
-        if params.get("trail_stage1") is None:
+        # If trailing is disabled for this style (e.g. EUR/USD scalping or user disabled it)
+        if params.get("trail_stage1") is None or params.get("trail_stage2") is None:
             return
 
         stage1_distance = params["trail_stage1"] * atr
