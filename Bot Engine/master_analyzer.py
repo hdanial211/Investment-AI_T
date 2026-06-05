@@ -237,13 +237,13 @@ def main():
             logger.error("❌ Failed to connect to Master MT5 Terminal. Exiting cycle.")
             # Update connection status
             account_settings._cache["mt5_status"] = "Failed"
-            account_settings.update_mt5_status("Failed", account_settings._cache)
+            account_settings.update_connection_status(connected=False, error_msg="Failed to connect to MT5 Terminal")
             time.sleep(30)
             continue
 
         logger.info("✅ Connected to Master MT5 Terminal successfully.")
         account_settings._cache["mt5_status"] = "Connected"
-        account_settings.update_mt5_status("Connected", account_settings._cache)
+        account_settings.update_connection_status(connected=True)
 
         # Use master symbols, fallback to standard if not set
         trading_symbols = account_settings.get_symbols()
