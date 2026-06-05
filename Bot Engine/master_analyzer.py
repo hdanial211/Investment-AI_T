@@ -209,25 +209,19 @@ def main():
         # 0. Refresh system settings (API keys, models)
         system_settings.fetch_and_apply_system_settings()
 
-        # 1. MT5 connection config for Master Analyzer
-        login_val = None
-        password_val = None
-        server_val = None
-        path_val = None
-        
-        if config.MASTER_MT5_LOGIN and config.MASTER_MT5_LOGIN != "":
-            try:
-                login_val = int(config.MASTER_MT5_LOGIN)
-                password_val = config.MASTER_MT5_PASSWORD
-                server_val = config.MASTER_MT5_SERVER
-                path_val = config.MASTER_MT5_PATH
-            except ValueError:
+        # 1. Fetch Master Settings from Supabase
+        account_settings = AccountSettings("master")
+        account_settings.force_refresh()
+
         # 2. AI Health check on first cycle
         if cycle_count == 1:
             logger.info(f"Checking cloud AI ({config.MASTER_AI_PROVIDER} / {config.MASTER_AI_MAIN_MODEL})...")
-            account_settings = AccountSettings("master")
+            if check_ai_health(role="main"):
+                logger.info("✔ Cloud AI main model ready")
+            else:
+                logger.warning("⚠ Cloud AI not ready — signals may fail")
 
-        # Override broker connection with Master config
+        # 3. Override broker connection with Master config
         mt5_login = str(account_settings._cache.get("mt5_login", "")).strip()
         mt5_pwd = account_settings._cache.get("mt5_password", "")
         mt5_server = str(account_settings._cache.get("mt5_server", "")).strip()
