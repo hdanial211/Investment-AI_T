@@ -1067,8 +1067,14 @@
       if (!modelId) return;
       resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing model <strong>${safe(modelId)}</strong>...</span>`;
 
+      let finalModelId = modelId;
+      if (modelId === "auto") {
+        if (p.provider === 'huggingface') finalModelId = "Qwen/Qwen2.5-72B-Instruct";
+        if (p.provider === 'groq') finalModelId = "llama-3.3-70b-versatile";
+      }
+      
       const payload = {
-        model: modelId === "auto" && p.provider === 'huggingface' ? "Qwen/Qwen2.5-72B-Instruct" : modelId,
+        model: finalModelId,
         messages: [{ role: "user", content: "Reply with exactly the word OK." }],
         max_tokens: 5,
         temperature: 0.1
