@@ -19,7 +19,7 @@ def get_client(provider_config: Dict):
         return OpenRouterClient(api_key=provider_config.get("api_key"))
     if provider in ("huggingface", "hf"):
         return HuggingFaceClient(api_key=provider_config.get("api_key"))
-    if provider in ("openai", "chatgpt", "deepseek", "grok", "xai"):
+    if provider in ("openai", "chatgpt", "deepseek", "grok", "xai", "groq"):
         return OpenAIClient(api_key=provider_config.get("api_key"), provider_type=provider)
     if provider in ("anthropic", "claude"):
         return AnthropicClient(api_key=provider_config.get("api_key"))
