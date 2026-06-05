@@ -283,7 +283,9 @@ class LauncherApp:
             
             # Setup signal watching
             import os, config, subprocess
-            signals_file = os.path.join(config.LOG_DIR, "latest_signals.json")
+            bot_engine_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Bot Engine")
+            signals_file = os.path.join(bot_engine_dir, config.LOG_DIR, "latest_signals.json")
+            
             last_mtime = 0
             if os.path.exists(signals_file):
                 last_mtime = os.path.getmtime(signals_file)
