@@ -250,7 +250,7 @@ def process_signal(
         lot=trade_params["lot"],
         sl_price=trade_params["sl"],
         tp_price=trade_params["tp"],
-        comment=f"AI_{confidence:.2f}",
+        comment=f"{trade_style}_{confidence:.2f}",
     )
 
     if exec_result["success"]:
