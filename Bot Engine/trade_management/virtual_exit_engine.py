@@ -141,6 +141,17 @@ class VirtualExitEngine:
         if params.get("trail_stage1") is None or params.get("trail_stage2") is None:
             return
 
+        # Check if it's a manual trade. If so, respect manage_manual_be setting.
+        is_manual = state.get("reason") in ("Adopted open broker position", "Manual Trade (Auto-managed)")
+        if is_manual:
+            try:
+                from account_settings import AccountSettings
+                acct = AccountSettings(getattr(config, 'ACCOUNT_ID', 'acc_1'))
+                if not acct.manage_manual_be:
+                    return
+            except Exception:
+                pass
+
         stage1_distance = params["trail_stage1"] * atr
         stage2_distance = params["trail_stage2"] * atr
         trail_distance = params["trail_distance"] * atr
