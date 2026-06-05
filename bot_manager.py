@@ -70,11 +70,7 @@ class ManagedProcess:
         try:
             self.process = subprocess.Popen(
                 self.cmd,
-                cwd=self.cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
+                cwd=self.cwd
             )
             logger.info(f"✅ [{self.name}] Started (PID: {self.process.pid})")
         except Exception as e:
