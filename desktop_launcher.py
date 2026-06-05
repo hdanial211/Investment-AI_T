@@ -301,7 +301,6 @@ class LauncherApp:
                         
                         try:
                             # Re-fetch active accounts just in case
-                            from system_settings import get_all_enabled_accounts
                             active_accounts = get_all_enabled_accounts()
                             
                             for acc_id in active_accounts:
