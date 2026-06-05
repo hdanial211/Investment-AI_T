@@ -124,7 +124,10 @@ class CoolingOffTable(DataTable):
                         dur = 15
                         
                     from datetime import timedelta
-                    time_passed = datetime.now() - datetime.fromisoformat(ts)
+                    try:
+                        time_passed = datetime.now() - datetime.fromisoformat(ts).replace(tzinfo=None)
+                    except ValueError:
+                        time_passed = timedelta(0)
                     remaining = timedelta(minutes=dur) - time_passed
                     
                     if remaining.total_seconds() > 0:

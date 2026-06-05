@@ -157,6 +157,9 @@ class VirtualExitEngine:
 
             if profit_distance > stage2_distance:
                 candidate = current - trail_distance
+                pip_size = config.get_pip_multiplier(state.get("symbol", ""))
+                min_lock = entry + (2 * pip_size)
+                candidate = max(candidate, min_lock)
                 old_trail = _as_float(state.get("virtual_trailing_stop"), None)
                 if old_trail is None or candidate > old_trail:
                     state["virtual_trailing_stop"] = _round_price(candidate)
@@ -172,6 +175,9 @@ class VirtualExitEngine:
 
             if profit_distance > stage2_distance:
                 candidate = current + trail_distance
+                pip_size = config.get_pip_multiplier(state.get("symbol", ""))
+                max_lock = entry - (2 * pip_size)
+                candidate = min(candidate, max_lock)
                 old_trail = _as_float(state.get("virtual_trailing_stop"), None)
                 if old_trail is None or candidate < old_trail:
                     state["virtual_trailing_stop"] = _round_price(candidate)

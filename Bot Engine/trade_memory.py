@@ -45,7 +45,7 @@ class TradeMemory:
                 else:
                     ts = cool_data["timestamp"]
                     dur = cool_data["duration"]
-                elapsed = datetime.now() - datetime.fromisoformat(ts)
+                elapsed = datetime.now() - datetime.fromisoformat(ts).replace(tzinfo=None)
                 if elapsed >= timedelta(minutes=dur):
                     expired.append(symbol)
             except Exception:
@@ -314,7 +314,7 @@ class TradeMemory:
             cool_down_duration = timedelta(minutes=cool_data["duration"])
             
         try:
-            last_trade_time = datetime.fromisoformat(last_trade_time_str)
+            last_trade_time = datetime.fromisoformat(last_trade_time_str).replace(tzinfo=None)
             elapsed = datetime.now() - last_trade_time
             
             if elapsed < cool_down_duration:
