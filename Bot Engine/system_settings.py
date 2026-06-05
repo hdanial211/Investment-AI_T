@@ -42,6 +42,16 @@ def fetch_and_apply_system_settings() -> bool:
             config.MASTER_AI_MAIN_MODEL = sys_data.get("master_ai_main_model")
             config.MASTER_AI_RISK_MODEL = sys_data.get("master_ai_risk_model")
             
+        # 2. Master Analyzer MT5 Account Settings
+        if sys_data.get("master_mt5_login"):
+            config.MASTER_MT5_LOGIN = sys_data.get("master_mt5_login")
+        if sys_data.get("master_mt5_password"):
+            config.MASTER_MT5_PASSWORD = sys_data.get("master_mt5_password")
+        if sys_data.get("master_mt5_server"):
+            config.MASTER_MT5_SERVER = sys_data.get("master_mt5_server")
+        if sys_data.get("master_mt5_path"):
+            config.MASTER_MT5_PATH = sys_data.get("master_mt5_path")
+            
         return True
         
     except Exception as e:

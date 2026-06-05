@@ -306,14 +306,18 @@ class LauncherApp:
                             
                             for acc_id in active_accounts:
                                 self._log_to_watchdog(f"[WATCHDOG] Spawning Entry Terminal for {acc_id}...")
-                                # Spawn detached subprocess so it runs and dies on its own
-                                # Pipe output to DEVNULL to avoid filling up the main terminal stdout, 
-                                # but we could also read it. For now, it will log to its own file.
-                                subprocess.Popen(
-                                    ["python", "entry_terminal.py", str(acc_id)],
-                                    stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL,
-                                )
+                                
+                                term_id = f"entry_{acc_id}"
+                                title = f"⚡ Entry: Account {acc_id}"
+                                cmd = ["python", "entry_terminal.py", str(acc_id)]
+                                
+                                def spawn_entry(t=term_id, ti=title, c=cmd):
+                                    term = self.ensure_terminal_exists(t, ti, c, "#2B1B17", "#FFB266")
+                                    # Restart if it was stopped
+                                    if term.process is None or term.process.poll() is not None:
+                                        term.start()
+                                
+                                self.root.after(0, spawn_entry)
                         except Exception as e:
                             self._log_to_watchdog(f"[WATCHDOG] Error launching entry terminals: {e}")
                             
