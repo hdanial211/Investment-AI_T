@@ -35,8 +35,29 @@ def get_model_for_role(provider_config: Dict, role: str = "main") -> str:
     role = str(role or "main").strip().lower()
     
     if role == "risk":
-        return provider_config.get("risk_model") or config.AI_RISK_MODEL
-    return provider_config.get("main_model") or config.AI_MAIN_MODEL
+        model_name = provider_config.get("risk_model") or config.AI_RISK_MODEL
+    else:
+        model_name = provider_config.get("main_model") or config.AI_MAIN_MODEL
+        
+    # Auto mode routing: If user selects "auto" in dashboard
+    if str(model_name).lower().strip() == "auto":
+        provider = _normalize_provider(provider_config.get("provider", ""))
+        if provider == "groq":
+            return "llama-3.3-70b-versatile"
+        elif provider in ("huggingface", "hf"):
+            return "Qwen/Qwen2.5-72B-Instruct"
+        elif provider in ("grok", "xai"):
+            return "grok-3-mini-fast"
+        elif provider == "deepseek":
+            return "deepseek-chat"
+        elif provider == "anthropic":
+            return "claude-3.5-haiku-20241022"
+        elif provider == "openai":
+            return "gpt-4.1-mini"
+        elif provider == "openrouter":
+            return "openrouter/free"
+            
+    return model_name
 
 def get_provider_sequence() -> List[Dict]:
     if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
