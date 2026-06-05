@@ -436,6 +436,16 @@
         ],
         paid: []
       },
+      groq: {
+        free: [
+          { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Sangat pantas (Groq LPU)" },
+          { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Pantas & ringan" },
+          { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", desc: "Model versatil" },
+          { id: "gemma2-9b-it", name: "Gemma 2 9B", desc: "Model Google" },
+          { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 (70B Llama)", desc: "Reasoning pantas" }
+        ],
+        paid: []
+      },
       ollama: {
         free: [
           { id: "qwen3:latest", name: "Qwen 3", desc: "Model terbaru Alibaba — all-rounder terbaik" },
@@ -635,6 +645,7 @@
                   <option value="openai" ${p.provider === 'openai' ? 'selected' : ''}>OpenAI (ChatGPT)</option>
                   <option value="anthropic" ${p.provider === 'anthropic' ? 'selected' : ''}>Anthropic (Claude)</option>
                   <option value="grok" ${p.provider === 'grok' ? 'selected' : ''}>Grok (xAI)</option>
+                  <option value="groq" ${p.provider === 'groq' ? 'selected' : ''}>Groq (Sangat Pantas)</option>
                   <option value="deepseek" ${p.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
                   <option value="huggingface" ${p.provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
                   <option value="ollama" ${p.provider === 'ollama' ? 'selected' : ''}>🦙 Ollama (Local)</option>
@@ -943,6 +954,7 @@
         openai: 'gpt-4.1-nano',
         anthropic: 'claude-3.5-haiku-20241022',
         grok: 'grok-3-mini-fast',
+        groq: 'llama-3.3-70b-versatile',
         deepseek: 'deepseek-chat',
         huggingface: 'Qwen/Qwen2.5-72B-Instruct'
       }[p.provider] || 'meta-llama/llama-3.3-70b-instruct:free';
@@ -970,6 +982,8 @@
         url = "https://api.deepseek.com/v1/chat/completions";
       } else if (p.provider === 'grok') {
         url = "https://api.x.ai/v1/chat/completions";
+      } else if (p.provider === 'groq') {
+        url = "https://api.groq.com/openai/v1/chat/completions";
       } else if (p.provider === 'anthropic') {
         url = "https://api.anthropic.com/v1/messages";
         headers = {
@@ -1059,6 +1073,8 @@
         url = "https://api.deepseek.com/v1/chat/completions";
       } else if (p.provider === 'grok') {
         url = "https://api.x.ai/v1/chat/completions";
+      } else if (p.provider === 'groq') {
+        url = "https://api.groq.com/openai/v1/chat/completions";
       } else if (p.provider === 'anthropic') {
         url = "https://api.anthropic.com/v1/messages";
         headers = {
