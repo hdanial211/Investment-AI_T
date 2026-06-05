@@ -392,6 +392,17 @@
     function renderTabs() {
       const tabs = $("accountTabs");
       tabs.innerHTML = "";
+      
+      // Master Tab
+      const masterBtn = document.createElement("button");
+      masterBtn.className = `tab-btn ${state.activeTab === "master" ? "active" : ""}`;
+      masterBtn.textContent = "Master";
+      if (state.activeTab !== "master") {
+        masterBtn.style.background = "var(--ink)";
+        masterBtn.style.color = "#fff7e8";
+      }
+      masterBtn.onclick = () => selectTab("master");
+      tabs.appendChild(masterBtn);
 
       state.accounts.forEach((acc) => {
         const btn = document.createElement("button");
@@ -412,8 +423,13 @@
     function selectTab(accId) {
       state.activeTab = accId;
       renderTabs();
-      const acc = state.accounts.find((a) => a.account_id === accId);
-      if (acc) renderForm(acc);
+      
+      if (accId === "master") {
+        renderMasterForm();
+      } else {
+        const acc = state.accounts.find((a) => a.account_id === accId);
+        if (acc) renderForm(acc);
+      }
     }
 
     // ── ADD ACCOUNT ──────────────────────────────────────────────────────
@@ -450,6 +466,63 @@
         await loadAccounts();
       } catch (err) {
         showStatus(`Failed to create account: ${err.message}`, "error");
+      }
+    }
+
+    // ── RENDER MASTER FORM ───────────────────────────────────────────────
+    function renderMasterForm() {
+      const sys = state.sys || {};
+      $("formContainer").innerHTML = `
+        <div style="background: rgba(196, 145, 61, 0.08); border: 1px solid rgba(196, 145, 61, 0.2); padding: 18px; border-radius: 16px; margin-bottom: 20px;">
+          <h3 style="color: var(--gold); margin-top: 0;">🧠 Master Analyzer MT5 Settings</h3>
+          <p style="color: var(--muted); font-size: 0.9rem; margin-top: 6px;">
+            Akaun MT5 Khas ini akan digunakan oleh Master Analyzer untuk baca market data sahaja. Ia tidak akan digunakan untuk buka trade.
+          </p>
+        </div>
+
+        <div class="form-row">
+          <div class="field-group">
+            <label>Master MT5 Login</label>
+            <input id="f_master_login" value="${safe(sys.master_mt5_login || "")}" placeholder="e.g. 87654321">
+          </div>
+          <div class="field-group">
+            <label>Master MT5 Password</label>
+            <input id="f_master_password" type="password" value="${safe(sys.master_mt5_password || "")}" placeholder="Enter password">
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="field-group">
+            <label>Master MT5 Server</label>
+            <input id="f_master_server" value="${safe(sys.master_mt5_server || "")}" placeholder="e.g. MetaQuotes-Demo">
+          </div>
+          <div class="field-group">
+            <label>Master MT5 Terminal Path</label>
+            <input id="f_master_path" value="${safe(sys.master_mt5_path || "")}" placeholder="e.g. C:/Program Files/MetaTrader 5/terminal64.exe">
+          </div>
+        </div>
+
+        <div class="save-row" style="margin-top: 20px;">
+          <button onclick="saveMasterSettings()">💾 Save Master Settings</button>
+        </div>
+      `;
+    }
+
+    async function saveMasterSettings() {
+      const newSys = {
+        id: "global",
+        master_mt5_login: $("f_master_login").value.trim(),
+        master_mt5_password: $("f_master_password").value,
+        master_mt5_server: $("f_master_server").value.trim(),
+        master_mt5_path: $("f_master_path").value.trim()
+      };
+      
+      try {
+        await sbUpsert("system_settings", newSys);
+        showStatus("Master Analyzer MT5 Settings saved!", "success");
+        await loadAccounts(); // reload sys state
+      } catch (err) {
+        showStatus(`Failed to save Master Settings: ${err.message}`, "error");
       }
     }
 
