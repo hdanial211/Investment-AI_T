@@ -138,6 +138,7 @@ class SupabaseSync:
             "ticket": ticket,
             "event_type": event_type,
             "reason": reason,
+            "account_id": getattr(config, "ACCOUNT_ID", "acc_1"),
             "created_at": datetime.utcnow().isoformat(),
         }
         self._insert("trade_events", payload)
