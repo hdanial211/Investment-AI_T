@@ -222,10 +222,10 @@ def main():
                 logger.warning("⚠ Cloud AI not ready — signals may fail")
 
         # 3. Override broker connection with Master config
-        mt5_login = str(account_settings._cache.get("mt5_login", "")).strip()
-        mt5_pwd = account_settings._cache.get("mt5_password", "")
-        mt5_server = str(account_settings._cache.get("mt5_server", "")).strip()
-        mt5_path = str(account_settings._cache.get("mt5_path", "")).strip()
+        mt5_login = str(account_settings.mt5_login).strip()
+        mt5_pwd = account_settings.mt5_password
+        mt5_server = str(account_settings.mt5_server).strip()
+        mt5_path = str(account_settings.mt5_path).strip()
 
         logger.info(f"Connecting to Master MT5 Terminal: Login={mt5_login}, Server={mt5_server}")
         if not connector.connect(
