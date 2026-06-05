@@ -61,7 +61,7 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
             "sl_atr_multi": 2.5,
             "tp_atr_multi": 4.0,
             "min_sl_pips": 300,         # SL minimum 30 pips ($3.00)
-            "max_sl_pips": 500,         # SL maximum 50 pips ($5.00)
+            "max_sl_pips": 600,         # SL maximum 60 pips ($6.00)
             "min_rr": 1.5,
             "risk_percent": 1.5,
             "trail_stage1": 0.5,
@@ -93,7 +93,7 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
             "sl_atr_multi": 2.5,
             "tp_atr_multi": 5.0,
             "min_sl_pips": 1000,        # SL minimum 100 pips ($10.00)
-            "max_sl_pips": 2000,        # SL maximum 200 pips ($20.00)
+            "max_sl_pips": 5000,        # SL maximum 500 pips ($50.00)
             "min_rr": 2.0,
             "risk_percent": 1.0,
             "trail_stage1": 1.0,
