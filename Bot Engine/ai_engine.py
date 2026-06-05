@@ -382,65 +382,73 @@ def query_ai_provider(
     with _AI_CALL_LOCK:
         for provider_config in providers:
             provider_name = provider_config.get("provider", "unknown")
-            selected_model = model or get_model_for_role(provider_config, role)
+            
+            raw_model_cfg = str(provider_config.get(f"{role}_model") or ("auto" if role=="main" else "auto")).strip().lower()
+            if raw_model_cfg == "auto" and not model:
+                from ai_clients.provider_factory import get_auto_models_for_provider
+                models_to_try = get_auto_models_for_provider(provider_name)
+            else:
+                models_to_try = [model or get_model_for_role(provider_config, role)]
             
             try:
                 client = get_client(provider_config)
             except Exception as e:
                 logger.error(f"AI provider setup failed for {provider_name}: {e}")
                 continue
+                
+            model_success = False
+            for selected_model in models_to_try:
+                logger.info(
+                    f"AI locked for provider={provider_name}, model={selected_model}. "
+                    "Waiting for full response..."
+                )
 
-            logger.info(
-                f"AI locked for provider={provider_name}, model={selected_model}. "
-                "Waiting for full response..."
-            )
-
-            for attempt in range(1, config.AI_RETRIES + 1):
-                try:
-                    logger.debug(
-                        f"Querying {provider_name} model={selected_model} "
-                        f"(attempt {attempt}/{config.AI_RETRIES})..."
-                    )
-                    raw_text = client.chat_completion(
-                        model=selected_model,
-                        messages=_build_messages(prompt),
-                        temperature=selected_temperature,
-                        max_tokens=selected_max_tokens,
-                        timeout=selected_timeout,
-                    )
-
-                    if raw_text:
-                        logger.info(
-                            f"AI response completed for provider={provider_name}, "
-                            f"model={selected_model}"
+                for attempt in range(1, config.AI_RETRIES + 1):
+                    try:
+                        logger.debug(
+                            f"Querying {provider_name} model={selected_model} "
+                            f"(attempt {attempt}/{config.AI_RETRIES})..."
                         )
-                        return raw_text
+                        raw_text = client.chat_completion(
+                            model=selected_model,
+                            messages=_build_messages(prompt),
+                            temperature=selected_temperature,
+                            max_tokens=selected_max_tokens,
+                            timeout=selected_timeout,
+                        )
 
-                    logger.warning(
-                        f"{provider_name} returned empty response "
-                        f"(attempt {attempt}/{config.AI_RETRIES})"
-                    )
+                        if raw_text:
+                            logger.info(
+                                f"AI response completed for provider={provider_name}, "
+                                f"model={selected_model}"
+                            )
+                            return raw_text
 
-                except AIProviderError as e:
-                    level = logger.warning if e.retryable else logger.error
-                    level(
-                        f"{provider_name} model={selected_model} failed "
-                        f"(attempt {attempt}/{config.AI_RETRIES}): {e}"
-                    )
-                    if not e.retryable:
-                        break
-                except Exception as e:
-                    logger.error(f"{provider_name} unexpected error: {e}")
+                        logger.warning(
+                            f"{provider_name} returned empty response "
+                            f"(attempt {attempt}/{config.AI_RETRIES})"
+                        )
 
-                if attempt < config.AI_RETRIES:
-                    wait = 2 ** attempt
-                    logger.info(
-                        f"Waiting {wait}s before retrying provider={provider_name}, "
-                        f"model={selected_model}..."
-                    )
-                    time.sleep(wait)
+                    except AIProviderError as e:
+                        level = logger.warning if e.retryable else logger.error
+                        level(
+                            f"{provider_name} model={selected_model} failed "
+                            f"(attempt {attempt}/{config.AI_RETRIES}): {e}"
+                        )
+                        if not e.retryable:
+                            break
+                    except Exception as e:
+                        logger.error(f"{provider_name} unexpected error: {e}")
 
-            logger.warning(f"AI provider {provider_name} failed. Trying fallback if available...")
+                    if attempt < config.AI_RETRIES:
+                        wait = 2 ** attempt
+                        logger.info(
+                            f"Waiting {wait}s before retrying provider={provider_name}, "
+                            f"model={selected_model}..."
+                        )
+                        time.sleep(wait)
+
+            logger.warning(f"AI provider {provider_name} failed all assigned models. Trying fallback if available...")
 
     return None
 

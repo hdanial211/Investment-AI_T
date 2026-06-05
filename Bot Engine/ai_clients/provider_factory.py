@@ -42,22 +42,39 @@ def get_model_for_role(provider_config: Dict, role: str = "main") -> str:
     # Auto mode routing: If user selects "auto" in dashboard
     if str(model_name).lower().strip() == "auto":
         provider = _normalize_provider(provider_config.get("provider", ""))
-        if provider == "groq":
-            return "llama-3.3-70b-versatile"
-        elif provider in ("huggingface", "hf"):
-            return "Qwen/Qwen2.5-72B-Instruct"
-        elif provider in ("grok", "xai"):
-            return "grok-3-mini-fast"
-        elif provider == "deepseek":
-            return "deepseek-chat"
-        elif provider == "anthropic":
-            return "claude-3.5-haiku-20241022"
-        elif provider == "openai":
-            return "gpt-4.1-mini"
-        elif provider == "openrouter":
-            return "openrouter/free"
+        return get_auto_models_for_provider(provider)[0]
             
     return model_name
+
+def get_auto_models_for_provider(provider: str) -> List[str]:
+    provider = _normalize_provider(provider)
+    if provider == "groq":
+        return [
+            "llama-3.3-70b-versatile", 
+            "llama-3.1-8b-instant", 
+            "llama3-70b-8192", 
+            "mixtral-8x7b-32768", 
+            "gemma2-9b-it"
+        ]
+    elif provider in ("huggingface", "hf"):
+        return ["Qwen/Qwen2.5-72B-Instruct", "meta-llama/Meta-Llama-3-70B-Instruct"]
+    elif provider in ("grok", "xai"):
+        return ["grok-3-mini-fast", "grok-beta"]
+    elif provider == "deepseek":
+        return ["deepseek-chat", "deepseek-reasoner"]
+    elif provider == "anthropic":
+        return ["claude-3.5-haiku-20241022", "claude-3-haiku-20240307"]
+    elif provider == "openai":
+        return ["gpt-4o-mini", "gpt-3.5-turbo"]
+    elif provider == "openrouter":
+        return [
+            "openrouter/free", 
+            "nousresearch/hermes-3-llama-3.1-405b:free", 
+            "google/gemini-2.5-flash-free",
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "qwen/qwen-2.5-72b-instruct:free"
+        ]
+    return ["default"]
 
 def get_provider_sequence() -> List[Dict]:
     if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
