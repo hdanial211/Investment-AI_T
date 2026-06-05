@@ -397,10 +397,6 @@
       const masterBtn = document.createElement("button");
       masterBtn.className = `tab-btn ${state.activeTab === "master" ? "active" : ""}`;
       masterBtn.textContent = "Master";
-      if (state.activeTab !== "master") {
-        masterBtn.style.background = "var(--ink)";
-        masterBtn.style.color = "#fff7e8";
-      }
       masterBtn.onclick = () => selectTab("master");
       tabs.appendChild(masterBtn);
 
