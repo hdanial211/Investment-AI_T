@@ -670,9 +670,6 @@ class MT5Connector:
             else:
                 filling_type = mt5.ORDER_FILLING_RETURN
 
-        # Trim comment to 31 chars max
-        comment = comment[:31]
-
         request = {
             "action":       mt5.TRADE_ACTION_DEAL,
             "symbol":       symbol,
@@ -682,7 +679,7 @@ class MT5Connector:
             "price":        price,
             "deviation":    20,
             "magic":        123456,
-            "comment":      comment,
+            "comment":      "AI_BOT_CLOSE",
             "type_time":    mt5.ORDER_TIME_GTC,
             "type_filling": filling_type,
         }
