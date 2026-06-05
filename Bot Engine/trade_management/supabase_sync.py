@@ -77,6 +77,7 @@ class SupabaseSync:
             "exit_reason": state.get("exit_reason"),
             "trade_style": state.get("trade_style"),
             "vision_bias": state.get("vision_bias") or state.get("image_bias"),
+            "trail_activation_price": state.get("trail_activation_price"),
             "account_id": getattr(config, "ACCOUNT_ID", "acc_1"),
             "updated_at": datetime.utcnow().isoformat(),
         }

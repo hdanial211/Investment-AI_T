@@ -88,6 +88,7 @@ class TradeMemory:
                     "exit_reason": t.get("exit_reason"),
                     "trade_style": t.get("trade_style"),
                     "vision_bias": t.get("vision_bias"),
+                    "trail_activation_price": t.get("trail_activation_price"),
                     "pattern_snapshot": {
                         "primary_pattern": t.get("primary_pattern"),
                         "pattern_names": t.get("pattern_names"),
@@ -139,6 +140,7 @@ class TradeMemory:
             "virtual_sl": virtual_sl,
             "virtual_tp": virtual_tp,
             "virtual_trailing_stop": None,
+            "trail_activation_price": None,
             "profit_lock_level": None,
             "max_favorable_price": entry_price,
             "max_drawdown": 0.0,
@@ -217,6 +219,7 @@ class TradeMemory:
             "virtual_sl": position.get("sl") or None,
             "virtual_tp": position.get("tp") or None,
             "virtual_trailing_stop": None,
+            "trail_activation_price": None,
             "profit_lock_level": None,
             "max_favorable_price": position.get("price_open"),
             "max_drawdown": 0.0,
