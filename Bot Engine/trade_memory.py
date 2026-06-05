@@ -228,7 +228,7 @@ class TradeMemory:
             "exit_reason": None,
             "trade_style": "MANUAL",
             "pattern_snapshot": {},
-            "last_ai_eval_time": datetime.now().isoformat(),
+            "last_ai_eval_time": None,
         }
         self.data["active_trades"][str(ticket)] = state
         self._save()

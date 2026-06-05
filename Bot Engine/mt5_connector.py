@@ -484,13 +484,13 @@ class MT5Connector:
                 if profit_distance > stage2_distance:
                     new_sl = pos.price_current - trail_distance
                     if new_sl > current_sl: # Only move up
-                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
                         
                 # Stage 1: Break Even
                 elif profit_distance > stage1_distance:
                     new_sl = pos.price_open
                     if current_sl < new_sl:
-                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
                         
             elif action == "SELL":
                 profit_distance = pos.price_open - pos.price_current
@@ -499,27 +499,32 @@ class MT5Connector:
                 if profit_distance > stage2_distance:
                     new_sl = pos.price_current + trail_distance
                     if current_sl == 0.0 or new_sl < current_sl: # Only move down
-                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
                         
                 # Stage 1: Break Even
                 elif profit_distance > stage1_distance:
                     new_sl = pos.price_open
                     if current_sl == 0.0 or current_sl > new_sl:
-                        self._modify_sl(pos.ticket, pos.symbol, new_sl, pos.tp)
+                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
 
-    def _modify_sl(self, ticket: int, symbol: str, new_sl: float, tp: float):
+    def modify_sl_tp(self, ticket: int, symbol: str, new_sl: float, new_tp: float):
+        if self.demo_mode or not MT5_AVAILABLE:
+            return False
+            
         request = {
             "action": mt5.TRADE_ACTION_SLTP,
             "position": ticket,
             "symbol": symbol,
             "sl": float(new_sl),
-            "tp": float(tp),
+            "tp": float(new_tp),
         }
         result = mt5.order_send(request)
         if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-            logger.info(f"[{symbol}] Trailing Stop updated | Ticket {ticket} | New SL: {new_sl:.5f}")
+            logger.info(f"[{symbol}] MT5 SL/TP updated | Ticket {ticket} | SL: {new_sl:.5f} | TP: {new_tp:.5f}")
+            return True
         else:
-            logger.debug(f"Failed to modify SL for {ticket}: {result.comment if result else mt5.last_error()}")
+            logger.error(f"Failed to modify SL/TP for {ticket}: {result.comment if result else mt5.last_error()}")
+            return False
 
     # ── ORDER EXECUTION ───────────────────────────────────────────────────────
 

@@ -166,6 +166,15 @@ def run_cycle(
                             state["virtual_sl"] = new_sl if new_sl > 0 else state.get("virtual_sl")
                             state["virtual_tp"] = new_tp if new_tp > 0 else state.get("virtual_tp")
                             logger.info(f"[{symbol}] Trade {ticket} updated SL/TP by AI -> SL: {state['virtual_sl']}, TP: {state['virtual_tp']}")
+                            
+                            # Push new SL/TP to MT5 Broker if enabled
+                            if config.USE_BROKER_SL_TP:
+                                with MT5Lock():
+                                    try:
+                                        connector.connect(login=login_val, password=password_val, server=server_val, path=path_val)
+                                        connector.modify_sl_tp(ticket, symbol, state["virtual_sl"], state["virtual_tp"])
+                                    finally:
+                                        connector.disconnect()
                     
                     # Update evaluation time
                     state["last_ai_eval_time"] = datetime.now().isoformat()
