@@ -539,7 +539,7 @@
           <td class="muted">${safe(r.confluence_combo)}</td>
           <td>${price(r.virtual_sl)}</td>
           <td>${price(r.virtual_tp)}</td>
-          <td>${price(r.virtual_trailing_stop)}</td>
+          <td>${r.virtual_trailing_stop ? price(r.virtual_trailing_stop) : '<span class="muted" style="font-size:0.85em">Start ' + price(r.entry_price) + '</span>'}</td>
           <td class="${Number(r.floating_profit || 0) >= 0 ? "profit" : "loss"}">${money(r.floating_profit)}</td>
           <td>${safe(r.current_status)}</td>
         </tr>
