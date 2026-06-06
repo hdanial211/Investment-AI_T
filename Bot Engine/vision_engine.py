@@ -263,7 +263,19 @@ def _call_vision_ai(messages: List[Dict]) -> Optional[str]:
     max_tokens = getattr(config, "VISION_AI_MAX_TOKENS", 512)
 
     try:
-        client = get_client(provider_name)
+        # Assuming VISION_AI uses the primary AI provider's API key
+        # Need to reconstruct a basic provider config dict 
+        provider_config = {"provider": provider_name}
+        if provider_name == "openrouter":
+            provider_config["api_key"] = config.OPENROUTER_API_KEY
+        elif provider_name in ("huggingface", "hf"):
+            provider_config["api_key"] = config.HF_TOKEN
+        elif provider_name == "nvidia":
+            # Just for test since we don't have config.NVIDIA_API_KEY globally yet
+            # Using the hardcoded test key provided by user for the session
+            provider_config["api_key"] = "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"
+            
+        client = get_client(provider_config)
     except Exception as e:
         logger.error(f"Vision AI provider setup failed: {e}")
         return None

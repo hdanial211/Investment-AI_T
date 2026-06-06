@@ -22,6 +22,8 @@ class OpenAIClient:
             self.base_url = "https://api.x.ai/v1"
         elif self.provider_type == "groq":
             self.base_url = "https://api.groq.com/openai/v1"
+        elif self.provider_type == "nvidia":
+            self.base_url = "https://integrate.api.nvidia.com/v1"
         else:
             self.base_url = "https://api.openai.com/v1"
 

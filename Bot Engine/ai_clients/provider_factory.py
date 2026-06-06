@@ -19,7 +19,7 @@ def get_client(provider_config: Dict):
         return OpenRouterClient(api_key=provider_config.get("api_key"))
     if provider in ("huggingface", "hf"):
         return HuggingFaceClient(api_key=provider_config.get("api_key"))
-    if provider in ("openai", "chatgpt", "deepseek", "grok", "xai", "groq"):
+    if provider in ("openai", "chatgpt", "deepseek", "grok", "xai", "groq", "nvidia"):
         return OpenAIClient(api_key=provider_config.get("api_key"), provider_type=provider)
     if provider in ("anthropic", "claude"):
         return AnthropicClient(api_key=provider_config.get("api_key"))
@@ -58,6 +58,8 @@ def get_auto_models_for_provider(provider: str) -> List[str]:
         ]
     elif provider in ("huggingface", "hf"):
         return ["Qwen/Qwen2.5-72B-Instruct", "meta-llama/Meta-Llama-3-70B-Instruct"]
+    elif provider == "nvidia":
+        return ["meta/llama-3.2-90b-vision-instruct", "meta/llama-3.1-70b-instruct"]
     elif provider in ("grok", "xai"):
         return ["grok-3-mini-fast", "grok-beta"]
     elif provider == "deepseek":

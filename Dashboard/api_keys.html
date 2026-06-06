@@ -455,6 +455,14 @@
         ],
         paid: []
       },
+      nvidia: {
+        free: [
+          { id: "auto", name: "⚡ Auto (Smart Route)", desc: "Pilih model terpantas & terbaik secara automatik" },
+          { id: "meta/llama-3.2-90b-vision-instruct", name: "Llama 3.2 90B Vision", desc: "Model Llama dengan kebolehan Vision" },
+          { id: "meta/llama-3.1-70b-instruct", name: "Llama 3.1 70B", desc: "Model Llama 3.1 standard" }
+        ],
+        paid: []
+      },
       ollama: {
         free: [
           { id: "qwen3:latest", name: "Qwen 3", desc: "Model terbaru Alibaba — all-rounder terbaik" },
@@ -658,6 +666,7 @@
                   <option value="groq" ${p.provider === 'groq' ? 'selected' : ''}>Groq (Sangat Pantas)</option>
                   <option value="deepseek" ${p.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
                   <option value="huggingface" ${p.provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
+                  <option value="nvidia" ${p.provider === 'nvidia' ? 'selected' : ''}>Nvidia (Llama 3.2 Vision)</option>
                   <option value="ollama" ${p.provider === 'ollama' ? 'selected' : ''}>🦙 Ollama (Local)</option>
                 </select>
               </div>
@@ -968,7 +977,8 @@
         grok: 'grok-3-mini-fast',
         groq: 'llama-3.3-70b-versatile',
         deepseek: 'deepseek-chat',
-        huggingface: 'Qwen/Qwen2.5-72B-Instruct'
+        huggingface: 'Qwen/Qwen2.5-72B-Instruct',
+        nvidia: 'meta/llama-3.1-8b-instruct'
       }[p.provider] || 'meta-llama/llama-3.3-70b-instruct:free';
 
       const payload = {
@@ -1009,6 +1019,8 @@
         payload.messages = [{ role: "user", content: "Reply with the word OK." }];
       } else if (p.provider === 'huggingface') {
         url = "https://router.huggingface.co/v1/chat/completions";
+      } else if (p.provider === 'nvidia') {
+        url = "https://integrate.api.nvidia.com/v1/chat/completions";
       } else {
         p._testResult = `<span style="color:var(--red)">❌ Unsupported provider for test</span>`;
         resDiv.innerHTML = p._testResult;
