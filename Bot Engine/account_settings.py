@@ -234,12 +234,80 @@ class AccountSettings:
             symbols.append(str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip())
         return symbols
         
+        
     def get_providers_list(self) -> list:
-        """Get the fallback sequence of AI providers for this account."""
+        """Get the fallback sequence of AI providers for this account.
+        
+        Supports both formats:
+          - Legacy (array): returns the array directly
+          - Role-based (object): returns the 'fallbacks' list
+        """
         self._maybe_refresh()
         pl = self._cache.get("providers_list")
         if pl and isinstance(pl, list):
             return pl
+        if pl and isinstance(pl, dict):
+            return pl.get("fallbacks", [])
+        return []
+
+    def get_evaluator_config(self) -> Optional[Dict]:
+        """Get the Trade Evaluator provider config for this account.
+        
+        Returns: {"provider": "nvidia", "api_key": "...", "model": "..."} or None
+        """
+        self._maybe_refresh()
+        pl = self._cache.get("providers_list")
+        if pl and isinstance(pl, dict):
+            cfg = pl.get("evaluator")
+            if cfg and isinstance(cfg, dict) and cfg.get("api_key"):
+                return cfg
+        # Legacy fallback: use first provider from flat list
+        if pl and isinstance(pl, list) and len(pl) > 0:
+            first = pl[0]
+            return {
+                "provider": first.get("provider"),
+                "api_key": first.get("api_key"),
+                "model": first.get("risk_model") or first.get("main_model"),
+            }
+        return None
+
+    def get_risk_config(self) -> Optional[Dict]:
+        """Get the Risk Review provider config for this account.
+        
+        Returns: {"provider": "nvidia", "api_key": "...", "model": "..."} or None
+        """
+        self._maybe_refresh()
+        pl = self._cache.get("providers_list")
+        if pl and isinstance(pl, dict):
+            cfg = pl.get("risk")
+            if cfg and isinstance(cfg, dict) and cfg.get("api_key"):
+                return cfg
+        # Legacy fallback: use first provider from flat list
+        if pl and isinstance(pl, list) and len(pl) > 0:
+            first = pl[0]
+            return {
+                "provider": first.get("provider"),
+                "api_key": first.get("api_key"),
+                "model": first.get("risk_model") or first.get("main_model"),
+            }
+        return None
+
+    def get_role_fallbacks(self, for_role: str = None) -> list:
+        """Get the fallback providers for this account, filtered by role if specified.
+        
+        Returns list of provider config dicts.
+        """
+        self._maybe_refresh()
+        pl = self._cache.get("providers_list")
+        if pl and isinstance(pl, dict):
+            fallbacks = pl.get("fallbacks", [])
+            if for_role:
+                # Return fallbacks that specifically match the role, or don't have a role assigned
+                return [fb for fb in fallbacks if fb.get("for_role") == for_role or not fb.get("for_role")]
+            return fallbacks
+        # Legacy: return all providers beyond the first
+        if pl and isinstance(pl, list) and len(pl) > 1:
+            return pl[1:]
         return []
 
     def is_style_enabled(self, trade_style: str) -> bool:

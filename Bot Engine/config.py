@@ -104,11 +104,18 @@ AI_MAX_TOKENS       = int(os.getenv("AI_MAX_TOKENS", "256"))
 AI_STARTUP_HEALTHCHECK = _env_bool("AI_STARTUP_HEALTHCHECK", "False")
 
 # Dynamic Providers Configuration injected from Supabase
-PROVIDERS_CONFIG = []
+PROVIDERS_CONFIG = []  # Legacy flat list — kept for backward compatibility
 
 MASTER_AI_PROVIDER = None
 MASTER_AI_MAIN_MODEL = None
 MASTER_AI_RISK_MODEL = None
+
+# ── Role-Based Provider Configs (v4 architecture) ────────────────────────────
+# Each role has its own provider + API key + model to avoid quota exhaustion.
+# Injected from Supabase system_settings.providers_list (role-based format).
+MAIN_PROVIDER_CONFIG = None       # {"provider": "nvidia", "api_key": "...", "model": "..."}
+VISION_PROVIDER_CONFIG = None     # {"provider": "nvidia", "api_key": "...", "model": "..."}
+MASTER_FALLBACK_PROVIDERS = []    # [{"provider": "groq", "api_key": "...", "model": "auto"}, ...]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FUTURE VISION AI / CHART SCREENSHOT SETTINGS

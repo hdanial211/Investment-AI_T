@@ -53,6 +53,33 @@ signal.signal(signal.SIGINT, _signal_handler)
 signal.signal(signal.SIGTERM, _signal_handler)
 
 # ─────────────────────────────────────────────────────────────────────────────
+# AI CONFIG HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_main_ai_config() -> dict:
+    """Get the Main Model AI config (role-based or legacy fallback)."""
+    # v4 role-based: dedicated MAIN_PROVIDER_CONFIG
+    if config.MAIN_PROVIDER_CONFIG and config.MAIN_PROVIDER_CONFIG.get("api_key"):
+        return config.MAIN_PROVIDER_CONFIG
+    # Legacy: first entry in flat PROVIDERS_CONFIG
+    if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
+        return config.PROVIDERS_CONFIG[0]
+    # Final fallback: construct from individual config vars
+    if config.MASTER_AI_PROVIDER:
+        cfg = {
+            "provider": config.MASTER_AI_PROVIDER,
+            "main_model": config.MASTER_AI_MAIN_MODEL,
+            "risk_model": config.MASTER_AI_RISK_MODEL,
+        }
+        if config.MASTER_AI_PROVIDER.lower() in ("huggingface", "hf"):
+            cfg["api_key"] = config.HF_TOKEN
+        elif config.MASTER_AI_PROVIDER.lower() in ("openrouter", "or"):
+            cfg["api_key"] = config.OPENROUTER_API_KEY
+        return cfg
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ANALYZE ONE SYMBOL
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -98,26 +125,16 @@ def analyze_symbol(
         except Exception as e:
             logger.warning(f"[{symbol}] Chart capture failed: {e}. Vision AI will HOLD.")
 
-    # 4. Query Text AI
+    # 4. Query Text AI — uses dedicated MAIN_PROVIDER_CONFIG (own API key)
     logger.info("Querying text AI model...")
-    master_ai_config = None
-    if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
-        master_ai_config = config.PROVIDERS_CONFIG[0]
-    elif config.MASTER_AI_PROVIDER:
-        master_ai_config = {
-            "provider": config.MASTER_AI_PROVIDER,
-            "main_model": config.MASTER_AI_MAIN_MODEL,
-            "risk_model": config.MASTER_AI_RISK_MODEL,
-        }
-        # In case it's huggingface/openrouter, fetch global api keys
-        if config.MASTER_AI_PROVIDER.lower() in ("huggingface", "hf"):
-            master_ai_config["api_key"] = config.HF_TOKEN
-        elif config.MASTER_AI_PROVIDER.lower() in ("openrouter", "or"):
-            master_ai_config["api_key"] = config.OPENROUTER_API_KEY
+    main_ai_config = _get_main_ai_config()
+    # Get main fallbacks and build sequence
+    main_fallbacks = [fb for fb in config.MASTER_FALLBACK_PROVIDERS if fb.get("for_role") == "main" or not fb.get("for_role")]
+    main_sequence = [main_ai_config] + main_fallbacks
             
     text_signal = get_ai_signal(
         indicators, bid, ask, trade_memory=None, symbol=symbol, 
-        specific_provider_config=master_ai_config
+        provider_sequence=main_sequence
     )
 
     # 5. Query Vision AI + Merge (if enabled)
@@ -236,17 +253,6 @@ def evaluate_active_trades(
     """Query AI for each active trade: HOLD, CLOSE, or UPDATE_SL_TP."""
     logger.info("🧠 AI Trade Evaluation: Checking all active trades...")
 
-    # Build AI config
-    master_ai_config = None
-    if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
-        master_ai_config = config.PROVIDERS_CONFIG[0]
-    elif config.MASTER_AI_PROVIDER:
-        master_ai_config = {
-            "provider": config.MASTER_AI_PROVIDER,
-            "main_model": config.MASTER_AI_MAIN_MODEL,
-            "risk_model": config.MASTER_AI_RISK_MODEL,
-        }
-
     evaluated = 0
     commands_sent = 0
 
@@ -255,6 +261,15 @@ def evaluate_active_trades(
             continue
 
         try:
+            # Each account uses its OWN evaluator API key (not master's)
+            from account_settings import AccountSettings
+            acct_settings = AccountSettings(acc_id)
+            eval_config = acct_settings.get_evaluator_config()
+            if not eval_config:
+                # Fallback to main config if account has no evaluator
+                eval_config = _get_main_ai_config()
+            logger.debug(f"Trade eval [{acc_id}]: using {eval_config.get('provider')}/{eval_config.get('model', 'auto')}")
+
             trades = supabase.fetch_active_trades(acc_id)
             if not trades:
                 continue
@@ -288,13 +303,16 @@ def evaluate_active_trades(
 
                 try:
                     from ai_engine import get_ai_signal
+                    # Use the evaluator config plus its fallbacks
+                    eval_sequence = [eval_config] + acct_settings.get_role_fallbacks(for_role="evaluator")
+                    
                     eval_result = get_ai_signal(
                         indicators={"trade_eval": trade_summary, "atr": trade.get("atr", 0)},
                         bid=current_price if action_dir == "BUY" else 0,
                         ask=current_price if action_dir == "SELL" else 0,
                         trade_memory=None,
                         symbol=symbol,
-                        specific_provider_config=master_ai_config,
+                        provider_sequence=eval_sequence,
                         trade_eval_mode=True,
                     )
                     evaluated += 1
@@ -442,18 +460,9 @@ def main():
         # 7. Unload AI from memory if local models were used
         from ai_engine import unload_ai
         
-        master_ai_config = None
-        if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
-            master_ai_config = config.PROVIDERS_CONFIG[0]
-        elif config.MASTER_AI_PROVIDER:
-            master_ai_config = {
-                "provider": config.MASTER_AI_PROVIDER,
-                "main_model": config.MASTER_AI_MAIN_MODEL,
-                "risk_model": config.MASTER_AI_RISK_MODEL,
-                "api_key": config.HF_TOKEN if config.MASTER_AI_PROVIDER.lower() in ("hf", "huggingface") else config.OPENROUTER_API_KEY
-            }
-        if master_ai_config:
-            unload_ai(provider_sequence=[master_ai_config])
+        main_ai_config = _get_main_ai_config()
+        if main_ai_config:
+            unload_ai(provider_sequence=[main_ai_config])
         else:
             unload_ai()
 

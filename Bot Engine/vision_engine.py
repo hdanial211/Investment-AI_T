@@ -250,38 +250,49 @@ Analyze the chart visually and return the JSON decision now.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _call_vision_ai(messages: List[Dict]) -> Optional[str]:
-    """Call vision-capable AI via OpenRouter with multimodal messages."""
+    """Call vision-capable AI using the dedicated VISION_PROVIDER_CONFIG."""
     try:
         from ai_clients import get_client, AIProviderError
     except ImportError as e:
         logger.error(f"Cannot import AI clients: {e}")
         return None
 
-    provider_name = config.AI_PROVIDER
-    model = getattr(config, "VISION_AI_MODEL", "google/gemini-2.0-flash-001")
+    # ── Resolve vision provider config (role-based or fallback) ──────────
+    vision_cfg = config.VISION_PROVIDER_CONFIG
+    if vision_cfg and vision_cfg.get("api_key"):
+        provider_config = {
+            "provider": vision_cfg.get("provider", "openrouter"),
+            "api_key": vision_cfg["api_key"],
+        }
+        model = vision_cfg.get("model") or config.VISION_AI_MODEL
+    else:
+        # Fallback: use MAIN_PROVIDER_CONFIG or legacy AI_PROVIDER
+        main_cfg = config.MAIN_PROVIDER_CONFIG
+        if main_cfg and main_cfg.get("api_key"):
+            provider_config = {
+                "provider": main_cfg.get("provider", "openrouter"),
+                "api_key": main_cfg["api_key"],
+            }
+        else:
+            provider_name = config.AI_PROVIDER
+            provider_config = {"provider": provider_name}
+            if provider_name == "openrouter":
+                provider_config["api_key"] = config.OPENROUTER_API_KEY
+            elif provider_name in ("huggingface", "hf"):
+                provider_config["api_key"] = config.HF_TOKEN
+        model = config.VISION_AI_MODEL
+
     timeout = getattr(config, "VISION_AI_TIMEOUT", 60)
     max_tokens = getattr(config, "VISION_AI_MAX_TOKENS", 512)
 
     try:
-        # Assuming VISION_AI uses the primary AI provider's API key
-        # Need to reconstruct a basic provider config dict 
-        provider_config = {"provider": provider_name}
-        if provider_name == "openrouter":
-            provider_config["api_key"] = config.OPENROUTER_API_KEY
-        elif provider_name in ("huggingface", "hf"):
-            provider_config["api_key"] = config.HF_TOKEN
-        elif provider_name == "nvidia":
-            # Just for test since we don't have config.NVIDIA_API_KEY globally yet
-            # Using the hardcoded test key provided by user for the session
-            provider_config["api_key"] = "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"
-            
         client = get_client(provider_config)
     except Exception as e:
         logger.error(f"Vision AI provider setup failed: {e}")
         return None
 
     logger.info(
-        f"Querying vision AI: provider={provider_name}, model={model}"
+        f"Querying vision AI: provider={provider_config.get('provider')}, model={model}"
     )
 
     for attempt in range(1, config.AI_RETRIES + 1):

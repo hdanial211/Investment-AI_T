@@ -176,6 +176,82 @@
       background: rgba(44, 139, 103, 0.22);
     }
 
+    /* ── TOOLTIPS (copied from settings.html) ─────────────────────────── */
+    .tooltip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(103, 113, 106, 0.2);
+      color: var(--muted);
+      font-size: 0.65rem;
+      font-weight: bold;
+      margin-left: 6px;
+      cursor: help;
+      position: relative;
+    }
+    .tooltip:hover::after {
+      content: attr(data-title);
+      position: absolute;
+      bottom: 150%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: normal;
+      white-space: pre-wrap;
+      width: 260px;
+      text-transform: none;
+      letter-spacing: normal;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      pointer-events: none;
+    }
+    .tooltip:hover::before {
+      content: "";
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--ink);
+    }
+
+    /* ── ROLE CARD HEADERS ────────────────────────────────────────────── */
+    .role-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed var(--line);
+    }
+    .role-emoji { font-size: 1.3rem; }
+    .role-label { font-family: Georgia, serif; font-size: 1.1rem; font-weight: bold; }
+    .role-sublabel { font-size: 0.78rem; color: var(--muted); }
+
+    .fallback-separator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0 14px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .fallback-separator::before, .fallback-separator::after {
+      content: "";
+      flex: 1;
+      border-top: 1px dashed var(--line);
+    }
+
     .save-row { display: flex; gap: 10px; align-items: center; margin-top: 24px; }
     .save-row button { padding: 13px 28px; font-size: 1rem; }
 
@@ -328,7 +404,7 @@
       <div id="tabDescription" style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;"></div>
 
       <div id="providersContainer"></div>
-      <button class="add-provider-btn" onclick="addProvider()">+ Add AI Provider</button>
+      <button class="add-provider-btn" onclick="addFallback()">+ Tambah Fallback Provider</button>
 
       <div class="save-row">
         <button onclick="saveSettings()">💾 Save Config</button>
@@ -458,8 +534,23 @@
       nvidia: {
         free: [
           { id: "auto", name: "⚡ Auto (Smart Route)", desc: "Pilih model terpantas & terbaik secara automatik" },
-          { id: "meta/llama-3.2-90b-vision-instruct", name: "Llama 3.2 90B Vision", desc: "Model Llama dengan kebolehan Vision" },
-          { id: "meta/llama-3.1-70b-instruct", name: "Llama 3.1 70B", desc: "Model Llama 3.1 standard" }
+          // ── Besar (Main Model) ──
+          { id: "deepseek-ai/deepseek-v4-flash", name: "★ DeepSeek V4 Flash 284B", desc: "MoE terbesar — coding, agents, 1M context" },
+          { id: "z-ai/glm-5.1", name: "★ GLM 5.1", desc: "Flagship — agentic workflows, long reasoning" },
+          { id: "stepfun-ai/step-3.7-flash", name: "Step 3.7 Flash", desc: "MoE multimodal reasoning" },
+          { id: "minimaxai/minimax-m2.7", name: "MiniMax M2.7 230B", desc: "Coding, reasoning, office tasks" },
+          { id: "stepfun-ai/step-3.5-flash", name: "Step 3.5 Flash 200B", desc: "Sparse MoE reasoning engine" },
+          { id: "qwen/qwen3-next-80b-a3b-instruct", name: "Qwen3 Next 80B", desc: "Ultra-long context" },
+          // ── Ringan (Risk / Evaluator) ──
+          { id: "openai/gpt-oss-20b", name: "★ GPT-OSS 20B", desc: "MoE kecil — matematik, reasoning laju" },
+          { id: "nvidia/llama-3.1-nemotron-nano-8b-v1", name: "★ Nemotron Nano 8B", desc: "Ringan — reasoning & agentic" },
+          { id: "microsoft/phi-4-mini-instruct", name: "Phi-4 Mini", desc: "Sangat ringan — low latency" },
+          { id: "google/gemma-3n-e4b-it", name: "Gemma 3n E4B", desc: "Edge model — text + image" },
+          { id: "google/gemma-3n-e2b-it", name: "Gemma 3n E2B", desc: "Edge model — paling ringan" },
+          { id: "google/gemma-2-2b-it", name: "Gemma 2 2B", desc: "Ringan — laju respond" },
+          { id: "meta/llama-3.1-70b-instruct", name: "Llama 3.1 70B", desc: "Model Llama 3.1 standard" },
+          // ── Vision ──
+          { id: "meta/llama-3.2-90b-vision-instruct", name: "★ Llama 3.2 90B Vision", desc: "SATU-SATUNYA model Vision — baca graf" },
         ],
         paid: []
       },
@@ -510,9 +601,17 @@
       }
     };
 
-    let pickerState = { index: -1, field: "" };
-    const testedProviders = new Set();
-    const ollamaLocalModels = {};  // index -> [model names detected locally]
+    let pickerState = { index: -1, field: "", role: "" };
+    const testedProviders = new Set();  // tracks "role:roleName" or "fb:index"
+    const ollamaLocalModels = {};
+
+    // ── ROLE TOOLTIPS ──────────────────────────────────────────────────
+    const ROLE_TOOLTIPS = {
+      main: "Model AI utama untuk menganalisis data pasaran (teks). Ia membaca indicator, pattern, trend dari pelbagai timeframe dan buat keputusan BUY/SELL/HOLD.\n\nCadangan: ★ deepseek-ai/deepseek-v4-flash (284B MoE, paling berkuasa)",
+      vision: "Model AI yang boleh 'nampak' gambar graf (chart screenshot). Ia akan menganalisis candlestick pattern, trend, support/resistance secara visual dari screenshot MT5.\n\n⚠ Hanya model Vision boleh digunakan.\nCadangan: ★ meta/llama-3.2-90b-vision-instruct",
+      evaluator: "Model AI untuk menyemak dan menguruskan trade aktif akaun ini setiap 20 minit. Ia boleh cadangkan CLOSE, UPDATE SL/TP, atau HOLD.\n\nCadangan: ★ openai/gpt-oss-20b (laju, jimat quota)",
+      risk: "Model AI untuk semak & approve/reject setiap trade baru sebelum dijalankan di MT5. Tugas ini ringan — hanya perlu respons laju (approved: true/false + sebab).\n\nCadangan: ★ openai/gpt-oss-20b",
+    };
 
     $("supabaseUrl").value = state.url;
     $("supabaseAnon").value = state.anon;
@@ -595,34 +694,54 @@
 
     function selectTab(tabId) {
       state.activeTab = tabId;
+      state.activeSubTab = tabId === 'global' ? 'main' : 'evaluator';
       renderTabs();
       
-      let sourceList = [];
+      let sourceData = null;
       let lastUpdated = null;
       let desc = "";
 
       if (tabId === 'global') {
-        sourceList = state.sys.providers_list || [];
+        sourceData = state.sys.providers_list || {};
         lastUpdated = state.sys.updated_at;
-        desc = "Konfigurasi ini digunakan khas untuk <b>Master Analyzer</b>. Jika AI Provider #1 gagal, ia akan cuba #2, dan seterusnya.";
+        desc = "Konfigurasi AI untuk <b>Master Analyzer</b>. Setiap peranan mempunyai API key sendiri supaya tidak berebut quota.";
       } else {
         const acc = state.accounts.find(a => a.account_id === tabId);
         if (acc) {
-          sourceList = acc.providers_list || [];
+          sourceData = acc.providers_list || {};
           lastUpdated = acc.updated_at;
-          desc = `Konfigurasi khas untuk <b>Account: ${acc.account_label || acc.account_id}</b>. Digunakan untuk Risk Review trade akaun ini sahaja.`;
+          desc = `Konfigurasi AI untuk <b>Account: ${acc.account_label || acc.account_id}</b>. Setiap peranan mempunyai API key sendiri.`;
         }
       }
 
-      state.providers = JSON.parse(JSON.stringify(sourceList));
-      
-      if (state.providers.length === 0) {
-        state.providers.push({
-          provider: 'openrouter',
-          api_key: '',
-          main_model: 'openai/gpt-oss-20b:free',
-          risk_model: 'openai/gpt-oss-120b:free'
-        });
+      // ── Normalize into role-based object ─────────────────────────────
+      if (Array.isArray(sourceData)) {
+        // Legacy flat array → convert to role-based
+        const first = sourceData[0] || {};
+        if (tabId === 'global') {
+          state.roleProviders = {
+            main: { provider: first.provider || 'openrouter', api_key: first.api_key || '', model: first.main_model || '' },
+            vision: { provider: 'nvidia', api_key: '', model: '' },
+            fallbacks: sourceData.slice(1).map(p => ({...p}))
+          };
+        } else {
+          state.roleProviders = {
+            evaluator: { provider: first.provider || 'openrouter', api_key: first.api_key || '', model: first.risk_model || first.main_model || '' },
+            risk: { provider: first.provider || 'openrouter', api_key: first.api_key || '', model: first.risk_model || '' },
+            fallbacks: sourceData.slice(1).map(p => ({...p}))
+          };
+        }
+      } else {
+        state.roleProviders = JSON.parse(JSON.stringify(sourceData));
+        // Ensure roles exist
+        if (tabId === 'global') {
+          if (!state.roleProviders.main) state.roleProviders.main = { provider: 'nvidia', api_key: '', model: '' };
+          if (!state.roleProviders.vision) state.roleProviders.vision = { provider: 'nvidia', api_key: '', model: '' };
+        } else {
+          if (!state.roleProviders.evaluator) state.roleProviders.evaluator = { provider: 'nvidia', api_key: '', model: '' };
+          if (!state.roleProviders.risk) state.roleProviders.risk = { provider: 'nvidia', api_key: '', model: '' };
+        }
+        if (!state.roleProviders.fallbacks) state.roleProviders.fallbacks = [];
       }
 
       $("lastSavedTxt").innerText = `Last saved: ${lastUpdated ? new Date(lastUpdated).toLocaleString() : "never"}`;
@@ -636,29 +755,132 @@
     function renderProviders() {
       const container = $("providersContainer");
       container.innerHTML = "";
+      const rp = state.roleProviders;
       
-      state.providers.forEach((p, index) => {
-        const isPrimary = index === 0;
-        const badgeClass = isPrimary ? "badge" : "badge fallback";
-        const badgeText = isPrimary ? "Primary" : `Fallback #${index}`;
+      const isGlobal = state.activeTab === 'global';
+      
+      // Determine which sub-tabs to show
+      const roles = isGlobal
+        ? [
+            { key: 'main', emoji: '🟢', label: 'MAIN MODEL', sublabel: 'Analisis Pasaran', tooltip: ROLE_TOOLTIPS.main },
+            { key: 'vision', emoji: '🟠', label: 'VISION MODEL', sublabel: 'Baca Graf', tooltip: ROLE_TOOLTIPS.vision },
+          ]
+        : [
+            { key: 'evaluator', emoji: '🔵', label: 'TRADE EVALUATOR', sublabel: 'Jaga Active Trade', tooltip: ROLE_TOOLTIPS.evaluator },
+            { key: 'risk', emoji: '🔴', label: 'RISK MODEL', sublabel: 'Approve/Reject Trade', tooltip: ROLE_TOOLTIPS.risk },
+          ];
 
+      // 1. Render Sub-Tabs
+      const subTabsHtml = `
+        <div class="sub-tabs-container" style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+          ${roles.map(r => `
+            <button class="sub-tab-btn ${state.activeSubTab === r.key ? 'active' : ''}" 
+                    onclick="state.activeSubTab='${r.key}'; renderProviders()"
+                    style="padding: 8px 16px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; background: ${state.activeSubTab === r.key ? 'var(--gold)' : 'var(--bg-lighter)'}; color: ${state.activeSubTab === r.key ? '#1a1a1a' : 'inherit'};">
+              ${r.emoji} ${r.label}
+            </button>
+          `).join('')}
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', subTabsHtml);
+
+      // Only process the ACTIVE role
+      const activeRole = roles.find(r => r.key === state.activeSubTab);
+      if (!activeRole) return;
+      
+      const role = activeRole;
+        const cfg = rp[role.key] || {};
+        const testedKey = `role:${role.key}`;
+        const isTested = testedProviders.has(testedKey);
+        
+        const html = `
+          <div class="provider-card">
+            <div class="role-header">
+              <span class="role-emoji">${role.emoji}</span>
+              <span class="role-label">${role.label}</span>
+              <span class="role-sublabel">— ${role.sublabel}</span>
+              <span class="tooltip" data-title="${safe(role.tooltip)}">i</span>
+            </div>
+
+            <div class="form-row">
+              <div class="field-group">
+                <label>Provider Platform</label>
+                <select onchange="updateRoleProvider('${role.key}', 'provider', this.value)">
+                  <option value="openrouter" ${cfg.provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
+                  <option value="openai" ${cfg.provider === 'openai' ? 'selected' : ''}>OpenAI (ChatGPT)</option>
+                  <option value="anthropic" ${cfg.provider === 'anthropic' ? 'selected' : ''}>Anthropic (Claude)</option>
+                  <option value="grok" ${cfg.provider === 'grok' ? 'selected' : ''}>Grok (xAI)</option>
+                  <option value="groq" ${cfg.provider === 'groq' ? 'selected' : ''}>Groq (Sangat Pantas)</option>
+                  <option value="deepseek" ${cfg.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
+                  <option value="huggingface" ${cfg.provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
+                  <option value="nvidia" ${cfg.provider === 'nvidia' ? 'selected' : ''}>Nvidia NIM</option>
+                  <option value="ollama" ${cfg.provider === 'ollama' ? 'selected' : ''}>🦙 Ollama (Local)</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label>${cfg.provider === 'ollama' ? 'Ollama URL' : 'API Key'}</label>
+                <input type="${cfg.provider === 'ollama' ? 'text' : 'password'}" 
+                       value="${safe(cfg.provider === 'ollama' ? (cfg.base_url || 'http://localhost:11434') : cfg.api_key)}" 
+                       placeholder="${cfg.provider === 'ollama' ? 'http://localhost:11434' : 'nvapi-...'}" 
+                       onchange="updateRoleProvider('${role.key}', '${cfg.provider === 'ollama' ? 'base_url' : 'api_key'}', this.value)">
+              </div>
+            </div>
+
+            <div class="form-row full" style="margin-top:10px;">
+              <button class="test-api-btn" onclick="testRoleApi('${role.key}')">⚡ Test Connection & API Key</button>
+            </div>
+            
+            <div id="testRes_role_${role.key}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;">${cfg._testResult || ''}</div>
+
+            <div class="form-row" style="margin-top:14px;">
+              <div class="field-group">
+                <label>Model <span class="tooltip" data-title="${safe(role.tooltip)}">i</span></label>
+                <div style="display:flex;gap:8px;">
+                  <button type="button" class="model-picker-btn ${isTested ? '' : 'locked'}" onclick="openRoleModelPicker('${role.key}')">
+                    <span class="mn ${cfg.model ? '' : 'empty'}">${cfg.model ? safe(cfg.model) : '⊕ Pilih Model...'}</span>
+                    <span class="pi">▾</span>
+                  </button>
+                  <button type="button" class="test-model-btn" title="Test Model" onclick="testRoleModel('${role.key}')" ${!cfg.model || !isTested ? 'disabled' : ''}>🧪</button>
+                </div>
+              </div>
+            </div>
+            ${!isTested ? '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">🔒 Sila test API key dulu sebelum pilih model.</div>' : ''}
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+
+      // ── Fallback separator ─────────────────────────────────────────────
+      container.insertAdjacentHTML('beforeend', `<div class="fallback-separator">Fallback Providers untuk ${role.label}</div>`);
+      
+      // Render fallback cards
+      const fallbacks = rp.fallbacks || [];
+      
+      // Filter fallbacks for the currently active sub-tab (role)
+      // Treat undefined for_role as 'main' (if global) or 'evaluator' (if account) for backward compatibility
+      const activeFallbacks = fallbacks.map((fb, idx) => ({fb, idx})).filter(item => {
+        const fallbackRole = item.fb.for_role || (isGlobal ? 'main' : 'evaluator');
+        return fallbackRole === state.activeSubTab;
+      });
+
+      activeFallbacks.forEach(({fb: p, idx: index}) => {
+        const testedKey = `fb:${index}`;
+        const isTested = testedProviders.has(testedKey);
+        
         const html = `
           <div class="provider-card">
             <div class="provider-header">
               <div class="provider-title">
-                Provider #${index + 1} <span class="${badgeClass}">${badgeText}</span>
+                Fallback Provider <span class="badge fallback">Fallback</span>
               </div>
               <div class="provider-controls">
-                <button onclick="moveUp(${index})" ${index === 0 ? 'disabled' : ''}>▲ Up</button>
-                <button onclick="moveDown(${index})" ${index === state.providers.length - 1 ? 'disabled' : ''}>▼ Down</button>
-                <button class="btn-danger" onclick="removeProvider(${index})">✖ Remove</button>
+                <button class="btn-danger" onclick="removeFallback(${index})">✖ Buang</button>
               </div>
             </div>
 
             <div class="form-row">
               <div class="field-group">
                 <label>Provider Platform</label>
-                <select onchange="updateProvider(${index}, 'provider', this.value)">
+                <select onchange="updateFallback(${index}, 'provider', this.value)">
                   <option value="openrouter" ${p.provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
                   <option value="openai" ${p.provider === 'openai' ? 'selected' : ''}>OpenAI (ChatGPT)</option>
                   <option value="anthropic" ${p.provider === 'anthropic' ? 'selected' : ''}>Anthropic (Claude)</option>
@@ -666,141 +888,138 @@
                   <option value="groq" ${p.provider === 'groq' ? 'selected' : ''}>Groq (Sangat Pantas)</option>
                   <option value="deepseek" ${p.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
                   <option value="huggingface" ${p.provider === 'huggingface' ? 'selected' : ''}>HuggingFace</option>
-                  <option value="nvidia" ${p.provider === 'nvidia' ? 'selected' : ''}>Nvidia (Llama 3.2 Vision)</option>
+                  <option value="nvidia" ${p.provider === 'nvidia' ? 'selected' : ''}>Nvidia NIM</option>
                   <option value="ollama" ${p.provider === 'ollama' ? 'selected' : ''}>🦙 Ollama (Local)</option>
                 </select>
               </div>
               <div class="field-group">
-                <label>${p.provider === 'ollama' ? 'Ollama URL (optional)' : 'API Key'}</label>
-                <input type="${p.provider === 'ollama' ? 'text' : 'password'}" value="${safe(p.provider === 'ollama' ? (p.base_url || 'http://localhost:11434') : p.api_key)}" placeholder="${p.provider === 'ollama' ? 'http://localhost:11434' : 'sk-...'}" onchange="updateProvider(${index}, '${p.provider === 'ollama' ? 'base_url' : 'api_key'}', this.value)">
+                <label>${p.provider === 'ollama' ? 'Ollama URL' : 'API Key'}</label>
+                <input type="${p.provider === 'ollama' ? 'text' : 'password'}" 
+                       value="${safe(p.provider === 'ollama' ? (p.base_url || 'http://localhost:11434') : p.api_key)}" 
+                       placeholder="${p.provider === 'ollama' ? 'http://localhost:11434' : 'sk-...'}" 
+                       onchange="updateFallback(${index}, '${p.provider === 'ollama' ? 'base_url' : 'api_key'}', this.value)">
               </div>
             </div>
 
             <div class="form-row full" style="margin-top:10px;">
-              <button class="test-api-btn" onclick="testApi(${index})">⚡ Test Connection & API Key</button>
+              <button class="test-api-btn" onclick="testFallbackApi(${index})">⚡ Test Connection & API Key</button>
             </div>
-            
-            <div id="testRes_${index}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;">${p._testResult || ''}</div>
+            <div id="testRes_fb_${index}" style="font-size:0.8rem; margin-top:10px; font-family:monospace;">${p._testResult || ''}</div>
 
             <div class="form-row" style="margin-top:14px;">
-              ${state.activeTab === 'global' ? `
               <div class="field-group">
-                <label>Main Model</label>
+                <label>Model</label>
                 <div style="display:flex;gap:8px;">
-                  <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'main_model')">
-                    <span class="mn ${p.main_model ? '' : 'empty'}">${p.main_model ? safe(p.main_model) : '⊕ Pilih Model...'}</span>
+                  <button type="button" class="model-picker-btn ${isTested ? '' : 'locked'}" onclick="openFallbackModelPicker(${index})">
+                    <span class="mn ${p.model ? '' : 'empty'}">${p.model || p.main_model ? safe(p.model || p.main_model) : '⊕ Pilih Model...'}</span>
                     <span class="pi">▾</span>
                   </button>
-                  <button type="button" class="test-model-btn" title="Test Main Model" onclick="testModel(${index}, 'main_model')" ${!p.main_model || !testedProviders.has(index) ? 'disabled' : ''}>🧪</button>
-                </div>
-              </div>
-              ` : ''}
-              <div class="field-group">
-                <label>Risk Review Model</label>
-                <div style="display:flex;gap:8px;">
-                  <button type="button" class="model-picker-btn ${testedProviders.has(index) ? '' : 'locked'}" onclick="openModelPicker(${index}, 'risk_model')">
-                    <span class="mn ${p.risk_model ? '' : 'empty'}">${p.risk_model ? safe(p.risk_model) : '⊕ Pilih Model...'}</span>
-                    <span class="pi">▾</span>
-                  </button>
-                  <button type="button" class="test-model-btn" title="Test Risk Model" onclick="testModel(${index}, 'risk_model')" ${!p.risk_model || !testedProviders.has(index) ? 'disabled' : ''}>🧪</button>
+                  <button type="button" class="test-model-btn" title="Test Model" onclick="testFallbackModel(${index})" ${!(p.model || p.main_model) || !isTested ? 'disabled' : ''}>🧪</button>
                 </div>
               </div>
             </div>
-            ${!testedProviders.has(index) ? '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">🔒 Sila test API key dulu sebelum pilih model.</div>' : ''}
+            ${!isTested ? '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">🔒 Sila test API key dulu sebelum pilih model.</div>' : ''}
           </div>
         `;
         container.insertAdjacentHTML('beforeend', html);
       });
     }
 
-    // ── MUTATIONS ────────────────────────────────────────────────────────
-    function updateProvider(index, field, value) {
-      state.providers[index][field] = value.trim();
-      // Re-render when provider type changes (to update label/placeholder)
+    // ── ROLE MUTATIONS ──────────────────────────────────────────────────
+    function updateRoleProvider(roleKey, field, value) {
+      state.roleProviders[roleKey][field] = value.trim();
       if (field === 'provider') {
-        // Reset model selections when switching provider
-        state.providers[index].main_model = '';
-        state.providers[index].risk_model = '';
-        testedProviders.delete(index);
+        state.roleProviders[roleKey].model = '';
+        testedProviders.delete(`role:${roleKey}`);
         renderProviders();
       }
     }
 
-    function addProvider() {
-      state.providers.push({
+    function updateFallback(index, field, value) {
+      state.roleProviders.fallbacks[index][field] = value.trim();
+      if (field === 'provider') {
+        state.roleProviders.fallbacks[index].model = '';
+        state.roleProviders.fallbacks[index].main_model = '';
+        testedProviders.delete(`fb:${index}`);
+        renderProviders();
+      }
+    }
+
+    function addFallback() {
+      if (!state.roleProviders.fallbacks) state.roleProviders.fallbacks = [];
+      state.roleProviders.fallbacks.push({
         provider: 'openrouter',
         api_key: '',
-        main_model: '',
-        risk_model: ''
+        model: '',
+        for_role: state.activeSubTab
       });
       renderProviders();
     }
 
-    function removeProvider(index) {
-      state.providers.splice(index, 1);
+    function removeFallback(index) {
+      state.roleProviders.fallbacks.splice(index, 1);
       renderProviders();
     }
 
-    function moveUp(index) {
-      if (index === 0) return;
-      const temp = state.providers[index - 1];
-      state.providers[index - 1] = state.providers[index];
-      state.providers[index] = temp;
-      renderProviders();
-    }
-
-    function moveDown(index) {
-      if (index === state.providers.length - 1) return;
-      const temp = state.providers[index + 1];
-      state.providers[index + 1] = state.providers[index];
-      state.providers[index] = temp;
-      renderProviders();
-    }
-
-    // ── MODEL PICKER ─────────────────────────────────────────────────────
-    function openModelPicker(index, field) {
-      if (!testedProviders.has(index)) {
-        const resDiv = $(`testRes_${index}`);
-        resDiv.innerHTML = `<span style="color:var(--red)">⚠️ Sila klik "Test Connection & API Key" dulu sebelum pilih model!</span>`;
+    // ── ROLE MODEL PICKER ───────────────────────────────────────────────
+    function openRoleModelPicker(roleKey) {
+      const testedKey = `role:${roleKey}`;
+      if (!testedProviders.has(testedKey)) {
+        const resDiv = $(`testRes_role_${roleKey}`);
+        if (resDiv) resDiv.innerHTML = `<span style="color:var(--red)">⚠️ Sila klik "Test Connection & API Key" dulu!</span>`;
         return;
       }
-      pickerState = { index, field };
-      const provider = state.providers[index].provider;
-      const catalog = MODEL_CATALOG[provider] || { free: [], paid: [] };
-      const label = field === 'main_model' ? 'Main Model' : 'Risk Review Model';
-      $("modalTitle").textContent = `Pilih ${label}`;
-
-      // For Ollama: add locally detected models as a "local" tab
-      let localModels = [];
-      if (provider === 'ollama' && ollamaLocalModels[index]) {
-        localModels = ollamaLocalModels[index]
-          .filter(name => !catalog.free.some(m => m.id === name))
-          .map(name => ({ id: name, name: name, desc: 'Model yang telah di-pull di mesin anda' }));
-      }
-
-      // Build tabs
+      const cfg = state.roleProviders[roleKey];
+      pickerState = { index: -1, field: 'model', role: roleKey };
+      const catalog = MODEL_CATALOG[cfg.provider] || { free: [], paid: [] };
+      const labels = { main: 'Main Model', vision: 'Vision Model', evaluator: 'Trade Evaluator Model', risk: 'Risk Model' };
+      $("modalTitle").textContent = `Pilih ${labels[roleKey] || 'Model'}`;
+      
       const hasFree = catalog.free.length > 0;
       const hasPaid = catalog.paid.length > 0;
-      const hasLocal = localModels.length > 0;
       let tabsHtml = '';
-      if (hasLocal) tabsHtml += `<button class="modal-tab act" onclick="switchTab(this,'local')">💻 Installed (${localModels.length})</button>`;
-      if (hasFree) tabsHtml += `<button class="modal-tab ${!hasLocal ? 'act' : ''}" onclick="switchTab(this,'free')">${provider === 'ollama' ? '📦 Semua Model' : '🆓 Percuma'} (${catalog.free.length})</button>`;
-      if (hasPaid) tabsHtml += `<button class="modal-tab ${!hasFree && !hasLocal ? 'act tp' : 'tp'}" onclick="switchTab(this,'paid')">💎 Berbayar (${catalog.paid.length})</button>`;
+      if (hasFree) tabsHtml += `<button class="modal-tab act" onclick="switchTab(this,'free')">🆓 Percuma (${catalog.free.length})</button>`;
+      if (hasPaid) tabsHtml += `<button class="modal-tab ${!hasFree ? 'act tp' : 'tp'}" onclick="switchTab(this,'paid')">💎 Berbayar (${catalog.paid.length})</button>`;
       $("modalTabs").innerHTML = tabsHtml;
+      
+      renderModelList(catalog, hasFree ? 'free' : 'paid');
+      $("modelModal").classList.add('open');
+    }
 
-      // Store local models temporarily for rendering
-      catalog._local = localModels;
-
-      // Show first available tab
-      const defaultTab = hasLocal ? 'local' : (hasFree ? 'free' : 'paid');
-      renderModelList(catalog, defaultTab);
+    function openFallbackModelPicker(fbIndex) {
+      const testedKey = `fb:${fbIndex}`;
+      if (!testedProviders.has(testedKey)) {
+        const resDiv = $(`testRes_fb_${fbIndex}`);
+        if (resDiv) resDiv.innerHTML = `<span style="color:var(--red)">⚠️ Sila klik "Test Connection & API Key" dulu!</span>`;
+        return;
+      }
+      const cfg = state.roleProviders.fallbacks[fbIndex];
+      pickerState = { index: fbIndex, field: 'model', role: '_fallback' };
+      const catalog = MODEL_CATALOG[cfg.provider] || { free: [], paid: [] };
+      $("modalTitle").textContent = `Pilih Fallback Model`;
+      
+      const hasFree = catalog.free.length > 0;
+      const hasPaid = catalog.paid.length > 0;
+      let tabsHtml = '';
+      if (hasFree) tabsHtml += `<button class="modal-tab act" onclick="switchTab(this,'free')">🆓 Percuma (${catalog.free.length})</button>`;
+      if (hasPaid) tabsHtml += `<button class="modal-tab ${!hasFree ? 'act tp' : 'tp'}" onclick="switchTab(this,'paid')">💎 Berbayar (${catalog.paid.length})</button>`;
+      $("modalTabs").innerHTML = tabsHtml;
+      
+      renderModelList(catalog, hasFree ? 'free' : 'paid');
       $("modelModal").classList.add('open');
     }
 
     function switchTab(btn, type) {
       document.querySelectorAll('.modal-tab').forEach(t => { t.classList.remove('act'); });
       btn.classList.add('act');
-      const provider = state.providers[pickerState.index].provider;
+      let provider;
+      if (pickerState.role === '_fallback') {
+        provider = state.roleProviders.fallbacks[pickerState.index].provider;
+      } else if (pickerState.role) {
+        provider = state.roleProviders[pickerState.role].provider;
+      } else {
+        provider = 'openrouter';
+      }
       const catalog = MODEL_CATALOG[provider] || { free: [], paid: [] };
       renderModelList(catalog, type);
     }
@@ -817,7 +1036,14 @@
         const badgeLabel = type === 'local' ? 'INSTALLED' : (type === 'free' ? 'FREE' : 'PAID');
         const badgeClass = type === 'local' ? 'free' : type;
         
-        const provider = state.providers[pickerState.index].provider;
+        let provider;
+        if (pickerState.role === '_fallback') {
+          provider = state.roleProviders.fallbacks[pickerState.index]?.provider;
+        } else if (pickerState.role) {
+          provider = state.roleProviders[pickerState.role]?.provider;
+        } else {
+          provider = 'openrouter';
+        }
         let pullBtn = '';
         if (provider === 'ollama' && type !== 'local') {
           const isInstalled = (catalog._local || []).some(l => l.id === m.id);
@@ -836,8 +1062,8 @@
     }
     
     async function pullOllamaModel(modelName, btnElem, providerIndex) {
-      const p = state.providers[providerIndex];
-      const ollamaUrl = (p.base_url || 'http://localhost:11434').replace(/\/$/, '');
+      // Ollama pull not used in role-based UI yet, but keep for compatibility
+      const ollamaUrl = 'http://localhost:11434';
       const originalText = btnElem.innerHTML;
       btnElem.innerHTML = "⏳ Start...";
       btnElem.disabled = true;
@@ -889,7 +1115,12 @@
     }
 
     function selectModel(modelId) {
-      state.providers[pickerState.index][pickerState.field] = modelId;
+      if (pickerState.role === '_fallback') {
+        state.roleProviders.fallbacks[pickerState.index].model = modelId;
+        state.roleProviders.fallbacks[pickerState.index].main_model = modelId;
+      } else if (pickerState.role) {
+        state.roleProviders[pickerState.role].model = modelId;
+      }
       closeModal();
       renderProviders();
     }
@@ -908,11 +1139,20 @@
       let payload;
       let table;
 
+      // Clean _testResult from role configs before saving
+      const cleanProviders = JSON.parse(JSON.stringify(state.roleProviders));
+      for (const key of Object.keys(cleanProviders)) {
+        if (key === 'fallbacks' && Array.isArray(cleanProviders.fallbacks)) {
+          cleanProviders.fallbacks.forEach(fb => delete fb._testResult);
+        } else if (typeof cleanProviders[key] === 'object' && cleanProviders[key]) {
+          delete cleanProviders[key]._testResult;
+        }
+      }
+
       if (state.activeTab === 'global') {
         payload = {
           id: 'global',
-          providers_list: state.providers,
-          master_ai_profile_index: state.masterIndex,
+          providers_list: cleanProviders,
           updated_at: new Date().toISOString(),
           updated_by: "dashboard",
         };
@@ -920,7 +1160,7 @@
       } else {
         payload = {
           account_id: state.activeTab,
-          providers_list: state.providers,
+          providers_list: cleanProviders,
           updated_at: new Date().toISOString(),
         };
         table = "account_settings";
@@ -935,10 +1175,34 @@
       }
     }
 
-    // ── TEST API ──────────────────────────────────────────────────────────
-    async function testApi(index) {
-      const p = state.providers[index];
-      const resDiv = $(`testRes_${index}`);
+    // ── TEST API (role-based wrappers) ─────────────────────────────────
+    async function testRoleApi(roleKey) {
+      const p = state.roleProviders[roleKey];
+      const resDiv = $(`testRes_role_${roleKey}`);
+      const testedKey = `role:${roleKey}`;
+      await _doTestApi(p, resDiv, testedKey);
+    }
+
+    async function testFallbackApi(fbIndex) {
+      const p = state.roleProviders.fallbacks[fbIndex];
+      const resDiv = $(`testRes_fb_${fbIndex}`);
+      const testedKey = `fb:${fbIndex}`;
+      await _doTestApi(p, resDiv, testedKey);
+    }
+
+    async function testRoleModel(roleKey) {
+      const p = state.roleProviders[roleKey];
+      const resDiv = $(`testRes_role_${roleKey}`);
+      await _doTestModel(p, p.model, resDiv);
+    }
+
+    async function testFallbackModel(fbIndex) {
+      const p = state.roleProviders.fallbacks[fbIndex];
+      const resDiv = $(`testRes_fb_${fbIndex}`);
+      await _doTestModel(p, p.model || p.main_model, resDiv);
+    }
+
+    async function _doTestApi(p, resDiv, testedKey) {
       resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing connection...</span>`;
 
       // Ollama: no API key needed, test via /api/tags
@@ -951,10 +1215,10 @@
           const modelNames = (data.models || []).map(m => m.name);
           
           // Store detected models for the picker
-          ollamaLocalModels[index] = modelNames;
+          ollamaLocalModels[testedKey] = modelNames;
           
           p._testResult = `<span style="color:var(--green)">✅ Ollama aktif! ${modelNames.length} model ditemui: ${modelNames.slice(0, 5).join(', ')}${modelNames.length > 5 ? '...' : ''}</span>`;
-          testedProviders.add(index);
+          testedProviders.add(testedKey);
           renderProviders();
         } catch (err) {
           p._testResult = `<span style="color:var(--red)">❌ Gagal sambung ke Ollama di ${ollamaUrl}. Pastikan Ollama sedang berjalan (ollama serve).<br>Error: ${safe(err.message)}</span>`;
@@ -1094,13 +1358,13 @@
         }
         
         p._testResult = `<span style="color:var(--green)">✅ API Key sah! Model replied: "${safe(replyText)}"</span>${balanceHtml}`;
-        testedProviders.add(index);
+        testedProviders.add(testedKey);
         renderProviders();
       } catch (err) {
         if (err.message.startsWith("MODEL_ERROR")) {
           // Key is valid, just the test model is busy
           p._testResult = `<span style="color:var(--green)">✅ API Key Sah! <span style="color:var(--text-secondary);font-size:0.8rem;">(Tetapi free model test sedang sibuk: ${err.message.replace('MODEL_ERROR:', '')})</span></span>`;
-          testedProviders.add(index);
+          testedProviders.add(testedKey);
           renderProviders();
         } else {
           p._testResult = `<span style="color:var(--red)">❌ Error: ${safe(err.message)}</span>`;
@@ -1109,12 +1373,8 @@
       }
     }
 
-    // ── TEST MODEL ────────────────────────────────────────────────────────
-    async function testModel(index, field) {
-      const p = state.providers[index];
-      const modelId = p[field];
-      const resDiv = $(`testRes_${index}`);
-      
+    // ── TEST MODEL (generic) ─────────────────────────────────────────────
+    async function _doTestModel(p, modelId, resDiv) {
       if (!modelId) return;
       resDiv.innerHTML = `<span style="color:var(--blue)">⏳ Testing model <strong>${safe(modelId)}</strong>...</span>`;
 

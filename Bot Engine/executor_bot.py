@@ -205,9 +205,15 @@ def execute_open_trade(
     if style_lot > 0:
         trade_params["lot"] = style_lot
 
-    # 12. AI Risk Review (per-account)
+    # 12. AI Risk Review (per-account — uses dedicated Risk API key)
     if config.ENABLE_RISK_REVIEW:
-        account_ai_sequence = acct_settings.get_providers_list()
+        risk_config = acct_settings.get_risk_config()
+        if risk_config:
+            # v4 role-based: single dedicated risk provider
+            account_ai_sequence = [risk_config] + acct_settings.get_role_fallbacks(for_role="risk")
+        else:
+            # Legacy: flat provider list
+            account_ai_sequence = acct_settings.get_providers_list()
         risk_review = review_trade_risk(
             ai_signal, indicators, trade_params, symbol,
             provider_sequence=account_ai_sequence
