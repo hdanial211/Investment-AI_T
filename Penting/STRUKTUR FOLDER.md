@@ -14,31 +14,31 @@ Investment-AI_T-master/
 
 ## start_bot.bat
 
-Fail utama yang user tekan.
-
-Ia cuma panggil launcher sebenar:
+Fail utama yang user tekan. Ia memanggil multi-account launcher:
 
 ```text
-Bot Engine/start_bot.bat
+ecosystem_manager.py
 ```
 
 ## Bot Engine
 
-Tempat code yang menjalankan bot live:
+Tempat script yang menjalankan logika trading dan ecosystem:
 
 ```text
-main.py
-dashboard.py
-config.py
-ai_engine.py
+master_analyzer.py
+executor_bot.py
+entry_terminal.py
+account_settings.py
+style_params.py
 mt5_connector.py
 risk_manager.py
 strategy.py
-eurusd_pattern_engine.py
+pattern_helpers.py
 xauusd_pattern_engine.py
 logger.py
 trade_memory.py
-start_bot.bat
+trade_management/
+ai_clients/
 ```
 
 ## Setup

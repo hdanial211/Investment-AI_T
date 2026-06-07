@@ -38,8 +38,8 @@ except ImportError:
     HAS_AI_ENGINE = False
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-PIP_SIZE = {"XAUUSD": 0.01, "EURUSD": 0.00001, "DEFAULT": 0.0001}
-CONTRACT_SIZE = {"XAUUSD": 100.0, "EURUSD": 100000.0, "DEFAULT": 100000.0}
+PIP_SIZE = {"XAUUSD": 0.01, "DEFAULT": 0.0001}
+CONTRACT_SIZE = {"XAUUSD": 100.0, "DEFAULT": 100000.0}
 STORAGE_DIR = TESTING_ROOT / "storage"
 REPORTS_DIR = TESTING_ROOT / "reports"
 
@@ -48,8 +48,6 @@ def _pip_size(symbol: str) -> float:
     s = symbol.upper()
     if "XAU" in s or "GOLD" in s:
         return PIP_SIZE["XAUUSD"]
-    if "EUR" in s:
-        return PIP_SIZE["EURUSD"]
     return PIP_SIZE["DEFAULT"]
 
 
@@ -57,8 +55,6 @@ def _contract_size(symbol: str) -> float:
     s = symbol.upper()
     if "XAU" in s or "GOLD" in s:
         return CONTRACT_SIZE["XAUUSD"]
-    if "EUR" in s:
-        return CONTRACT_SIZE["EURUSD"]
     return CONTRACT_SIZE["DEFAULT"]
 
 
@@ -83,15 +79,12 @@ def _session_name(hour_utc: int) -> str:
 _BUILTIN_STYLE_PARAMS = {
     "SCALPING": {
         "XAUUSD": {"sl_atr_multi": 1.0, "tp_atr_multi": 1.5, "min_sl_pips": 20, "max_sl_pips": 80, "min_rr": 1.0, "risk_percent": 0.5},
-        "EURUSD": {"sl_atr_multi": 1.0, "tp_atr_multi": 2.0, "min_sl_pips": 5,  "max_sl_pips": 10, "min_rr": 1.0, "risk_percent": 0.5},
     },
     "INTRADAY": {
         "XAUUSD": {"sl_atr_multi": 1.5, "tp_atr_multi": 3.0, "min_sl_pips": 50, "max_sl_pips": 250, "min_rr": 2.0, "risk_percent": 1.5},
-        "EURUSD": {"sl_atr_multi": 1.5, "tp_atr_multi": 3.0, "min_sl_pips": 20, "max_sl_pips": 40,  "min_rr": 2.0, "risk_percent": 1.5},
     },
     "SWING": {
         "XAUUSD": {"sl_atr_multi": 2.5, "tp_atr_multi": 5.0, "min_sl_pips": 150, "max_sl_pips": 300, "min_rr": 2.0, "risk_percent": 1.0},
-        "EURUSD": {"sl_atr_multi": 2.0, "tp_atr_multi": 4.0, "min_sl_pips": 80,  "max_sl_pips": 150, "min_rr": 2.0, "risk_percent": 1.0},
     },
 }
 
@@ -100,7 +93,7 @@ def _get_style_params(trade_style: str, symbol: str) -> dict:
     if HAS_STYLE_PARAMS:
         return get_style_params(trade_style, symbol)
     s = symbol.upper()
-    base = "XAUUSD" if ("XAU" in s or "GOLD" in s) else "EURUSD"
+    base = "XAUUSD"
     style = trade_style.upper()
     return _BUILTIN_STYLE_PARAMS.get(style, _BUILTIN_STYLE_PARAMS["INTRADAY"]).get(
         base, _BUILTIN_STYLE_PARAMS["INTRADAY"]["XAUUSD"]
@@ -143,7 +136,6 @@ def download_data(
     # Map symbol to Yahoo Finance ticker
     yf_map = {
         "XAUUSD": "GC=F",    # Gold Futures
-        "EURUSD": "EURUSD=X",
     }
     s = symbol.upper()
     ticker = yf_map.get(s, s)

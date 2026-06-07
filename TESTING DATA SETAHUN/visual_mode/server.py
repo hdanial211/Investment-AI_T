@@ -138,7 +138,7 @@ sim_state = {
 
 def load_data_yfinance(symbol: str, days: int = 60) -> pd.DataFrame:
     yf_sym = symbol
-    if "USD" in symbol and symbol not in ["EURUSD", "GBPUSD"]:
+    if "USD" in symbol and symbol not in ["GBPUSD"]:
         yf_sym = f"{symbol}=X"
     if "XAUUSD" in symbol:
         yf_sym = "GC=F"

@@ -2,9 +2,8 @@
 run_backtest.py - CLI Runner for Investment-AI_T Backtesting System
 ====================================================================
 Usage:
-    python run_backtest.py                          # Quick run with defaults (XAUUSD, all styles)
-    python run_backtest.py --symbol EURUSD          # EURUSD only
-    python run_backtest.py --symbol XAUUSD EURUSD   # Both symbols
+    python run_backtest.py                          # Default (XAUUSD only)
+    python run_backtest.py --symbol XAUUSD          # XAUUSD only
     python run_backtest.py --style INTRADAY         # One style only
     python run_backtest.py --balance 5000           # Custom starting balance
     python run_backtest.py --from 2024-01-01        # Custom start date
@@ -52,7 +51,7 @@ def parse_args(saved: dict) -> argparse.Namespace:
     parser.add_argument(
         "--symbol", nargs="+",
         default=saved.get("symbols", ["XAUUSD"]),
-        help="Symbol(s) to backtest (e.g. XAUUSD EURUSD)",
+        help="Symbol(s) to backtest (e.g. XAUUSD)",
     )
     parser.add_argument(
         "--style", nargs="+",

@@ -222,9 +222,12 @@ class SupabaseSync:
             "ask": signal_data.get("ask"),
             "atr": signal_data.get("atr"),
             "signal_id": signal_data.get("signal_id"),
+            "entry_zone": signal_data.get("entry_zone"),
+            "sl_price": signal_data.get("sl_price"),
+            "tp_price": signal_data.get("tp_price"),
             "created_at": datetime.utcnow().isoformat(),
         }
-        self._upsert("market_signals", payload, conflict="symbol")
+        self._upsert("market_signals", payload, conflict="symbol,trade_style")
 
     def fetch_market_signals(self) -> List[Dict]:
         """Fetch the latest market signals (one per symbol) from Supabase."""

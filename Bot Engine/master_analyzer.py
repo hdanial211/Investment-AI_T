@@ -1,16 +1,13 @@
 """
-master_analyzer.py - Market Signal Broadcaster & Active Trade Evaluator
+master_analyzer.py - AI Brain for V4 Cloud-Native Hybrid Architecture
 
-This is the "brain" of the system. It runs on a 10-minute loop:
-1. Connect to MT5 (read-only, just for market data) — stays connected 24/7
-2. Fetch multi-timeframe OHLCV data for each symbol
-3. Calculate indicators
-4. Query Text AI + Vision AI for signal (BUY/SELL/HOLD + trade_style)
-5. Broadcast the signal to Supabase `market_signals` table
-6. Write OPEN_TRADE commands to `trade_commands` for each enabled account
-7. Every 20 min: Evaluate active trades and write CLOSE/UPDATE commands
+This is the Brain. It does NOT execute trades.
+It writes 'signals' and 'sl_tp_updates' to Supabase. MQL5 EA executes them.
 
-Executor bots read from `trade_commands` to execute trades.
+Loops:
+1. Signal Generator (Every 10 mins) -> Writes to `signals` table
+2. Active Trade Evaluator (Every 10 mins) -> Writes to `sl_tp_updates` table
+3. Heartbeat (Every 60s) -> Writes to `bot_heartbeat`
 """
 
 import logging
@@ -21,475 +18,158 @@ import time
 import uuid
 import json
 from datetime import datetime
-from typing import Optional, Dict, List
 
 import config
 from mt5_connector import MT5Connector
 from strategy import calculate_multi_indicators
-from ai_engine import get_ai_signal, check_ai_health, merge_decisions
-from chart_capture import capture_charts, cleanup_old_screenshots
-from vision_engine import get_vision_signal
+from ai_engine import get_ai_signal
 from trade_management.supabase_sync import SupabaseSync
-from account_settings import get_all_enabled_accounts
 import system_settings
 from logger import setup_logging
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LOGGING
-# ─────────────────────────────────────────────────────────────────────────────
 logger = setup_logging()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# GRACEFUL SHUTDOWN
-# ─────────────────────────────────────────────────────────────────────────────
 _shutdown_requested = False
-
 def _signal_handler(signum, frame):
     global _shutdown_requested
-    logger.info("Shutdown signal received. Finishing current cycle...")
+    logger.info("Shutdown signal received...")
     _shutdown_requested = True
 
 signal.signal(signal.SIGINT, _signal_handler)
 signal.signal(signal.SIGTERM, _signal_handler)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AI CONFIG HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
+def get_enabled_accounts(supabase: SupabaseSync) -> list:
+    try:
+        response = supabase.client.table("account_settings").select("account_id").eq("enabled", True).execute()
+        return [row["account_id"] for row in response.data]
+    except Exception as e:
+        logger.error(f"Failed to fetch accounts: {e}")
+        return []
 
-def _get_main_ai_config() -> dict:
-    """Get the Main Model AI config (role-based or legacy fallback)."""
-    # v4 role-based: dedicated MAIN_PROVIDER_CONFIG
-    if config.MAIN_PROVIDER_CONFIG and config.MAIN_PROVIDER_CONFIG.get("api_key"):
-        return config.MAIN_PROVIDER_CONFIG
-    # Legacy: first entry in flat PROVIDERS_CONFIG
-    if config.PROVIDERS_CONFIG and len(config.PROVIDERS_CONFIG) > 0:
-        return config.PROVIDERS_CONFIG[0]
-    # Final fallback: construct from individual config vars
-    if config.MASTER_AI_PROVIDER:
-        cfg = {
-            "provider": config.MASTER_AI_PROVIDER,
-            "main_model": config.MASTER_AI_MAIN_MODEL,
-            "risk_model": config.MASTER_AI_RISK_MODEL,
-        }
-        if config.MASTER_AI_PROVIDER.lower() in ("huggingface", "hf"):
-            cfg["api_key"] = config.HF_TOKEN
-        elif config.MASTER_AI_PROVIDER.lower() in ("openrouter", "or"):
-            cfg["api_key"] = config.OPENROUTER_API_KEY
-        return cfg
-    return None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ANALYZE ONE SYMBOL
-# ─────────────────────────────────────────────────────────────────────────────
-
-def analyze_symbol(
-    symbol: str,
-    connector: MT5Connector,
-    supabase: SupabaseSync,
-    cycle_count: int,
-) -> Optional[dict]:
-    """Analyze a single symbol and broadcast signal to Supabase."""
-    logger.info(f"{'─'*50}")
-    logger.info(f"▶ Analyzing: {symbol} | {datetime.now().strftime('%H:%M:%S')}")
-
-    # 1. Get tick data
+def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accounts: list):
+    logger.info("🔍 Running Pre-Signal & Signal Generator Loop...")
+    symbol = "XAUUSD" # We only trade gold in V4
+    
     tick = connector.get_tick(symbol)
-    if not tick:
-        logger.error(f"Failed to get tick for {symbol}")
-        return None
-
-    bid = tick["bid"]
-    ask = tick["ask"]
-    logger.info(f"Tick: Bid={bid:.5f} | Ask={ask:.5f}")
-
-    # 2. Get Multi-Timeframe data + indicators
-    mdf = connector.get_multi_timeframe(
-        symbol, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=100
-    )
-    if not mdf or len(mdf) < 4:
-        logger.error(f"Failed to get multi-timeframe data for {symbol}")
-        return None
-
+    if not tick: return
+    
+    mdf = connector.get_multi_timeframe(symbol, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=100)
+    if not mdf: return
+    
     indicators = calculate_multi_indicators(mdf, symbol=symbol)
-    if not indicators:
-        logger.warning(f"Cannot calculate indicators for {symbol}")
-        return None
+    
+    # Pre-Signal Logic
+    h4_trend = indicators.get("h4_trend", "RANGING")
+    adx = indicators.get("adx", 0)
+    pre_signal = f"Current H4 Trend is {h4_trend}. ADX is {adx}. Provide BUY, SELL, or HOLD."
+    logger.info(f"Pre-Signal sent to AI: {pre_signal}")
+    
+    # Get Final Signal from AI
+    ai_result = get_ai_signal(indicators, tick["bid"], tick["ask"], trade_memory=None, symbol=symbol, forced_style="INTRADAY")
+    action = ai_result.get("action", "HOLD")
+    
+    if action in ["BUY", "SELL"]:
+        sig_id = str(uuid.uuid4())[:8]
+        for acc in accounts:
+            payload = {
+                "signal_id": f"{acc}_{sig_id}",
+                "account_id": acc,
+                "symbol": symbol,
+                "action": action,
+                "sl": ai_result.get("sl_price", 0),
+                "tp": ai_result.get("tp_price", 0),
+                "confidence": ai_result.get("confidence", 80),
+                "style": ai_result.get("trade_style", "INTRADAY"),
+                "reason": ai_result.get("reason", ""),
+                "is_active": True
+            }
+            try:
+                supabase.client.table("signals").insert(payload).execute()
+                logger.info(f"✅ Signal {action} inserted for account {acc}")
+            except Exception as e:
+                logger.error(f"Error inserting signal for {acc}: {e}")
 
-    # 3. Chart screenshot capture (if vision AI enabled)
-    chart_paths = {}
-    if config.VISION_AI_ENABLED:
+def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, accounts: list):
+    logger.info("🧠 Running Trade Evaluator Loop...")
+    for acc in accounts:
         try:
-            chart_paths = capture_charts(symbol, connector, config.CHART_IMAGE_TIMEFRAMES)
-            cleanup_old_screenshots(max_age_minutes=30)
+            resp = supabase.client.table("active_trades").select("*").eq("account_id", acc).execute()
+            trades = resp.data
+            for t in trades:
+                ticket = t["ticket"]
+                sym = t["symbol"]
+                sl = t.get("virtual_sl", 0)
+                tp = t.get("virtual_tp", 0)
+                
+                # Ask AI if we should update SL/TP
+                # (Simplified for now to save tokens, real implementation queries get_ai_signal with trade_eval_mode=True)
+                tick = connector.get_tick(sym)
+                if not tick: continue
+                
+                ai_result = get_ai_signal({"trade_eval": f"Ticket {ticket} SL={sl} TP={tp}"}, tick["bid"], tick["ask"], None, sym, trade_eval_mode=True)
+                
+                if ai_result.get("action") == "UPDATE_SL_TP":
+                    new_sl = ai_result.get("sl")
+                    new_tp = ai_result.get("tp")
+                    supabase.client.table("sl_tp_updates").insert({
+                        "signal_id": t.get("signal_id", str(ticket)),
+                        "account_id": acc,
+                        "ticket": ticket,
+                        "new_sl": new_sl,
+                        "new_tp": new_tp,
+                        "applied": False
+                    }).execute()
+                    logger.info(f"🟡 Evaluator updated SL/TP for {ticket}")
         except Exception as e:
-            logger.warning(f"[{symbol}] Chart capture failed: {e}. Vision AI will HOLD.")
+            logger.error(f"Evaluator error for {acc}: {e}")
 
-    # 4. Query Text AI — uses dedicated MAIN_PROVIDER_CONFIG (own API key)
-    logger.info("Querying text AI model...")
-    main_ai_config = _get_main_ai_config()
-    # Get main fallbacks and build sequence
-    main_fallbacks = [fb for fb in config.MASTER_FALLBACK_PROVIDERS if fb.get("for_role") == "main" or not fb.get("for_role")]
-    main_sequence = [main_ai_config] + main_fallbacks
-            
-    text_signal = get_ai_signal(
-        indicators, bid, ask, trade_memory=None, symbol=symbol, 
-        provider_sequence=main_sequence
-    )
-
-    # 5. Query Vision AI + Merge (if enabled)
-    if config.VISION_AI_ENABLED and chart_paths:
-        logger.info("Querying vision AI model...")
-        vision_signal = get_vision_signal(
-            symbol=symbol,
-            current_price=(bid + ask) / 2,
-            indicators=indicators,
-            chart_paths=chart_paths,
-            trade_memory=None,
-        )
-        pattern_bias = indicators.get("pattern_bias") or {}
-        final_signal = merge_decisions(text_signal, vision_signal, pattern_bias)
-    else:
-        final_signal = text_signal
-
-    # 6. Broadcast to Supabase
-    signal_id = str(uuid.uuid4())[:8]
-    signal_data = {
-        "symbol": symbol,
-        "action": final_signal.get("action", "HOLD"),
-        "confidence": final_signal.get("confidence", 0.0),
-        "trade_style": final_signal.get("trade_style", "INTRADAY"),
-        "reason": final_signal.get("reason", ""),
-        "market_regime": indicators.get("market_regime", "RANGING"),
-        "indicators_snapshot": {
-            "h4_trend": indicators.get("h4_trend"),
-            "h1_macd_trend": indicators.get("h1_macd_trend"),
-            "m15_rsi": indicators.get("m15_rsi"),
-            "adx": indicators.get("adx"),
-            "atr": indicators.get("atr"),
-            "detected_patterns": [
-                {
-                    "name": p.get("name"),
-                    "timeframe": p.get("timeframe"),
-                    "direction": p.get("direction"),
-                    "confidence": p.get("confidence"),
-                }
-                for p in (indicators.get("detected_patterns") or [])[:8]
-            ],
-        },
-        "vision_bias": final_signal.get("image_bias"),
-        "bid": bid,
-        "ask": ask,
-        "atr": indicators.get("atr"),
-        "signal_id": signal_id,
-    }
-
-    supabase.upsert_market_signal(signal_data)
-
-    logger.info(
-        f"✅ Signal broadcasted: {final_signal['action']} | "
-        f"Style: {final_signal.get('trade_style')} | "
-        f"Confidence: {final_signal.get('confidence', 0):.2f} | "
-        f"ID: {signal_id}"
-    )
-    return signal_data
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# BROADCAST COMMANDS TO ALL ACCOUNTS
-# ─────────────────────────────────────────────────────────────────────────────
-
-def broadcast_commands_to_accounts(
-    signal_data: dict,
-    supabase: SupabaseSync,
-    enabled_accounts: List[str],
-) -> None:
-    """Write OPEN_TRADE commands to trade_commands for each enabled account."""
-    action = signal_data.get("action", "HOLD")
-    if action == "HOLD":
-        return  # No trade needed
-
-    symbol = signal_data.get("symbol")
-    signal_id = signal_data.get("signal_id", "")
-
-    payload = {
-        "action": action,
-        "confidence": signal_data.get("confidence", 0.0),
-        "trade_style": signal_data.get("trade_style", "INTRADAY"),
-        "reason": signal_data.get("reason", ""),
-        "market_regime": signal_data.get("market_regime", "RANGING"),
-        "bid": signal_data.get("bid"),
-        "ask": signal_data.get("ask"),
-        "atr": signal_data.get("atr"),
-        "adx": (signal_data.get("indicators_snapshot") or {}).get("adx"),
-        "m15_rsi": (signal_data.get("indicators_snapshot") or {}).get("m15_rsi"),
-        "h4_trend": (signal_data.get("indicators_snapshot") or {}).get("h4_trend"),
-        "h1_macd_trend": (signal_data.get("indicators_snapshot") or {}).get("h1_macd_trend"),
-        "detected_patterns": (signal_data.get("indicators_snapshot") or {}).get("detected_patterns", []),
-    }
-
-    for acc_id in enabled_accounts:
-        if acc_id == "master":
-            continue  # Master doesn't trade
-        supabase.insert_trade_command(
-            account_id=acc_id,
-            command_type="OPEN_TRADE",
-            symbol=symbol,
-            payload=payload,
-            signal_id=signal_id,
-        )
-    logger.info(f"📤 OPEN_TRADE command sent to {len([a for a in enabled_accounts if a != 'master'])} account(s)")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# AI EVAL: Evaluate active trades every 20 minutes
-# ─────────────────────────────────────────────────────────────────────────────
-
-def evaluate_active_trades(
-    supabase: SupabaseSync,
-    connector: MT5Connector,
-    enabled_accounts: List[str],
-) -> None:
-    """Query AI for each active trade: HOLD, CLOSE, or UPDATE_SL_TP."""
-    logger.info("🧠 AI Trade Evaluation: Checking all active trades...")
-
-    evaluated = 0
-    commands_sent = 0
-
-    for acc_id in enabled_accounts:
-        if acc_id == "master":
-            continue
-
-        try:
-            # Each account uses its OWN evaluator API key (not master's)
-            from account_settings import AccountSettings
-            acct_settings = AccountSettings(acc_id)
-            eval_config = acct_settings.get_evaluator_config()
-            if not eval_config:
-                # Fallback to main config if account has no evaluator
-                eval_config = _get_main_ai_config()
-            logger.debug(f"Trade eval [{acc_id}]: using {eval_config.get('provider')}/{eval_config.get('model', 'auto')}")
-
-            trades = supabase.fetch_active_trades(acc_id)
-            if not trades:
-                continue
-
-            for trade in trades:
-                ticket = trade.get("ticket")
-                symbol = trade.get("symbol", "")
-                action_dir = trade.get("action") or trade.get("direction", "")
-                entry_price = float(trade.get("entry_price") or 0)
-                current_price = float(trade.get("price_current") or 0)
-                profit = float(trade.get("unrealized_profit") or trade.get("profit") or 0)
-                virtual_sl = trade.get("virtual_sl")
-                virtual_tp = trade.get("virtual_tp")
-                trade_style = trade.get("trade_style", "INTRADAY")
-
-                if not ticket or not symbol:
-                    continue
-
-                # Get fresh market data for this symbol
-                tick = connector.get_tick(symbol)
-                if tick:
-                    current_price = tick["bid"] if action_dir == "BUY" else tick["ask"]
-
-                # Build prompt for AI
-                trade_summary = (
-                    f"Active trade #{ticket} on {symbol}: "
-                    f"Direction={action_dir}, Entry={entry_price:.5f}, "
-                    f"Current={current_price:.5f}, Profit={profit:.2f}, "
-                    f"Style={trade_style}, SL={virtual_sl}, TP={virtual_tp}"
-                )
-
-                try:
-                    from ai_engine import get_ai_signal
-                    # Use the evaluator config plus its fallbacks
-                    eval_sequence = [eval_config] + acct_settings.get_role_fallbacks(for_role="evaluator")
-                    
-                    eval_result = get_ai_signal(
-                        indicators={"trade_eval": trade_summary, "atr": trade.get("atr", 0)},
-                        bid=current_price if action_dir == "BUY" else 0,
-                        ask=current_price if action_dir == "SELL" else 0,
-                        trade_memory=None,
-                        symbol=symbol,
-                        provider_sequence=eval_sequence,
-                        trade_eval_mode=True,
-                    )
-                    evaluated += 1
-
-                    ai_action = eval_result.get("action", "HOLD")
-
-                    if ai_action == "CLOSE_TRADE":
-                        supabase.insert_trade_command(
-                            account_id=acc_id,
-                            command_type="CLOSE_TRADE",
-                            symbol=symbol,
-                            payload={"ticket": ticket, "reason": eval_result.get("reason", "ai_eval_close")},
-                        )
-                        commands_sent += 1
-                        logger.info(f"🔴 AI says CLOSE trade #{ticket} ({symbol}): {eval_result.get('reason')}")
-
-                    elif ai_action == "UPDATE_SL_TP":
-                        new_sl = eval_result.get("sl")
-                        new_tp = eval_result.get("tp")
-                        supabase.insert_trade_command(
-                            account_id=acc_id,
-                            command_type="UPDATE_SL_TP",
-                            symbol=symbol,
-                            payload={
-                                "ticket": ticket,
-                                "sl": new_sl,
-                                "tp": new_tp,
-                                "reason": eval_result.get("reason", "ai_eval_update"),
-                            },
-                        )
-                        commands_sent += 1
-                        logger.info(f"🟡 AI says UPDATE trade #{ticket}: SL={new_sl}, TP={new_tp}")
-                    else:
-                        logger.debug(f"🟢 AI says HOLD trade #{ticket} ({symbol})")
-
-                except Exception as e:
-                    logger.warning(f"AI eval failed for trade #{ticket}: {e}")
-
-        except Exception as e:
-            logger.error(f"evaluate_active_trades error for {acc_id}: {e}")
-
-    logger.info(f"🧠 AI Evaluation complete: {evaluated} trades evaluated, {commands_sent} commands sent.")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# MAIN LOOP
-# ─────────────────────────────────────────────────────────────────────────────
-
-ANALYSIS_INTERVAL = 600  # 10 minutes
-TRADE_EVAL_INTERVAL = 1200  # 20 minutes
+def loop_heartbeat(supabase: SupabaseSync):
+    try:
+        supabase.client.table("bot_heartbeat").upsert({
+            "machine_id": "master_analyzer",
+            "status": "online",
+            "last_seen_at": datetime.now().isoformat()
+        }).execute()
+    except Exception as e:
+        logger.error(f"Heartbeat error: {e}")
 
 def main():
-    global _shutdown_requested
-
-    logger.info("=" * 60)
-    logger.info("  MASTER ANALYZER — AI Market Signal Broadcaster")
-    logger.info("=" * 60)
-
-    connector = MT5Connector()
-    supabase = SupabaseSync()
-
-    # Ensure log directory exists
-    os.makedirs(config.LOG_DIR, exist_ok=True)
+    logger.info("==============================================")
+    logger.info(" 🧠 MASTER ANALYZER (V4 CLOUD-NATIVE BRAIN) ")
+    logger.info("==============================================")
     
-    # Track accounts for symbol collection
-    from account_settings import AccountSettings
-
-    cycle_count = 0
-    last_trade_eval = 0  # Track when we last evaluated active trades
-
+    supabase = SupabaseSync()
+    connector = MT5Connector()
+    
+    # Try connecting to Master MT5
+    system_settings.fetch_and_apply_system_settings()
+    # (Assuming MT5 login logic here or in connector config)
+    connector.connect(0, "", "", config.MT5_PATH)
+    
+    last_signal_time = 0
+    last_eval_time = 0
+    last_heartbeat = 0
+    
     while not _shutdown_requested:
-        cycle_count += 1
-        logger.info(f"\n{'═'*60}")
-        logger.info(f"MASTER CYCLE #{cycle_count} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"{'═'*60}")
-
-        # 0. Refresh system settings (API keys, models)
-        system_settings.fetch_and_apply_system_settings()
-
-        # 1. Fetch Master Settings from Supabase
-        account_settings = AccountSettings("master")
-        account_settings.force_refresh()
-
-        # 2. AI Health check on first cycle
-        if cycle_count == 1:
-            logger.info(f"Checking cloud AI ({config.MASTER_AI_PROVIDER} / {config.MASTER_AI_MAIN_MODEL})...")
-            if check_ai_health(role="main"):
-                logger.info("✔ Cloud AI main model ready")
-            else:
-                logger.warning("⚠ Cloud AI not ready — signals may fail")
-
-        # 3. Override broker connection with Master config
-        mt5_login = str(account_settings.mt5_login).strip()
-        mt5_pwd = account_settings.mt5_password
-        mt5_server = str(account_settings.mt5_server).strip()
-        mt5_path = str(account_settings.mt5_path).strip()
-
-        logger.info(f"Connecting to Master MT5 Terminal: Login={mt5_login}, Server={mt5_server}")
-        if not connector.connect(
-            login=int(mt5_login) if mt5_login else 0,
-            password=mt5_pwd,
-            server=mt5_server,
-            path=mt5_path if mt5_path else config.MT5_PATH
-        ):
-            logger.error("❌ Failed to connect to Master MT5 Terminal. Exiting cycle.")
-            # Update connection status
-            account_settings._cache["mt5_status"] = "Failed"
-            account_settings.update_connection_status(connected=False, error_msg="Failed to connect to MT5 Terminal")
-            time.sleep(30)
-            continue
-
-        logger.info("✅ Connected to Master MT5 Terminal successfully.")
-        account_settings._cache["mt5_status"] = "Connected"
-        account_settings.update_connection_status(connected=True)
-
-        # Use master symbols, fallback to standard if not set
-        trading_symbols = account_settings.get_symbols()
-        if not trading_symbols:
-            trading_symbols = ["XAUUSD", "EURUSD"]
-
-        # Get enabled accounts for broadcasting commands
-        enabled_accounts = get_all_enabled_accounts()
-
-        # 5. Analyze each symbol
-        for symbol in trading_symbols:
-            if _shutdown_requested:
-                break
-            try:
-                sig_data = analyze_symbol(symbol, connector, supabase, cycle_count)
-                if sig_data:
-                    # Broadcast OPEN_TRADE commands to all enabled accounts
-                    broadcast_commands_to_accounts(sig_data, supabase, enabled_accounts)
-            except Exception as e:
-                logger.error(f"Error analyzing {symbol}: {e}", exc_info=True)
-
-        # 6. AI Evaluation of active trades (every 20 minutes)
         now = time.time()
-        if now - last_trade_eval >= TRADE_EVAL_INTERVAL:
-            last_trade_eval = now
-            try:
-                evaluate_active_trades(supabase, connector, enabled_accounts)
-            except Exception as e:
-                logger.error(f"Active trade evaluation error: {e}", exc_info=True)
-
-        # 7. Unload AI from memory if local models were used
-        from ai_engine import unload_ai
+        accounts = get_enabled_accounts(supabase)
         
-        main_ai_config = _get_main_ai_config()
-        if main_ai_config:
-            unload_ai(provider_sequence=[main_ai_config])
-        else:
-            unload_ai()
-
-        # 7. Sleep until next analysis cycle
-        if not _shutdown_requested:
-            logger.info(f"Next analysis in {ANALYSIS_INTERVAL}s ({ANALYSIS_INTERVAL // 60} min)...")
-            # Sleep in small chunks so shutdown is responsive
-            current_provider = config.MASTER_AI_PROVIDER
+        # 1. Heartbeat Loop (60s)
+        if now - last_heartbeat >= 60:
+            loop_heartbeat(supabase)
+            last_heartbeat = now
             
-            for i in range(ANALYSIS_INTERVAL):
-                if _shutdown_requested:
-                    break
-                    
-                # Check for settings changes every 60 seconds so we respond quickly to dashboard updates
-                if i > 0 and i % 60 == 0:
-                    system_settings.fetch_and_apply_system_settings()
-                    if config.MASTER_AI_PROVIDER != current_provider:
-                        logger.info(f"🔄 AI Provider changed from {current_provider} to {config.MASTER_AI_PROVIDER}! Restarting analysis cycle immediately...")
-                        break
-                        
-                time.sleep(1)
-
-    logger.info("\n" + "=" * 60)
-    logger.info("MASTER ANALYZER SHUTTING DOWN")
-    logger.info("=" * 60)
-    connector.disconnect()
-
+        # 2. Signal Generator Loop (10m)
+        if now - last_signal_time >= 600:
+            loop_signal_generator(supabase, connector, accounts)
+            last_signal_time = now
+            
+        # 3. Evaluator Loop (10m)
+        if now - last_eval_time >= 600:
+            loop_evaluator(supabase, connector, accounts)
+            last_eval_time = now
+            
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()

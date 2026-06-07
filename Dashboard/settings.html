@@ -473,8 +473,8 @@
         acc = {
           account_id: "master",
           mt5_login: "", mt5_password: "", mt5_server: "", mt5_path: "",
-          symbol_xauusd: "XAUUSD", symbol_eurusd: "EURUSD",
-          xauusd_enabled: true, eurusd_enabled: true
+          symbol_xauusd: "XAUUSD",
+          xauusd_enabled: true
         };
       }
       const enabled = true;
@@ -532,13 +532,6 @@
             </div>
             <input id="f_sym_xauusd" value="${safe(acc.symbol_xauusd || 'XAUUSD')}" placeholder="e.g. XAUUSD, XAUUSDc, GOLD">
           </div>
-          <div class="field-group">
-            <div class="toggle-row" style="margin-bottom:8px">
-              <div class="toggle pair-toggle ${acc.eurusd_enabled !== false ? 'on' : ''}" data-key="eurusd_enabled"></div>
-              <span class="toggle-label">EURUSD — ${acc.eurusd_enabled !== false ? 'Active' : 'Off'}</span>
-            </div>
-            <input id="f_sym_eurusd" value="${safe(acc.symbol_eurusd || 'EURUSD')}" placeholder="e.g. EURUSD, EURUSDc, EURUSD.s">
-          </div>
         </div>
 
         <div class="save-row" style="margin-top: 20px;">
@@ -555,7 +548,6 @@
           acc[key] = isActive;
           const labelSpan = el.nextElementSibling;
           if (key === "xauusd_enabled") labelSpan.textContent = `XAUUSD (Gold) — ${isActive ? 'Active' : 'Off'}`;
-          if (key === "eurusd_enabled") labelSpan.textContent = `EURUSD — ${isActive ? 'Active' : 'Off'}`;
         };
       });
     }
@@ -569,12 +561,9 @@
       acc.mt5_path = $("f_mt5path").value.trim();
       
       acc.symbol_xauusd = $("f_sym_xauusd").value.trim();
-      acc.symbol_eurusd = $("f_sym_eurusd").value.trim();
       
       const xauToggle = document.querySelector(".pair-toggle[data-key='xauusd_enabled']");
-      const eurToggle = document.querySelector(".pair-toggle[data-key='eurusd_enabled']");
       acc.xauusd_enabled = xauToggle ? xauToggle.classList.contains("on") : true;
-      acc.eurusd_enabled = eurToggle ? eurToggle.classList.contains("on") : true;
       
       acc.updated_at = new Date().toISOString();
       acc.updated_by = "dashboard";
@@ -647,13 +636,6 @@
               <span class="toggle-label">XAUUSD (Gold) — ${acc.xauusd_enabled !== false ? 'Active' : 'Off'}</span>
             </div>
             <input id="f_sym_xauusd" value="${safe(acc.symbol_xauusd || 'XAUUSD')}" placeholder="e.g. XAUUSD, XAUUSDc, GOLD">
-          </div>
-          <div class="field-group">
-            <div class="toggle-row" style="margin-bottom:8px">
-              <div class="toggle pair-toggle ${acc.eurusd_enabled !== false ? 'on' : ''}" data-key="eurusd_enabled"></div>
-              <span class="toggle-label">EURUSD — ${acc.eurusd_enabled !== false ? 'Active' : 'Off'}</span>
-            </div>
-            <input id="f_sym_eurusd" value="${safe(acc.symbol_eurusd || 'EURUSD')}" placeholder="e.g. EURUSD, EURUSDc, EURUSD.s">
           </div>
         </div>
 
@@ -786,7 +768,7 @@
         el.addEventListener("click", function () {
           const isOn = this.classList.toggle("on");
           const lbl = this.nextElementSibling;
-          const pair = this.dataset.key === "xauusd_enabled" ? "XAUUSD (Gold)" : "EURUSD";
+          const pair = this.dataset.key === "xauusd_enabled" ? "XAUUSD (Gold)" : "";
           lbl.textContent = pair + " — " + (isOn ? "Active" : "Off");
         });
       });
@@ -970,9 +952,7 @@
         mt5_server: $("f_mt5server").value.trim(),
         mt5_path: $("f_mt5path").value.trim(),
         symbol_xauusd: $("f_sym_xauusd").value.trim() || "XAUUSD",
-        symbol_eurusd: $("f_sym_eurusd").value.trim() || "EURUSD",
         xauusd_enabled: getPairToggle("xauusd_enabled"),
-        eurusd_enabled: getPairToggle("eurusd_enabled"),
         enabled: $("masterSwitch").classList.contains("on"),
         
         trade_during_events: !$("f_news_block").classList.contains("on"),

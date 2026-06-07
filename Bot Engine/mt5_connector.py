@@ -119,7 +119,6 @@ TF_MAP = {
 # Demo base prices per symbol
 _DEMO_BASE = {
     "XAUUSD": 2320.0,
-    "EURUSD": 1.0850,
     "GBPUSD": 1.2700,
     "USDJPY": 155.00,
     "BTCUSD": 67000.0,

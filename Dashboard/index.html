@@ -380,7 +380,7 @@
         <table>
           <thead>
             <tr>
-              <th>Generated At</th><th>Symbol</th><th>Action</th><th>Confidence</th><th>Style</th><th>Regime</th><th>Reason</th><th>Signal ID</th>
+              <th>Generated At</th><th>Style</th><th>Regime</th><th>Action</th><th>Confidence</th><th>Entry Zone</th><th>SL</th><th>TP</th><th>Reason</th>
             </tr>
           </thead>
           <tbody id="signalRows"></tbody>
@@ -554,15 +554,16 @@
         return `
         <tr>
           <td style="font-size:0.85em;color:var(--muted)">${r.created_at ? new Date(r.created_at).toLocaleString() : "-"}</td>
-          <td><span class="pill">${safe(r.symbol)}</span></td>
-          <td class="${actionClass}">${safe(r.action)}</td>
-          <td>${Math.round((r.confidence || 0) * 100)}%</td>
           <td>${styleTag(r.trade_style)}</td>
           <td class="muted">${safe(r.market_regime)}</td>
+          <td class="${actionClass}">${safe(r.action)}</td>
+          <td>${Math.round((r.confidence || 0) * 100)}%</td>
+          <td style="font-family:monospace;font-weight:bold">${safe(r.entry_zone) || "-"}</td>
+          <td style="color:var(--red);font-family:monospace">${r.sl_price ? r.sl_price : "-"}</td>
+          <td style="color:var(--green);font-family:monospace">${r.tp_price ? r.tp_price : "-"}</td>
           <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${safe(r.reason)}">${safe(r.reason)}</td>
-          <td class="muted" style="font-family:monospace;font-size:0.8em">${safe(r.signal_id)}</td>
         </tr>
-      `}).join("") || emptyRow(8);
+      `}).join("") || emptyRow(9);
     }
 
     function renderPatterns(rows) {

@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 
 import config
-from eurusd_pattern_engine import scan_eurusd_patterns, summarize_pattern_bias
 from xauusd_pattern_engine import scan_xauusd_patterns, summarize_xauusd_pattern_bias
 
 logger = logging.getLogger(__name__)
@@ -228,15 +227,12 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     atr_val = float(calc_atr(df_m15).iloc[-1])
 
     symbol_upper = symbol.upper()
-    if "EURUSD" in symbol_upper:
-        detected_patterns = scan_eurusd_patterns(mdf, symbol=symbol)
-        pattern_bias = summarize_pattern_bias(detected_patterns, mdf)
-    elif "XAU" in symbol_upper or "GOLD" in symbol_upper:
+    if "XAU" in symbol_upper or "GOLD" in symbol_upper:
         detected_patterns = scan_xauusd_patterns(mdf, symbol=symbol)
         pattern_bias = summarize_xauusd_pattern_bias(detected_patterns, mdf)
     else:
         detected_patterns = []
-        pattern_bias = summarize_pattern_bias(detected_patterns, mdf)
+        pattern_bias = {}
 
     # Compile rich context
     indicators = {
@@ -278,11 +274,9 @@ def _format_detected_patterns(ind: Dict) -> str:
     patterns = ind.get("detected_patterns") or []
     if not patterns:
         symbol = str(ind.get("symbol", "")).upper()
-        if "EURUSD" in symbol:
-            return "No active EURUSD pattern confluence detected.\n"
         if "XAU" in symbol or "GOLD" in symbol:
             return "No active XAUUSD Gold pattern confluence detected.\n"
-        return "Pattern scanner is currently enabled for EURUSD and XAUUSD only.\n"
+        return "Pattern scanner is currently enabled for XAUUSD only.\n"
 
     lines = []
     for pattern in patterns[:12]:
@@ -320,9 +314,7 @@ def format_for_prompt(ind: Dict) -> str:
     """Format the rich multi-timeframe context for the AI prompt."""
     pattern_bias = ind.get("pattern_bias") or {}
     symbol = str(ind.get("symbol", "")).upper()
-    if "EURUSD" in symbol:
-        pattern_section_title = "EURUSD PATTERN CONFLUENCE"
-    elif "XAU" in symbol or "GOLD" in symbol:
+    if "XAU" in symbol or "GOLD" in symbol:
         pattern_section_title = "XAUUSD GOLD PATTERN CONFLUENCE"
     else:
         pattern_section_title = "PAIR-SPECIFIC PATTERN CONFLUENCE"

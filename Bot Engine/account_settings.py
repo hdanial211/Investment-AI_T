@@ -42,7 +42,6 @@ _DEFAULTS = {
     "max_total_trades": config.MAX_TRADES_PER_PAIR * len(config.SYMBOLS),
     "max_risk_percent": config.MAX_RISK_PERCENT,
     "symbol_xauusd": "XAUUSD",
-    "symbol_eurusd": "EURUSD",
     "trade_during_events": False,
     "news_close_profit": False,
     "manage_manual_sl": False,
@@ -226,10 +225,7 @@ class AccountSettings:
         if self._cache.get("xauusd_enabled", True) not in (False, "false", 0):
             xau = str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
             symbols.append(xau)
-        if self._cache.get("eurusd_enabled", True) not in (False, "false", 0):
-            eur = str(self._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
-            symbols.append(eur)
-        # Fallback: if user disabled both, at least trade XAUUSD
+        # Fallback: at least trade XAUUSD
         if not symbols:
             symbols.append(str(self._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip())
         return symbols

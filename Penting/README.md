@@ -13,7 +13,8 @@ A production-ready algorithmic trading system that combines:
 ```
 Investment-AI_T-master/
 ├── start_bot.bat        <- one-click launcher
-├── Bot Engine/          <- live trading engine
+├── ecosystem_manager.py <- live multi-account manager
+├── Bot Engine/          <- trading scripts & master analyzer
 ├── Dashboard/           <- Supabase/Vercel read-only monitor
 ├── Setup/               <- env setup + requirements
 ├── Penting/             <- planning, docs, system flow
@@ -81,8 +82,8 @@ MT5_LOGIN=12345678           # Your MT5 account number
 MT5_PASSWORD=YourPassword    # Your MT5 password
 MT5_SERVER=YourBroker-Live   # Your broker's server (shown in MT5 login screen)
 
-SYMBOLS=XAUUSD,EURUSD        # Symbols to trade
-LOOP_INTERVAL=10             # Seconds between cycles
+SYMBOLS=XAUUSD               # Symbols to trade (100% Gold Only)
+LOOP_INTERVAL=10             # Seconds between execution cycles
 MAX_RISK_PERCENT=2.0         # Risk % per trade
 MIN_CONFIDENCE=0.60          # Minimum AI confidence to trade
 
@@ -130,11 +131,9 @@ Setup\enable_dual_ai.bat
 Manual run:
 
 ```bash
-# Make sure you're in the Bot Engine directory
-cd "Bot Engine"
-
-# Run the trading bot
-python main.py
+# Make sure you're in the repo root directory
+# Run the multi-account trading bot
+python ecosystem_manager.py
 ```
 
 Expected startup output:
@@ -149,7 +148,7 @@ Checking cloud AI (openrouter / openai/gpt-oss-20b:free)...
 ✔ Symbol XAUUSD: Bid=1952.45000
 ✔ Account: Balance=10000.00 USD | Leverage=1:100
 ============================================================
-Trading symbols: ['XAUUSD', 'EURUSD']
+Trading symbols: ['XAUUSD']
 Loop interval:   10s
 Risk per trade:  2.0%
 Min confidence:  0.6
@@ -187,30 +186,22 @@ Setup\run_smoke_tests.bat
 ## 📊 Trading Logic Flow
 
 ```
-Every 10 seconds:
+Master Analyzer:
 ┌─────────────────────────────────────────┐
-│ 1. Get tick (bid/ask) from MT5          │
-│ 2. Fetch 100 OHLCV bars                 │
-│ 3. Calculate RSI, EMA9, EMA21, MACD     │
-│ 4. Manage active tickets                │
-│    ├─ Virtual SL hit? → CLOSE           │
-│    ├─ Virtual TP hit? → CLOSE           │
-│    └─ Virtual trail hit? → CLOSE        │
-│ 5. Pre-trade risk checks                │
-│    ├─ Trading halted? → SKIP            │
-│    ├─ Open position exists? → SKIP      │
-│    └─ Low volatility? → SKIP            │
-│ 6. Build prompt → Send to cloud AI      │
-│ 7. Parse JSON response                  │
-│    ├─ action: BUY/SELL/HOLD             │
-│    ├─ confidence: 0.0–1.0               │
-│    └─ reason: explanation               │
-│ 8. Validate signal                      │
-│    ├─ HOLD → SKIP                       │
-│    └─ confidence < 0.6 → SKIP          │
-│ 9. Calculate lot + virtual SL/TP        │
-│10. Execute market order in MT5          │
-│11. Save hidden exit plan + log          │
+│ 1. Get tick for XAUUSD                  │
+│ 2. Check timers (10m, 30m, 1h)          │
+│ 3. Pattern Engine analysis              │
+│ 4. AI Prompt -> "BUY/SELL/HOLD"         │
+│ 5. Save to latest_signals.json          │
+└─────────────────────────────────────────┘
+
+Executor Bot (per account):
+┌─────────────────────────────────────────┐
+│ 1. Read latest_signals.json             │
+│ 2. Pre-trade risk & session checks      │
+│ 3. Validate with Risk AI                │
+│ 4. Execute order in MT5                 │
+│ 5. Virtual SL/TP & Trailing Stop        │
 └─────────────────────────────────────────┘
 ```
 

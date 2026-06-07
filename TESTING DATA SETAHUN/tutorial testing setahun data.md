@@ -43,7 +43,7 @@ reports/
   Tempat report HTML final. Buka file HTML ini untuk tengok result.
 
 storage/history/
-  Data candle MT5 setahun: XAUUSD/EURUSD M5/M15/H1/H4.
+  Data candle MT5 setahun: XAUUSD M5/M15/H1/H4.
 
 storage/features/
   Dataset indicator + pattern yang dikesan.
@@ -309,10 +309,6 @@ TESTING DATA SETAHUN/storage/history/
   XAUUSD_M15_*.csv
   XAUUSD_H1_*.csv
   XAUUSD_H4_*.csv
-  EURUSD_M5_*.csv
-  EURUSD_M15_*.csv
-  EURUSD_H1_*.csv
-  EURUSD_H4_*.csv
 ```
 
 ---

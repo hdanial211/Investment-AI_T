@@ -50,14 +50,7 @@ CRITICAL JSON OUTPUT RULES:
 """
 
 SYMBOL_VISION_RULES = {
-    "EURUSD": """
---- ASSET: EURUSD ---
-EURUSD is a technical forex major. Look for:
-- Clean trend structure with orderly S/R zones.
-- EMA crossovers aligned with price action.
-- Engulfing / pin bars at key levels.
-- If H4 trend is sideways from the chart, return HOLD.
-""",
+
     "XAUUSD": """
 --- ASSET: XAUUSD (GOLD) ---
 Gold is volatile and prone to stop hunts. Look for:

@@ -4,7 +4,7 @@ xauusd_pattern_engine.py - XAUUSD / Gold pattern detection helpers.
 Gold behaves differently from forex majors: wider intraday ranges, stronger
 session effects, frequent stop hunts, and respect for $50/$100 psychological
 levels. This module keeps those XAU-specific assumptions separate from the
-EURUSD scanner while reusing shared OHLC/pivot helpers.
+scanner while reusing shared OHLC/pivot helpers.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from eurusd_pattern_engine import (
+from pattern_helpers import (
     Pattern,
     _atr,
     _avg_body,

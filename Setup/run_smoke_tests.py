@@ -51,10 +51,10 @@ def test_ai_timeout_becomes_hold():
 
 def test_invalid_json_becomes_hold():
     ai_engine = _reload_ai_engine()
-    indicators = _fake_indicators("EURUSD")
+    indicators = _fake_indicators("XAUUSD")
 
     with patch.object(ai_engine, "query_ai_provider", return_value="not-json"):
-        signal = ai_engine.get_ai_signal(indicators, 1.1, 1.1002, symbol="EURUSD")
+        signal = ai_engine.get_ai_signal(indicators, 2300.0, 2300.2, symbol="XAUUSD")
 
     assert signal["action"] == "HOLD"
     assert signal["reason"] == "Invalid JSON response"

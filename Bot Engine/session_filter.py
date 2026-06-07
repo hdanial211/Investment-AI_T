@@ -2,7 +2,7 @@
 session_filter.py - Market Session Profile and Logic
 
 Differentiates market behavior between Asian, London, and NY sessions
-with specific characteristics for XAUUSD and EURUSD.
+with specific characteristics for XAUUSD.
 """
 
 from datetime import datetime
@@ -25,55 +25,31 @@ def get_session_profile(
     
     # 00:00 to 07:00 (Asia)
     if 0 <= hour < 7:
-        if "XAU" in symbol.upper() or "GOLD" in symbol.upper():
-            return {
-                "name": "Asia",
-                "profile": "Stop-hunt and reversal prone (Fakeout). Very tight range. Avoid breakouts. Look for liquidity sweeps."
-            }
-        else: # EURUSD
-            return {
-                "name": "Asia",
-                "profile": "Quiet, narrow range. Low volatility. Breakouts often fail. Scalping small ranges only."
-            }
+        return {
+            "name": "Asia",
+            "profile": "Stop-hunt and reversal prone (Fakeout). Very tight range. Avoid breakouts. Look for liquidity sweeps."
+        }
             
     # 07:00 to 12:00 (London)
     elif 7 <= hour < 12:
-        if "XAU" in symbol.upper() or "GOLD" in symbol.upper():
-            return {
-                "name": "London",
-                "profile": "High momentum. Clean breakouts possible. Harmonics starting to work."
-            }
-        else:
-            return {
-                "name": "London",
-                "profile": "Clean breakout trends. Best session for EURUSD early trend establishment."
-            }
+        return {
+            "name": "London",
+            "profile": "High momentum. Clean breakouts possible. Harmonics starting to work."
+        }
             
     # 12:00 to 16:00 (London / NY Overlap)
     elif 12 <= hour < 16:
-        if "XAU" in symbol.upper() or "GOLD" in symbol.upper():
-            return {
-                "name": "London/NY overlap",
-                "profile": "Highest liquidity and momentum. Fast follow-through. Harmonics highly successful. Watch out for extreme news spikes."
-            }
-        else:
-            return {
-                "name": "London/NY overlap",
-                "profile": "Highest liquidity. Excellent for scalping Inside Bars and Engulfings."
-            }
+        return {
+            "name": "London/NY overlap",
+            "profile": "Highest liquidity and momentum. Fast follow-through. Harmonics highly successful. Watch out for extreme news spikes."
+        }
             
     # 16:00 to 21:00 (NY)
     elif 16 <= hour < 21:
-        if "XAU" in symbol.upper() or "GOLD" in symbol.upper():
-            return {
-                "name": "NY",
-                "profile": "High liquidity. News-driven reversals and continuations. Harmonics work well."
-            }
-        else:
-            return {
-                "name": "NY",
-                "profile": "Trend continuation or reversal of London trend. Clean chart patterns."
-            }
+        return {
+            "name": "NY",
+            "profile": "High liquidity. News-driven reversals and continuations. Harmonics work well."
+        }
             
     # 21:00 to 24:00 (Off-hours)
     else:

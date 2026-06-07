@@ -1,9 +1,7 @@
 """
-eurusd_pattern_engine.py - EURUSD pattern detection helpers.
+pattern_helpers.py - Generic pattern detection helpers.
 
-The project currently keeps strategy code in a single strategy.py module, so this
-file acts as a lightweight pattern engine without introducing a conflicting
-strategy/ package. All detectors are heuristic and dependency-light: pandas and
+All detectors are heuristic and dependency-light: pandas and
 numpy only, no TA-Lib required.
 """
 
@@ -35,93 +33,6 @@ class Candle:
     @property
     def body_ratio(self) -> float:
         return self.body / self.range if self.range else 0.0
-
-
-def scan_eurusd_patterns(
-    mdf: Dict[str, pd.DataFrame],
-    symbol: str = "EURUSD",
-    max_patterns: int = 18,
-) -> List[Pattern]:
-    """
-    Scan EURUSD multi-timeframe data and return active pattern confluence.
-
-    The returned list is serializable and intentionally compact so it can be
-    added directly to the AI prompt.
-    """
-    if "EURUSD" not in symbol.upper():
-        return []
-
-    results: List[Pattern] = []
-    tf_weights = {
-        "H4": 1.00,
-        "H1": 0.95,
-        "M15": 0.90,
-        "M5": 0.82,
-    }
-
-    for timeframe in ("H4", "H1", "M15", "M5"):
-        df = _clean_ohlc(mdf.get(timeframe))
-        if df is None or len(df) < 8:
-            continue
-
-        weight = tf_weights[timeframe]
-        results.extend(_detect_candlestick_patterns(df, timeframe, weight))
-        results.extend(_detect_price_action_patterns(df, timeframe, weight))
-        results.extend(_detect_additional_concepts(df, timeframe, weight))
-
-        if len(df) >= 30:
-            results.extend(_detect_chart_patterns(df, timeframe, weight))
-        if len(df) >= 40:
-            results.extend(_detect_harmonic_patterns(df, timeframe, weight))
-
-    return _rank_patterns(_dedupe_patterns(results), max_patterns=max_patterns)
-
-
-def summarize_pattern_bias(patterns: Sequence[Pattern], mdf: Optional[Dict[str, pd.DataFrame]] = None) -> Dict[str, object]:
-    """Return a compact bullish/bearish/neutral score summary."""
-    bullish = 0.0
-    bearish = 0.0
-    neutral = 0.0
-    high_priority = []
-    
-    session_info = {"name": "unknown", "profile": ""}
-    if mdf:
-        from session_filter import detect_session
-        session_info = detect_session(mdf, "EURUSD")
-
-    for pattern in patterns:
-        confidence = float(pattern.get("confidence", 0.0))
-        direction = str(pattern.get("direction", "neutral")).lower()
-        priority = str(pattern.get("priority", "medium")).lower()
-        weight = 1.2 if priority == "high" else 0.85 if priority == "lower" else 1.0
-
-        if direction == "bullish":
-            bullish += confidence * weight
-        elif direction == "bearish":
-            bearish += confidence * weight
-        else:
-            neutral += confidence * 0.5
-
-        if priority == "high":
-            high_priority.append(pattern.get("name", ""))
-
-    net = bullish - bearish
-    if abs(net) < 0.35:
-        bias = "mixed"
-    else:
-        bias = "bullish" if net > 0 else "bearish"
-
-    return {
-        "bias": bias,
-        "bullish_score": round(bullish, 2),
-        "bearish_score": round(bearish, 2),
-        "neutral_score": round(neutral, 2),
-        "net_score": round(net, 2),
-        "high_priority_count": len(high_priority),
-        "high_priority_patterns": high_priority[:6],
-        "session": session_info.get("name"),
-        "session_profile": session_info.get("profile"),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -318,14 +229,14 @@ def _detect_price_action_patterns(df: pd.DataFrame, timeframe: str, tf_weight: f
     if c0 is None or c1 is None or c2 is None:
         return patterns
 
-    # EURUSD Pin bars need 2:1 ratio
+    # Pin bars need 2:1 ratio
     is_pin_bullish = c0.lower >= c0.body * 2 and c0.upper <= c0.body * 0.5
     is_pin_bearish = c0.upper >= c0.body * 2 and c0.lower <= c0.body * 0.5
 
     if is_pin_bullish:
-        patterns.append(_pattern("Pin Bar Bullish", "reversal", "bullish", "price_action", 0.78, timeframe, "Lower wick is at least twice the candle body (EURUSD 2:1 ratio).", priority="high"))
+        patterns.append(_pattern("Pin Bar Bullish", "reversal", "bullish", "price_action", 0.78, timeframe, "Lower wick is at least twice the candle body (2:1 ratio).", priority="high"))
     if is_pin_bearish:
-        patterns.append(_pattern("Pin Bar Bearish", "reversal", "bearish", "price_action", 0.78, timeframe, "Upper wick is at least twice the candle body (EURUSD 2:1 ratio).", priority="high"))
+        patterns.append(_pattern("Pin Bar Bearish", "reversal", "bearish", "price_action", 0.78, timeframe, "Upper wick is at least twice the candle body (2:1 ratio).", priority="high"))
 
     if c0.high <= c1.high and c0.low >= c1.low:
         patterns.append(_pattern("Inside Bar", "continuation/reversal", "neutral", "price_action", 0.70, timeframe, "Current range sits inside previous candle.", priority="high"))

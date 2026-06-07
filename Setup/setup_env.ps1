@@ -48,7 +48,7 @@ if ([string]::IsNullOrWhiteSpace($Server)) {
     $Server = "Broker-Server" # Default placeholder in config
 }
 
-$Symbols = "XAUUSD,EURUSD"
+$Symbols = "XAUUSD"
 Write-Host "Trading symbols: $Symbols"
 
 $OpenRouterKey = ""

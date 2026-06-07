@@ -6,7 +6,7 @@ parameters.  Every other module (risk_manager, ai_engine, virtual_exit_engine,
 main) imports from here instead of hard-coding multipliers.
 
 Parameters are derived from two independent strategy research sources covering
-XAUUSD and EURUSD across Scalping / Intraday / Swing styles.
+XAUUSD across Scalping / Intraday / Swing styles.
 """
 
 from __future__ import annotations
@@ -39,20 +39,6 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
             "allowed_sessions": ["London", "London/NY overlap", "NY"],
             "blocked_sessions": ["Asia", "Off-hours"],
         },
-        "EURUSD": {
-            "sl_atr_multi": 1.0,
-            "tp_atr_multi": 2.0,
-            "min_sl_pips": 5,
-            "max_sl_pips": 10,
-            "min_rr": 1.0,
-            "risk_percent": 0.5,
-            "trail_stage1": None,       # EUR/USD scalp — no trailing
-            "trail_stage2": None,
-            "trail_distance": None,
-            "min_atr_pips": 5,
-            "allowed_sessions": ["London", "London/NY overlap", "NY"],
-            "blocked_sessions": ["Asia", "Off-hours"],
-        },
     },
 
     # ──────────────── INTRADAY ────────────────
@@ -68,20 +54,6 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
             "trail_stage2": 1.5,
             "trail_distance": 1.0,
             "min_atr_pips": None,       # No ATR minimum for intraday
-            "allowed_sessions": ["London", "London/NY overlap", "NY"],
-            "blocked_sessions": ["Asia"],
-        },
-        "EURUSD": {
-            "sl_atr_multi": 1.5,
-            "tp_atr_multi": 3.0,
-            "min_sl_pips": 20,
-            "max_sl_pips": 40,
-            "min_rr": 2.0,
-            "risk_percent": 1.5,
-            "trail_stage1": 0.5,
-            "trail_stage2": 1.5,
-            "trail_distance": 1.0,
-            "min_atr_pips": None,
             "allowed_sessions": ["London", "London/NY overlap", "NY"],
             "blocked_sessions": ["Asia"],
         },
@@ -101,20 +73,6 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
             "trail_distance": 1.5,
             "min_atr_pips": None,
             "allowed_sessions": None,   # All sessions OK for swing
-            "blocked_sessions": [],
-        },
-        "EURUSD": {
-            "sl_atr_multi": 2.0,
-            "tp_atr_multi": 4.0,
-            "min_sl_pips": 80,
-            "max_sl_pips": 150,
-            "min_rr": 2.0,
-            "risk_percent": 1.0,
-            "trail_stage1": 1.0,
-            "trail_stage2": 2.0,
-            "trail_distance": 1.5,
-            "min_atr_pips": None,
-            "allowed_sessions": None,
             "blocked_sessions": [],
         },
     },
@@ -142,12 +100,10 @@ _FALLBACK = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_symbol(symbol: str) -> str:
-    """Map broker-specific symbols (XAUUSDc, EURUSDm, etc.) to base names."""
+    """Map broker-specific symbols (XAUUSDc, etc.) to base names."""
     s = symbol.upper().replace(" ", "")
     if "XAU" in s or "GOLD" in s:
         return "XAUUSD"
-    if "EUR" in s:
-        return "EURUSD"
     return s[:6]  # best-effort
 
 

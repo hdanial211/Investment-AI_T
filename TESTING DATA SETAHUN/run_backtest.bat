@@ -49,7 +49,7 @@ echo.
 
 REM ── Mode selection ───────────────────────────────────────────
 echo ============================================================
-echo   Mode 1: Quick Run (default XAUUSD + EURUSD, All Styles)
+echo   Mode 1: Quick Run (default XAUUSD, All Styles)
 echo   Mode 2: Custom Settings - buka backtest_settings.html dulu
 echo ============================================================
 echo.
@@ -90,10 +90,10 @@ goto CHECK_ERROR
 
 :RUN_DEFAULT
 echo [INFO] Tiada settings file - menggunakan defaults...
-echo [INFO] Symbol: XAUUSD + EURUSD ^| Styles: All ^| Balance: $10,000
+echo [INFO] Symbol: XAUUSD ^| Styles: All ^| Balance: $10,000
 echo [INFO] Data: 1 tahun lepas sehingga hari ini (auto-download)
 echo.
-python run_backtest.py --symbol XAUUSD EURUSD --style SCALPING INTRADAY SWING --balance 10000 %USE_AI_FLAG%
+python run_backtest.py --symbol XAUUSD --style SCALPING INTRADAY SWING --balance 10000 %USE_AI_FLAG%
 goto CHECK_ERROR
 
 :CHECK_ERROR

@@ -346,14 +346,11 @@ def main():
     master_settings = AccountSettings("master")
     master_settings.force_refresh()
     master_xau = str(master_settings._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
-    master_eur = str(master_settings._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
     
     my_xau = str(acct_settings._cache.get("symbol_xauusd", "XAUUSD") or "XAUUSD").strip()
-    my_eur = str(acct_settings._cache.get("symbol_eurusd", "EURUSD") or "EURUSD").strip()
     
     master_to_my_symbol = {}
     if master_xau: master_to_my_symbol[master_xau] = my_xau
-    if master_eur: master_to_my_symbol[master_eur] = my_eur
 
     # ── Read signals from local JSON ──
     signals_file = os.path.join(config.LOG_DIR, "latest_signals.json")

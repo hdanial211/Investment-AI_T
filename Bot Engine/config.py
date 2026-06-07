@@ -1,20 +1,11 @@
 """
 config.py - Central configuration for the AI Trading Bot.
 
-Runtime values should come from local .env. Real credentials and API keys must
-stay outside GitHub.
+Since we are 100% Cloud-Native, most settings are pulled from Supabase.
+Only critical infrastructure variables remain here.
 """
 
 import os
-from pathlib import Path
-
-# Load .env file if python-dotenv is installed
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
 
 def _env_bool(name: str, default: str = "False") -> bool:
     return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "y", "on")
@@ -43,7 +34,7 @@ ACCOUNT_ID   = os.getenv("ACCOUNT_ID",       "acc_1").strip()
 # ─────────────────────────────────────────────────────────────────────────────
 # TRADING SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
-SYMBOLS          = os.getenv("SYMBOLS", "XAUUSD,EURUSD").split(",")
+SYMBOLS          = os.getenv("SYMBOLS", "XAUUSD").split(",")
 PRIMARY_SYMBOL   = SYMBOLS[0]
 TIMEFRAME        = os.getenv("TIMEFRAME", "M5")
 LOOP_INTERVAL    = int(os.getenv("LOOP_INTERVAL", "60"))
@@ -134,12 +125,13 @@ SCREENSHOT_MAX_AGE_SECONDS = int(os.getenv("SCREENSHOT_MAX_AGE_SECONDS", "120"))
 VISION_CYCLE_INTERVAL    = int(os.getenv("VISION_CYCLE_INTERVAL", "1"))  # run vision every N cycles
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FUTURE SYNC / VIRTUAL EXIT SETTINGS
+# SUPABASE CONNECTION SETTINGS (100% Cloud-Native)
+# No .env used! Enter your Service Role Key below manually!
 # ─────────────────────────────────────────────────────────────────────────────
-SUPABASE_URL              = os.getenv("SUPABASE_URL", "https://kusyjtpcjyflxgfcqenb.supabase.co").strip()
-SUPABASE_ANON_KEY         = os.getenv("SUPABASE_ANON_KEY", "sb_publishable_Pdf-F-j3PH3keLsZ8ZoEZA_tbotGoxM").strip()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-SUPABASE_SYNC_ENABLED     = _env_bool("SUPABASE_SYNC_ENABLED", "True")
+SUPABASE_URL              = "https://kusyjtpcjyflxgfcqenb.supabase.co"
+SUPABASE_ANON_KEY         = "sb_publishable_Pdf-F-j3PH3keLsZ8ZoEZA_tbotGoxM"
+SUPABASE_SERVICE_ROLE_KEY = "SILA_LETAK_SERVICE_ROLE_KEY_ANDA_DI_SINI"  # <-- Masukkan key anda!
+SUPABASE_SYNC_ENABLED     = True
 SUPABASE_MACHINE_ID       = os.getenv("SUPABASE_MACHINE_ID", "laptop-main").strip()
 SUPABASE_REQUEST_TIMEOUT  = int(os.getenv("SUPABASE_REQUEST_TIMEOUT", "10"))
 

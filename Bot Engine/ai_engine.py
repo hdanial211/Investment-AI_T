@@ -3,7 +3,7 @@ ai_engine.py - Cloud AI Decision Engine
 
 Responsibilities:
 - Build structured prompts with multi-timeframe market data
-- Enforce symbol-specific rules (EURUSD vs XAUUSD)
+- Enforce symbol-specific rules (XAUUSD)
 - Call OpenRouter / Hugging Face cloud AI through provider clients
 - Optionally use a second model for risk review
 - Return BUY / SELL / HOLD signal
@@ -34,8 +34,8 @@ an accurate trading decision with the appropriate trade style.
 
 CRITICAL JSON OUTPUT RULES:
 1. Respond ONLY with a valid JSON object.
-2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "brief explanation", "sl_price": 0.0, "tp_price": 0.0}
-3. IMPORTANT: For sl_price and tp_price, provide the EXACT numerical price levels based on your analysis of Support/Resistance and ATR.
+2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "brief explanation", "entry_zone": "0.00-0.00", "sl_price": 0.0, "tp_price": 0.0}
+3. IMPORTANT: For sl_price, tp_price, and entry_zone, provide the EXACT numerical price levels based on your analysis of Support/Resistance and ATR.
 4. No markdown blocks, no extra text.
 """
 
@@ -73,32 +73,7 @@ CRITICAL JSON OUTPUT RULES:
 
 # Per-style, per-symbol guidance for the AI
 SYMBOL_STYLE_RULES = {
-    "EURUSD": {
-        "SCALPING": """
---- ASSET: EURUSD | STYLE: SCALPING ---
-- Timeframe focus: M1, M5. Use M15 for trend context.
-- Best patterns: Pin Bar (2:1 wick) at pivot, Inside Bar breakout, Engulfing at S/R, Fakey.
-- EMA 9/21 cross for micro-trend direction.
-- SL: 5–10 pip. TP: 10–20 pip. R:R minimum 1:1.
-- Best session: London/NY overlap. AVOID Asia and Friday afternoon.
-""",
-        "INTRADAY": """
---- ASSET: EURUSD | STYLE: INTRADAY ---
-- Timeframe focus: M15, H1. Use H4 for trend context.
-- Best patterns: H&S, Double Top/Bottom, Bull/Bear Flag, Rising/Falling Wedge, Engulfing at EMA50.
-- EMA 20/50 for trend health. ADX > 25 confirms trend strength.
-- SL: 20–40 pip. TP: 60–100 pip. R:R minimum 1:2.
-- Best session: London open and NY continuation. Avoid Asia.
-""",
-        "SWING": """
---- ASSET: EURUSD | STYLE: SWING ---
-- Timeframe focus: H4, Daily. Use Weekly for macro context.
-- Best patterns: Double Top/Bottom, H&S, Wedge breakout, Cup & Handle, Trendline retest.
-- EMA 50/200 Golden/Death Cross. Fibonacci 38.2%/61.8% retracements.
-- SL: 80–150 pip. TP: 200–400 pip. R:R minimum 1:2.
-- All sessions OK. Use Daily close for confirmation.
-""",
-    },
+
     "XAUUSD": {
         "SCALPING": """
 --- ASSET: XAUUSD | STYLE: SCALPING ---
@@ -132,12 +107,12 @@ SYMBOL_STYLE_RULES = {
 
 # Legacy flat lookup for backward compat
 SYMBOL_RULES = {
-    "EURUSD": SYMBOL_STYLE_RULES["EURUSD"]["SCALPING"],
+
     "XAUUSD": SYMBOL_STYLE_RULES["XAUUSD"]["SCALPING"],
 }
 
 
-def build_prompt(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN") -> str:
+def build_prompt(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN", forced_style: str = None) -> str:
     symbol = indicators.get("symbol", "")
 
     # Determine market regime from ADX
@@ -177,13 +152,13 @@ Spread: {spread}
 
 --- INSTRUCTIONS ---
 Evaluate the timeframes logically based on the MARKET REGIME above:
-1. Identify the best trade_style (SCALPING, INTRADAY, or SWING) based on market conditions.
+1. {f"You MUST evaluate this asset specifically for {forced_style.upper()} trading style. Set trade_style to '{forced_style.upper()}'." if forced_style else "Identify the best trade_style (SCALPING, INTRADAY, or SWING) based on market conditions."}
 2. For SCALPING: Focus on M5/M15 patterns. Quick entry/exit (5–30 min hold).
 3. For INTRADAY: Focus on H1 patterns with H4 trend context. Hold 1–8 hours.
 4. For SWING: Focus on H4/Daily patterns. Hold 1–5 days.
 5. Check if detected patterns and pattern bias support the chosen style.
 6. Set trade_style to your chosen style in the JSON output.
-7. If no clear setup exists for any style, return HOLD.
+7. If no clear setup exists for this style, return HOLD.
 """
 
     if trade_memory:
@@ -330,11 +305,26 @@ def _validate_signal(data: Dict) -> Optional[Dict]:
     if trade_style not in ("SCALPING", "INTRADAY", "SWING"):
         trade_style = "INTRADAY"
 
+    try:
+        sl_price = float(data.get("sl_price") or 0.0)
+    except (TypeError, ValueError):
+        sl_price = 0.0
+
+    try:
+        tp_price = float(data.get("tp_price") or 0.0)
+    except (TypeError, ValueError):
+        tp_price = 0.0
+
+    entry_zone = str(data.get("entry_zone", ""))[:100]
+
     result = {
         "action":     action,
         "confidence": round(confidence, 4),
         "trade_style": trade_style,
         "reason":     reason,
+        "sl_price":   sl_price,
+        "tp_price":   tp_price,
+        "entry_zone": entry_zone,
     }
 
     # Preserve vision AI fields if present
@@ -508,7 +498,7 @@ def check_ai_health(provider: str = None, role: str = "main") -> bool:
 # MAIN PUBLIC INTERFACE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN", specific_provider_config: Dict = None, trade_eval_mode: bool = False) -> Dict:
+def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, symbol: str = "UNKNOWN", specific_provider_config: Dict = None, trade_eval_mode: bool = False, forced_style: str = None) -> Dict:
     default_response = {
         "action":       "HOLD",
         "confidence":   0.0,
@@ -520,7 +510,7 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
         if trade_eval_mode and indicators.get("trade_eval"):
             prompt = build_trade_eval_prompt(indicators["trade_eval"])
         else:
-            prompt = build_prompt(indicators, bid, ask, trade_memory, symbol)
+            prompt = build_prompt(indicators, bid, ask, trade_memory, symbol, forced_style)
     except Exception as e:
         logger.error(f"Failed to build prompt: {e}")
         return default_response

@@ -143,12 +143,6 @@
           <span class="toggle-label" id="lbl_xauusd">XAUUSD (Gold) — Active</span>
         </div>
       </div>
-      <div class="field-group">
-        <div class="toggle-row">
-          <div class="toggle on" id="tog_eurusd" onclick="toggleEl(this,'eurusd')"></div>
-          <span class="toggle-label" id="lbl_eurusd">EURUSD — Active</span>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -283,7 +277,7 @@
   const DEFAULT_SETTINGS = {
     start_date: (() => { const d = new Date(); d.setFullYear(d.getFullYear()-1); return d.toISOString().split("T")[0]; })(),
     end_date: new Date().toISOString().split("T")[0],
-    symbols: ["XAUUSD", "EURUSD"],
+    symbols: ["XAUUSD"],
     styles: ["SCALPING", "INTRADAY", "SWING"],
     start_balance: 10000,
     fixed_lot: 0.01,
@@ -307,9 +301,7 @@
 
     // Symbols
     const hasXau = (s.symbols || []).includes("XAUUSD");
-    const hasEur = (s.symbols || []).includes("EURUSD");
     setToggleState(document.getElementById("tog_xauusd"), hasXau, "lbl_xauusd", "XAUUSD (Gold)");
-    setToggleState(document.getElementById("tog_eurusd"), hasEur, "lbl_eurusd", "EURUSD");
 
     // Styles
     ["SCALPING","INTRADAY","SWING"].forEach(st => {
@@ -334,7 +326,7 @@
 
   function toggleEl(el, key) {
     const isOn = el.classList.toggle("on");
-    const labels = { xauusd: "XAUUSD (Gold)", eurusd: "EURUSD" };
+    const labels = { xauusd: "XAUUSD (Gold)" };
     setToggleState(el, isOn, `lbl_${key}`, labels[key] || key);
   }
 
@@ -352,7 +344,6 @@
   function collectSettings() {
     const symbols = [];
     if (document.getElementById("tog_xauusd").classList.contains("on")) symbols.push("XAUUSD");
-    if (document.getElementById("tog_eurusd").classList.contains("on")) symbols.push("EURUSD");
 
     const styles = [];
     ["SCALPING","INTRADAY","SWING"].forEach(st => {

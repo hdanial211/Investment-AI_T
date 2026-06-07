@@ -25,7 +25,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 def _symbols_from_config() -> Tuple[str, ...]:
     symbols = tuple(s.strip().upper() for s in config.SYMBOLS if s.strip())
-    return symbols or ("XAUUSD", "EURUSD")
+    return symbols or ("XAUUSD",)
 
 
 def _one_year_before(value: datetime) -> datetime:
