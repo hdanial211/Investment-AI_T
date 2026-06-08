@@ -50,7 +50,7 @@ double   g_swing_trail_dist = 1.5;
 int      g_max_total_trades = 5;
 double   g_max_daily_drawdown_pct = 5.0;
 int      g_min_ai_confidence = 70;
-int      g_max_spread_points = 30;
+int      g_max_spread_points = 100;
 
 bool     g_block_news = false;
 bool     g_block_asia_session = false;
