@@ -53,10 +53,9 @@ def get_auto_models_for_provider(provider: str) -> List[str]:
     if provider == "groq":
         return [
             "llama-3.3-70b-versatile", 
-            "llama-3.1-8b-instant", 
-            "llama3-70b-8192", 
-            "mixtral-8x7b-32768", 
-            "gemma2-9b-it"
+            "llama-3.1-8b-instant",
+            "llama3-8b-8192",
+            "llama-3.2-3b-preview"
         ]
     elif provider in ("huggingface", "hf"):
         return ["Qwen/Qwen2.5-72B-Instruct", "meta-llama/Meta-Llama-3-70B-Instruct"]

@@ -316,14 +316,14 @@ class MT5Connector:
         if self.demo_mode:
             price = _get_demo_price(symbol)
             spread = 0.0003 if "USD" in symbol and "XAU" not in symbol else 0.30
-            return {"bid": round(price - spread / 2, 5), "ask": round(price + spread / 2, 5)}
+            return {"bid": round(price - spread / 2, 5), "ask": round(price + spread / 2, 5), "time": int(time.time())}
 
         mt5.symbol_select(symbol, True)
         tick = mt5.symbol_info_tick(symbol)
         if tick is None:
             logger.error(f"Cannot get tick for {symbol}: {mt5.last_error()}")
             return None
-        return {"bid": tick.bid, "ask": tick.ask}
+        return {"bid": tick.bid, "ask": tick.ask, "time": tick.time}
 
     def get_ohlcv(
         self,
