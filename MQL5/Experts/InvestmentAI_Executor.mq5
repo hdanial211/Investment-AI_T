@@ -671,7 +671,7 @@ void ProcessBasket(string sym, ulong mag, string style_str, ENUM_POSITION_TYPE p
                
                string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"" + style_str + "\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
                SupabasePOST("/rest/v1/closed_trades", payload);
-               SupabaseDELETE("/rest/v1/active_trades?ticket=eq." + IntegerToString(tkt));
+               SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(tkt), "{\"exit_reason\":\"" + close_reason + "\",\"current_status\":\"CLOSED\"}");
             }
          }
       }
