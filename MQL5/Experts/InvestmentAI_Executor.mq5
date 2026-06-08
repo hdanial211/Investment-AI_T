@@ -444,7 +444,7 @@ void ExecuteTrade(string sym, string action, double virtual_sl, double virtual_t
 //| Restore Virtual Lines from Supabase after MT5 Restart            |
 //+------------------------------------------------------------------+
 void RestoreVirtualLines() {
-   string json = SupabaseGET("/rest/v1/active_trades?account_id=eq." + InpAccountID);
+   string json = SupabaseGET("/rest/v1/active_trades?account_id=eq." + InpAccountID + "&current_status=eq.OPEN");
    if (json == "" || StringFind(json, "[]") != -1) return;
    
    StringReplace(json, "},{", "|");
@@ -516,6 +516,19 @@ void OnTimer() {
 //+------------------------------------------------------------------+
 void OnTick() {
    ProcessGridRecovery();
+   
+   // Clean up orphaned virtual lines for closed trades
+   int total_objs = ObjectsTotal(0);
+   for (int i = total_objs - 1; i >= 0; i--) {
+      string obj_name = ObjectName(0, i);
+      if (StringFind(obj_name, "V_SL_") == 0 || StringFind(obj_name, "V_TP_") == 0) {
+         string ticket_str = StringSubstr(obj_name, 5);
+         long ticket = StringToInteger(ticket_str);
+         if (ticket > 0 && !PositionSelectByTicket(ticket)) {
+            ObjectDelete(0, obj_name);
+         }
+      }
+   }
    
    // Iterate over all open positions
    for(int i = PositionsTotal()-1; i >= 0; i--) {
