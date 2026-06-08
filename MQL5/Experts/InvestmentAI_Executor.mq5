@@ -261,6 +261,9 @@ bool SyncAccountSettings() {
    g_max_total_trades = (int)StringToInteger(ExtractJSONValue(json, "max_total_trades"));
    g_min_ai_confidence = (int)StringToInteger(ExtractJSONValue(json, "min_ai_confidence"));
    
+   int spread_val = (int)StringToInteger(ExtractJSONValue(json, "max_spread_points"));
+   if (spread_val > 0) g_max_spread_points = spread_val;
+   
    string b_asia = ExtractJSONValue(json, "block_asia_session");
    g_block_asia_session = (b_asia == "true" || b_asia == "True");
    
