@@ -1,3 +1,4 @@
+import requests
 import logging
 import signal
 import os
@@ -87,8 +88,9 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
         if not connector.is_connected(): return
         
         # 1. Fetch active signals
-        res = supabase.client.table("signals").select("*").eq("account_id", acc).eq("is_active", True).execute()
-        signals = res.data if res else []
+        url = f"{supabase.base_url}/rest/v1/signals?account_id=eq.{acc}&is_active=eq.true"
+        resp = requests.get(url, headers=supabase.headers)
+        signals = resp.json() if resp.status_code == 200 else []
         if not signals: return
         
         # 2. Base Risk Management Data
@@ -131,7 +133,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             # 1. Adakah Trade Style Dibenarkan?
             if not acct_settings.is_style_enabled(style):
                 logger.warning(f"[{acc}] Signal {action} dibatalkan: Style {style} Disabled dalam UI.")
-                supabase.client.table("signals").update({"is_active": False, "reason": f"Style {style} disabled"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": f"Style {style} disabled"})
                 continue
                 
             # 2. Limit Trade Mengikut Style
@@ -141,7 +143,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             max_style_trades = acct_settings.get_max_trades_for_style(style) or 3
             if style_trades_count >= max_style_trades:
                 logger.warning(f"[{acc}] Signal {action} dibatalkan: Max {style} trades capai limit ({style_trades_count}/{max_style_trades})")
-                supabase.client.table("signals").update({"is_active": False, "reason": f"Max {style} trades reached"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": f"Max {style} trades reached"})
                 continue
 
             # 3. Allow Hedging Check
@@ -151,7 +153,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 has_opposite = any(p["direction"] == opposite for p in open_positions if p["symbol"] == sym)
                 if has_opposite:
                     logger.warning(f"[{acc}] Signal {action} dibatalkan: Hedging tidak dibenarkan dan ada posisi {opposite} aktif.")
-                    supabase.client.table("signals").update({"is_active": False, "reason": "Hedging disabled"}).eq("id", sig_id).execute()
+                    requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Hedging disabled"})
                     continue
 
             # 4. Block Asia Session Check
@@ -159,7 +161,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 logger.warning(f"[{acc}] Signal {action} digantung: Asia Session sedang aktif.")
                 # Kita tidak matikan is_active, supaya ia boleh berjalan bila session tamat jika masih valid, atau analyzer ganti baru.
                 # Tapi elok matikan saja sebab signal boleh lapuk.
-                supabase.client.table("signals").update({"is_active": False, "reason": "Asia Session Blocked"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Asia Session Blocked"})
                 continue
 
             # 5. Block News Check
@@ -168,25 +170,25 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             trade_during_events = getattr(acct_settings, "trade_during_events", True)
             if not trade_during_events and is_news:
                 logger.warning(f"[{acc}] Signal {action} digantung: High-Impact News sedang aktif.")
-                supabase.client.table("signals").update({"is_active": False, "reason": "High-Impact News Blocked"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "High-Impact News Blocked"})
                 continue
 
             # 6. Check Global Max Trades
             if current_trades_count >= max_trades:
                 logger.warning(f"[{acc}] Signal {action} dibatalkan: Max total trades ({current_trades_count}/{max_trades})")
-                supabase.client.table("signals").update({"is_active": False, "reason": "Max global trades reached"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Max global trades reached"})
                 continue
                 
             # 7. Check Max Drawdown
             if current_dd >= max_dd:
                 logger.warning(f"[{acc}] Signal {action} dibatalkan: Max drawdown harian capai ({current_dd:.1f}% >= {max_dd}%)")
-                supabase.client.table("signals").update({"is_active": False, "reason": "Max drawdown reached"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Max drawdown reached"})
                 continue
                 
             # 8. Check AI Confidence
             if confidence < min_conf:
                 logger.warning(f"[{acc}] Signal {action} dibatalkan: Confidence AI terlalu rendah ({confidence}% < {min_conf}%)")
-                supabase.client.table("signals").update({"is_active": False, "reason": "Low confidence"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Low confidence"})
                 continue
                 
             # 9. Check Max Spread
@@ -211,7 +213,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             res_trade = connector.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}", magic=magic_number)
             if res_trade:
                 logger.success(f"✅ [{acc}] Berjaya membuka {action} {sym}")
-                supabase.client.table("signals").update({"is_active": False, "reason": "Executed successfully"}).eq("id", sig_id).execute()
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Executed successfully"})
                 current_trades_count += 1
             else:
                 logger.error(f"❌ [{acc}] Gagal membuka {action} {sym}")
