@@ -76,7 +76,7 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
             market_payload = {
                 "symbol": symbol,
                 "action": action,
-                "confidence": int(ai_result.get("confidence", 0.8) * 100),
+                "confidence": float(ai_result.get("confidence", 0.8)),
                 "trade_style": style,
                 "reason": ai_result.get("reason", ""),
                 "market_regime": indicators.get("market_regime", "UNKNOWN"),
