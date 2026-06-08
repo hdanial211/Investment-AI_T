@@ -259,7 +259,13 @@ bool SyncAccountSettings() {
    g_swing_trail_dist = StringToDouble(ExtractJSONValue(json, "swing_trail_dist"));
    
    g_max_total_trades = (int)StringToInteger(ExtractJSONValue(json, "max_total_trades"));
-   g_min_ai_confidence = (int)StringToInteger(ExtractJSONValue(json, "min_ai_confidence"));
+   
+   double min_conf_val = StringToDouble(ExtractJSONValue(json, "min_ai_confidence"));
+   if (min_conf_val <= 1.0 && min_conf_val > 0) min_conf_val *= 100.0;
+   g_min_ai_confidence = (int)min_conf_val;
+   
+   double dd_val = StringToDouble(ExtractJSONValue(json, "max_daily_drawdown_pct"));
+   if (dd_val > 0) g_max_daily_drawdown_pct = dd_val;
    
    int spread_val = (int)StringToInteger(ExtractJSONValue(json, "max_spread_points"));
    if (spread_val > 0) g_max_spread_points = spread_val;
@@ -498,7 +504,7 @@ void OnTimer() {
    
    // Check Signals every 10s
    if (now - last_signal_check >= 10) {
-      CheckForSignals();
+      // CheckForSignals(); // MOVED TO PYTHON EVALUATOR
       last_signal_check = now;
    }
    
