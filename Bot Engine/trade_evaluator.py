@@ -202,7 +202,13 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             lot_size = acct_settings.get_lot_for_style(style) or 0.01
             logger.info(f"🚀 [{acc}] Risk Guard LULUS! Eksekusi {action} pada {sym} dengan Lot: {lot_size}")
             
-            res_trade = connector.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}")
+            
+            magic_number = 888999
+            if style.upper() == "SCALPING": magic_number = 889000
+            elif style.upper() == "INTRADAY": magic_number = 889001
+            elif style.upper() == "SWING": magic_number = 889002
+            
+            res_trade = connector.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}", magic=magic_number)
             if res_trade:
                 logger.success(f"✅ [{acc}] Berjaya membuka {action} {sym}")
                 supabase.client.table("signals").update({"is_active": False, "reason": "Executed successfully"}).eq("id", sig_id).execute()

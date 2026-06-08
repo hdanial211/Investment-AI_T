@@ -555,6 +555,7 @@ class MT5Connector:
         sl_price: float,
         tp_price: float,
         comment:  str = "AI_BOT",
+        magic:    int = 123456,
     ) -> dict:
         """
         Place a market order.
@@ -593,7 +594,7 @@ class MT5Connector:
             "type":          order_type,
             "price":         price,
             "deviation":     20,
-            "magic":         123456,
+            "magic":         magic,
             "comment":       comment,
             "type_time":     mt5.ORDER_TIME_GTC,
             "type_filling":  filling_type,
@@ -751,9 +752,9 @@ class MT5Connector:
     def get_current_price(self, symbol: str) -> Optional[dict]:
         return self.get_tick(symbol)
 
-    def open_trade(self, direction, lot_size, sl, tp, symbol=None, comment="AI_BOT") -> Optional[dict]:
+    def open_trade(self, direction, lot_size, sl, tp, symbol=None, comment="AI_BOT", magic=123456) -> Optional[dict]:
         sym = symbol or config.SYMBOLS[0]
-        result = self.place_order(sym, direction, lot_size, sl, tp, comment)
+        result = self.place_order(sym, direction, lot_size, sl, tp, comment, magic)
         if result["success"]:
             return result
         return None
