@@ -158,10 +158,10 @@ def main():
     supabase = SupabaseSync()
     connector = MT5Connector()
     
-    # Try connecting to Master MT5
+    # Try connecting to Master MT5 using dynamic settings from Supabase
     system_settings.fetch_and_apply_system_settings()
-    # (Assuming MT5 login logic here or in connector config)
-    connector.connect(0, "", "", config.MT5_PATH)
+    master_path = getattr(config, "MASTER_MT5_PATH", config.MT5_PATH)
+    connector.connect(0, "", "", master_path)
     
     last_signal_time = 0
     last_eval_time = 0

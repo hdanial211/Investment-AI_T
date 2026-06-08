@@ -11,9 +11,7 @@ echo "[1/2] Mendapatkan update terbaru dari GitHub..."
 git pull 2>/dev/null
 echo
 
-echo "[2/2] Memulakan Master Analyzer & MT5..."
-echo "  - Cuba membuka tetingkap MT5 secara automatik..."
-open -a "MetaTrader 5" 2>/dev/null || open -a "XM MT5" 2>/dev/null || echo "  ⚠️ Gagal auto-buka MT5 (Sila buka secara manual jika ia belum terbuka)"
+echo "[2/2] Memulakan Master Analyzer..."
 echo "  - Membaca market dan menghantar signal ke Supabase"
 echo "  - Menilai (Evaluate) Active Trades setiap 10 minit"
 echo "  - (Executor / MT5 berjalan berasingan di terminal klien)"

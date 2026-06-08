@@ -12,9 +12,7 @@ echo [1/2] Mendapatkan update terbaru dari GitHub...
 git pull 2>nul
 echo.
 
-echo "[2/2] Memulakan Master Analyzer & MT5..."
-echo   - Cuba membuka tetingkap MT5 secara automatik...
-start "" "C:\Program Files\MetaTrader 5\terminal64.exe" 2>nul
+echo "[2/2] Memulakan Master Analyzer..."
 echo   - Membaca market dan menghantar signal ke Supabase
 echo   - Menilai (Evaluate) Active Trades setiap 10 minit
 echo   - (Executor / MT5 berjalan berasingan di terminal klien)
