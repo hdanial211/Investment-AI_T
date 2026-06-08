@@ -13,7 +13,6 @@ except ImportError:  # pragma: no cover - startup checks normally install it.
     requests = None
 
 import config
-from .pattern_usage_tracker import build_usage_rows
 
 logger = logging.getLogger(__name__)
 

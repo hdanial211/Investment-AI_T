@@ -13,7 +13,7 @@
 
 input string   InpAccountID      = "Ammar";           // Account ID (matches Supabase)
 input string   InpSupabaseURL    = "https://kusyjtpcjyflxgfcqenb.supabase.co"; // Supabase URL
-input string   InpSupabaseAnon   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."; // Supabase Anon Key
+input string   InpSupabaseAnon   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1c3lqdHBjanlmbHhnZmNxZW5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDE0NzIsImV4cCI6MjA5NTM3NzQ3Mn0.D8qN-s92JUloY7jb_jwiUnqikRKxHb9Qap9HQod-78g"; // Supabase Anon Key
 input ulong    InpMagicNumber    = 888999;            // EA Magic Number
 
 CTrade         trade;
@@ -354,7 +354,7 @@ bool IsSignalSafeToTrade(string sym, string action, int conf) {
       return false;
    }
    
-   double spread = SymbolInfoInteger(sym, SYMBOL_SPREAD);
+   long spread = SymbolInfoInteger(sym, SYMBOL_SPREAD);
    if (spread > g_max_spread_points) {
       Print("Risk Guard: Spread ", spread, " > Max ", g_max_spread_points);
       return false;
@@ -547,6 +547,7 @@ void OnTick() {
          double v_tp = ObjectGetDouble(0, tp_name, OBJPROP_PRICE);
          
          string close_reason_text = "Virtual Exit";
+         bool should_close = false;
          
          if (position.PositionType() == POSITION_TYPE_BUY) {
             if (v_sl > 0 && current_price <= v_sl) { close_reason_text = "Virtual SL Hit"; should_close = true; }

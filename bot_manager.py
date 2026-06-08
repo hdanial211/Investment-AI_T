@@ -1,14 +1,10 @@
 """
-bot_manager.py — Process Manager (Pengurus Induk) untuk Cloud-Native V4 Hybrid
-
-This is the single entry point for the Python Brain. Run this script once, and it will:
-  1. Spawn 1 Master Analyzer process.
-  2. Monitor the process: auto-restart on crash within 5 seconds.
-  
-Note: Execution is now handled entirely by the MQL5 EA (InvestmentAI_Executor.mq5)
-running inside client MT5 terminals.
-
-Usage: python bot_manager.py
+bot_manager.py — Process Manager (Pengurus Induk) & Supabase Watcher untuk Cloud-Native V4
+ 
+Tanggungjawab:
+  1. Melancarkan 1 Master Analyzer (untuk cari signal).
+  2. Menyemak 'Account Active' di Supabase setiap 15 saat.
+  3. Melancarkan / Mematikan 'Trade Evaluator' untuk setiap akaun secara dinamik (Multi-Processing).
 """
 
 import logging
@@ -17,6 +13,12 @@ import sys
 import time
 import signal
 import subprocess
+
+# Tambah 'Bot Engine' ke path supaya boleh import SupabaseSync
+BOT_ENGINE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Bot Engine")
+sys.path.append(BOT_ENGINE_DIR)
+
+from trade_management.supabase_sync import SupabaseSync
 
 # Setup logging
 logging.basicConfig(
@@ -42,7 +44,6 @@ signal.signal(signal.SIGTERM, _signal_handler)
 # ─────────────────────────────────────────────────────────────────────────────
 # PROCESS WRAPPER
 # ─────────────────────────────────────────────────────────────────────────────
-BOT_ENGINE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Bot Engine")
 PYTHON_EXE = sys.executable
 
 class ManagedProcess:
@@ -108,17 +109,22 @@ class ManagedProcess:
         return True
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN
+# MAIN LOOP
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
     global _shutdown_requested
 
     logger.info("=" * 70)
-    logger.info("  🚀 BOT MANAGER — 100% Cloud-Native Hybrid Architecture")
+    logger.info("  🚀 BOT MANAGER & SUPABASE WATCHER — Multi-Process Hybrid")
     logger.info("=" * 70)
     logger.info(f"  Python: {PYTHON_EXE}")
     logger.info(f"  Bot Engine: {BOT_ENGINE_DIR}")
     logger.info("=" * 70)
+
+    supabase = SupabaseSync()
+    if not supabase.enabled:
+        logger.error("Supabase tidak aktif. Sila semak .env")
+        return
 
     # ── 1. Start Master Analyzer ──
     analyzer = ManagedProcess(
@@ -129,20 +135,78 @@ def main():
     analyzer.start()
 
     logger.info(f"\n{'─'*70}")
-    logger.info(f"  Running: 1 Analyzer (AI Brain & Supabase Writer)")
-    logger.info(f"  Executors: Running natively in MQL5 terminals.")
+    logger.info(f"  Running: 1 Analyzer (AI Brain)")
+    logger.info(f"  Running: X Trade Evaluators (berdasarkan status di Supabase)")
     logger.info(f"{'─'*70}\n")
 
-    # ── 2. Main monitoring loop ──
+    # Penyimpan rekod proses Trade Evaluator yang sedang berjalan
+    evaluators = {}  # { "acc_1": ManagedProcess, ... }
+    last_sync_time = 0
+    last_settings_hash = hash(str(supabase.fetch_system_settings()))
+
+    # ── 2. Main monitoring & watcher loop ──
     while not _shutdown_requested:
+        now = time.time()
+
+        # Semak kesihatan proses (Auto-Restart)
         analyzer.check_and_restart()
+        for acc_id, eval_proc in evaluators.items():
+            eval_proc.check_and_restart()
+
+        # Supabase Watcher Loop (Setiap 15 Saat)
+        if now - last_sync_time >= 15:
+            try:
+                # 1. Semak perubahan System Settings (API Key, etc)
+                current_settings_hash = hash(str(supabase.fetch_system_settings()))
+                if current_settings_hash != last_settings_hash:
+                    logger.warning("🔄 Supabase Watcher: Perubahan System Settings / API Key dikesan! Melakukan Global Restart...")
+                    analyzer.stop()
+                    for acc_id, eval_proc in evaluators.items():
+                        eval_proc.stop()
+                    evaluators.clear()
+                    last_settings_hash = current_settings_hash
+                    analyzer.start()
+                    # Skip evaluator spawn in this cycle, will naturally spawn in next code block
+                    
+                # 2. Semak perubahan Akaun Individu (On/Off)
+                enabled_accounts = set(supabase.fetch_all_enabled_accounts())
+                current_running = set(evaluators.keys())
+
+                # A. Akaun baharu di-ON-kan -> Mula Trade Evaluator
+                accounts_to_start = enabled_accounts - current_running
+                for acc_id in accounts_to_start:
+                    logger.info(f"🔄 Supabase Watcher: Mengesan akaun AKTIF baharu: {acc_id}. Membuka proses Evaluator...")
+                    proc = ManagedProcess(
+                        name=f"Evaluator ({acc_id})",
+                        cmd=[PYTHON_EXE, "trade_evaluator.py", acc_id],
+                        cwd=BOT_ENGINE_DIR
+                    )
+                    proc.start()
+                    evaluators[acc_id] = proc
+
+                # B. Akaun di-OFF-kan -> Matikan Trade Evaluator
+                accounts_to_stop = current_running - enabled_accounts
+                for acc_id in accounts_to_stop:
+                    logger.info(f"🔄 Supabase Watcher: Mengesan akaun {acc_id} telah di-OFF. Mematikan proses Evaluator...")
+                    evaluators[acc_id].stop()
+                    del evaluators[acc_id]
+
+            except Exception as e:
+                logger.error(f"Ralat semasa Watcher menyemak Supabase: {e}")
+
+            last_sync_time = now
+
         time.sleep(2)
 
     # ── SHUTDOWN ──
     logger.info(f"\n{'='*70}")
     logger.info("  BOT MANAGER SHUTTING DOWN — Stopping all processes...")
     logger.info(f"{'='*70}")
+    
     analyzer.stop()
+    for acc_id, eval_proc in evaluators.items():
+        eval_proc.stop()
+        
     logger.info("✅ All processes stopped. Goodbye!")
 
 if __name__ == "__main__":

@@ -176,9 +176,9 @@ class MT5Connector:
                     "Set MT5_PATH in your .env or Supabase to the full path of terminal64.exe."
                 )
 
-        target_login = int(login) if login is not None else int(config.MT5_LOGIN)
-        target_password = password if password is not None else config.MT5_PASSWORD
-        target_server = server if server is not None else config.MT5_SERVER
+        target_login = int(login) if login else (int(config.MT5_LOGIN) if config.MT5_LOGIN else 0)
+        target_password = password if password else config.MT5_PASSWORD
+        target_server = server if server else config.MT5_SERVER
 
         # ── Step 2: Initialize (attach to running terminal & auto-download server if missing) ──
         target_path = path if path else (config.MT5_PATH if config.MT5_PATH else None)
@@ -203,20 +203,25 @@ class MT5Connector:
 
         account = mt5.account_info()
 
-        if account is None or account.login != target_login:
-            # Not logged in yet, or logged in as a different account
-            logger.info(f"Logging in to account #{target_login} on {target_server}...")
-            authorized = mt5.login(
-                login=target_login,
-                password=target_password,
-                server=target_server,
-            )
-            if not authorized:
-                logger.error(f"MT5 login failed: {mt5.last_error()}")
-                mt5.shutdown()
-                self._enter_demo()
-                return True
-            account = mt5.account_info()
+        if target_login > 0 and target_password and target_server:
+            if account is None or account.login != target_login:
+                # Not logged in yet, or logged in as a different account
+                logger.info(f"Logging in to account #{target_login} on {target_server}...")
+                authorized = mt5.login(
+                    login=target_login,
+                    password=target_password,
+                    server=target_server,
+                )
+                if not authorized:
+                    logger.error(f"MT5 login failed: {mt5.last_error()}")
+                    mt5.shutdown()
+                    self._enter_demo()
+                    return True
+                account = mt5.account_info()
+        elif account is None:
+            logger.warning("MT5 is running but not logged into any account, and no credentials provided.")
+            self._enter_demo()
+            return True
 
         # ✅ MT5 connected & account ready
         self.connected = True

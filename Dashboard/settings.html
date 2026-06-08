@@ -431,11 +431,21 @@
 
     // ── ADD ACCOUNT ──────────────────────────────────────────────────────
     async function addAccount() {
-      const nextNum = state.accounts.length + 1;
-      const accId = `acc_${nextNum}`;
+      let rawName = prompt("Masukkan nama akaun (Contoh: Hakim, 68288893):");
+      if (!rawName) return;
+      
+      const accId = rawName.trim();
+      if (!accId) return;
+
+      // Semak jika sudah wujud
+      if (state.accounts.find(a => a.account_id.toLowerCase() === accId.toLowerCase() || a.account_id === "master")) {
+        alert("Nama akaun ini sudah wujud! Sila guna nama lain.");
+        return;
+      }
+
       const newAcc = {
         account_id: accId,
-        account_label: `Account ${nextNum}`,
+        account_label: accId,
         mt5_login: "",
         mt5_password: "",
         mt5_server: "",

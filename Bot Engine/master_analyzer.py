@@ -6,8 +6,7 @@ It writes 'signals' and 'sl_tp_updates' to Supabase. MQL5 EA executes them.
 
 Loops:
 1. Signal Generator (Every 10 mins) -> Writes to `signals` table
-2. Active Trade Evaluator (Every 10 mins) -> Writes to `sl_tp_updates` table
-3. Heartbeat (Every 60s) -> Writes to `bot_heartbeat`
+2. Heartbeat (Every 60s) -> Writes to `bot_heartbeat`
 """
 
 import logging
@@ -113,55 +112,6 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
             except Exception as e:
                 logger.error(f"Error inserting signal for {acc}: {e}")
 
-def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, accounts: list):
-    logger.info("🧠 Running Trade Evaluator Loop...")
-    for acc in accounts:
-        try:
-            trades = supabase.fetch_active_trades(acc)
-            for t in trades:
-                ticket = t["ticket"]
-                sym = t["symbol"]
-                sl = t.get("virtual_sl", 0)
-                tp = t.get("virtual_tp", 0)
-                style = t.get("trade_style", "UNKNOWN")
-                entry = t.get("entry_price", 0)
-                profit = t.get("floating_profit", 0)
-                
-                tick = connector.get_tick(sym)
-                if not tick: continue
-                
-                mdf = connector.get_multi_timeframe(sym, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=50)
-                if not mdf: continue
-                indicators = calculate_multi_indicators(mdf, symbol=sym)
-                
-                eval_prompt = (
-                    f"Trade {ticket} | Style: {style} | Entry: {entry} | "
-                    f"Current SL: {sl} | Current TP: {tp} | Floating Profit: {profit}\n"
-                    f"Market ADX: {indicators.get('adx', 0)} | H4 Trend: {indicators.get('h4_trend', 'UNKNOWN')}\n"
-                    f"Are there any reversal patterns on M15/H1? Provide UPDATE_SL_TP or CLOSE_TRADE if risk is high, else HOLD."
-                )
-                
-                ai_result = get_ai_signal(
-                    {"trade_eval": eval_prompt}, 
-                    tick["bid"], tick["ask"], None, sym, 
-                    specific_provider_config=config.EVALUATOR_PROVIDER_CONFIG,
-                    trade_eval_mode=True
-                )
-                
-                if ai_result.get("action") == "UPDATE_SL_TP":
-                    new_sl = ai_result.get("sl") or sl
-                    new_tp = ai_result.get("tp") or tp
-                    supabase._insert("sl_tp_updates", {
-                        "signal_id": t.get("signal_id", str(ticket)),
-                        "account_id": acc,
-                        "ticket": ticket,
-                        "new_sl": new_sl,
-                        "new_tp": new_tp,
-                        "applied": False
-                    })
-                    logger.info(f"🟡 Evaluator updated SL/TP for {ticket}")
-        except Exception as e:
-            logger.error(f"Evaluator error for {acc}: {e}")
 
 def loop_heartbeat(supabase: SupabaseSync):
     try:
@@ -183,7 +133,6 @@ def main():
     connector.connect(0, "", "", master_path)
     
     last_signal_time = 0
-    last_eval_time = 0
     last_heartbeat = 0
     
     while not _shutdown_requested:
@@ -199,11 +148,6 @@ def main():
         if now - last_signal_time >= 600:
             loop_signal_generator(supabase, connector, accounts)
             last_signal_time = now
-            
-        # 3. Evaluator Loop (10m)
-        if now - last_eval_time >= 600:
-            loop_evaluator(supabase, connector, accounts)
-            last_eval_time = now
             
         time.sleep(5)
 
