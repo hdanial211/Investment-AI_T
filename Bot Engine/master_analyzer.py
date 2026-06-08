@@ -40,8 +40,7 @@ signal.signal(signal.SIGTERM, _signal_handler)
 
 def get_enabled_accounts(supabase: SupabaseSync) -> list:
     try:
-        response = supabase.client.table("account_settings").select("account_id").eq("enabled", True).execute()
-        return [row["account_id"] for row in response.data]
+        return supabase.fetch_all_enabled_accounts()
     except Exception as e:
         logger.error(f"Failed to fetch accounts: {e}")
         return []
@@ -84,7 +83,7 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
                 "is_active": True
             }
             try:
-                supabase.client.table("signals").insert(payload).execute()
+                supabase._insert("signals", payload)
                 logger.info(f"✅ Signal {action} inserted for account {acc}")
             except Exception as e:
                 logger.error(f"Error inserting signal for {acc}: {e}")
@@ -93,8 +92,7 @@ def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, accounts: li
     logger.info("🧠 Running Trade Evaluator Loop...")
     for acc in accounts:
         try:
-            resp = supabase.client.table("active_trades").select("*").eq("account_id", acc).neq("current_status", "CLOSED").execute()
-            trades = resp.data
+            trades = supabase.fetch_active_trades(acc)
             for t in trades:
                 ticket = t["ticket"]
                 sym = t["symbol"]
@@ -128,25 +126,21 @@ def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, accounts: li
                 if ai_result.get("action") == "UPDATE_SL_TP":
                     new_sl = ai_result.get("sl") or sl
                     new_tp = ai_result.get("tp") or tp
-                    supabase.client.table("sl_tp_updates").insert({
+                    supabase._insert("sl_tp_updates", {
                         "signal_id": t.get("signal_id", str(ticket)),
                         "account_id": acc,
                         "ticket": ticket,
                         "new_sl": new_sl,
                         "new_tp": new_tp,
                         "applied": False
-                    }).execute()
+                    })
                     logger.info(f"🟡 Evaluator updated SL/TP for {ticket}")
         except Exception as e:
             logger.error(f"Evaluator error for {acc}: {e}")
 
 def loop_heartbeat(supabase: SupabaseSync):
     try:
-        supabase.client.table("bot_heartbeat").upsert({
-            "machine_id": "master_analyzer",
-            "status": "online",
-            "last_seen_at": datetime.now().isoformat()
-        }).execute()
+        supabase.upsert_heartbeat(status="online", message="Master Analyzer OK")
     except Exception as e:
         logger.error(f"Heartbeat error: {e}")
 
