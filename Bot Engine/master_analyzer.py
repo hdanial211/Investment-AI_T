@@ -69,6 +69,31 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
     
     if action in ["BUY", "SELL"]:
         sig_id = str(uuid.uuid4())[:8]
+        
+        # V4 Architecture: Write one unified signal to market_signals
+        market_payload = {
+            "symbol": symbol,
+            "action": action,
+            "confidence": int(ai_result.get("confidence", 0.8) * 100),
+            "trade_style": ai_result.get("trade_style", "INTRADAY"),
+            "reason": ai_result.get("reason", ""),
+            "market_regime": indicators.get("market_regime", "UNKNOWN"),
+            "bid": tick["bid"],
+            "ask": tick["ask"],
+            "atr": indicators.get("atr", 0),
+            "signal_id": sig_id,
+            "entry_zone": ai_result.get("entry_zone", ""),
+            "sl_price": ai_result.get("sl_price", 0),
+            "tp_price": ai_result.get("tp_price", 0)
+        }
+        
+        try:
+            supabase.upsert_market_signal(market_payload)
+            logger.info(f"✅ Market Signal {action} ({market_payload['trade_style']}) upserted to Supabase")
+        except Exception as e:
+            logger.error(f"Error upserting market signal: {e}")
+            
+        # Legacy/Executor signals: write commands to trade_commands or signals if still needed
         for acc in accounts:
             payload = {
                 "signal_id": f"{acc}_{sig_id}",
@@ -77,7 +102,7 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
                 "action": action,
                 "sl": ai_result.get("sl_price", 0),
                 "tp": ai_result.get("tp_price", 0),
-                "confidence": ai_result.get("confidence", 80),
+                "confidence": int(ai_result.get("confidence", 0.8) * 100),
                 "style": ai_result.get("trade_style", "INTRADAY"),
                 "reason": ai_result.get("reason", ""),
                 "is_active": True
