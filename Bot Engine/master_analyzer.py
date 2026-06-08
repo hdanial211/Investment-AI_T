@@ -62,55 +62,58 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
     pre_signal = f"Current H4 Trend is {h4_trend}. ADX is {adx}. Provide BUY, SELL, or HOLD."
     logger.info(f"Pre-Signal sent to AI: {pre_signal}")
     
-    # Get Final Signal from AI
-    ai_result = get_ai_signal(indicators, tick["bid"], tick["ask"], trade_memory=None, symbol=symbol, forced_style="INTRADAY")
-    action = ai_result.get("action", "HOLD")
+    # Get Final Signals from AI for each style
+    styles = ["SCALPING", "INTRADAY", "SWING"]
     
-    if action in ["BUY", "SELL"]:
-        sig_id = str(uuid.uuid4())[:8]
+    for style in styles:
+        ai_result = get_ai_signal(indicators, tick["bid"], tick["ask"], trade_memory=None, symbol=symbol, forced_style=style)
+        action = ai_result.get("action", "HOLD")
         
-        # V4 Architecture: Write one unified signal to market_signals
-        market_payload = {
-            "symbol": symbol,
-            "action": action,
-            "confidence": int(ai_result.get("confidence", 0.8) * 100),
-            "trade_style": ai_result.get("trade_style", "INTRADAY"),
-            "reason": ai_result.get("reason", ""),
-            "market_regime": indicators.get("market_regime", "UNKNOWN"),
-            "bid": tick["bid"],
-            "ask": tick["ask"],
-            "atr": indicators.get("atr", 0),
-            "signal_id": sig_id,
-            "entry_zone": ai_result.get("entry_zone", ""),
-            "sl_price": ai_result.get("sl_price", 0),
-            "tp_price": ai_result.get("tp_price", 0)
-        }
-        
-        try:
-            supabase.upsert_market_signal(market_payload)
-            logger.info(f"✅ Market Signal {action} ({market_payload['trade_style']}) upserted to Supabase")
-        except Exception as e:
-            logger.error(f"Error upserting market signal: {e}")
+        if action in ["BUY", "SELL"]:
+            sig_id = str(uuid.uuid4())[:8]
             
-        # Legacy/Executor signals: write commands to trade_commands or signals if still needed
-        for acc in accounts:
-            payload = {
-                "signal_id": f"{acc}_{sig_id}",
-                "account_id": acc,
+            # V4 Architecture: Write one unified signal to market_signals
+            market_payload = {
                 "symbol": symbol,
                 "action": action,
-                "sl": ai_result.get("sl_price", 0),
-                "tp": ai_result.get("tp_price", 0),
                 "confidence": int(ai_result.get("confidence", 0.8) * 100),
-                "style": ai_result.get("trade_style", "INTRADAY"),
+                "trade_style": style,
                 "reason": ai_result.get("reason", ""),
-                "is_active": True
+                "market_regime": indicators.get("market_regime", "UNKNOWN"),
+                "bid": tick["bid"],
+                "ask": tick["ask"],
+                "atr": indicators.get("atr", 0),
+                "signal_id": sig_id,
+                "entry_zone": ai_result.get("entry_zone", ""),
+                "sl_price": ai_result.get("sl_price", 0),
+                "tp_price": ai_result.get("tp_price", 0)
             }
+            
             try:
-                supabase._insert("signals", payload)
-                logger.info(f"✅ Signal {action} inserted for account {acc}")
+                supabase.upsert_market_signal(market_payload)
+                logger.info(f"✅ Market Signal {action} ({style}) upserted to Supabase")
             except Exception as e:
-                logger.error(f"Error inserting signal for {acc}: {e}")
+                logger.error(f"Error upserting market signal for {style}: {e}")
+                
+            # Legacy/Executor signals: write commands to trade_commands or signals if still needed
+            for acc in accounts:
+                payload = {
+                    "signal_id": f"{acc}_{sig_id}",
+                    "account_id": acc,
+                    "symbol": symbol,
+                    "action": action,
+                    "sl": ai_result.get("sl_price", 0),
+                    "tp": ai_result.get("tp_price", 0),
+                    "confidence": int(ai_result.get("confidence", 0.8) * 100),
+                    "style": style,
+                    "reason": ai_result.get("reason", ""),
+                    "is_active": True
+                }
+                try:
+                    supabase._insert("signals", payload)
+                    logger.info(f"✅ Signal {action} ({style}) inserted for account {acc}")
+                except Exception as e:
+                    logger.error(f"Error inserting signal {style} for {acc}: {e}")
 
 
 def loop_heartbeat(supabase: SupabaseSync):
