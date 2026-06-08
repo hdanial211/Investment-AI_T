@@ -26,8 +26,8 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
     # ──────────────── SCALPING ────────────────
     "SCALPING": {
         "XAUUSD": {
-            "sl_atr_multi": 1.5,        # SL = 1.5 × ATR
-            "tp_atr_multi": 2.0,        # TP = 2.0 × ATR
+            "sl_atr_multi": 1.5,        # SL = 1.5 × ATR(7)
+            "tp_atr_multi": 2.0,        # TP = 2.0 × ATR(7)
             "min_sl_pips": 150,         # SL minimum 15 pips ($1.50)
             "max_sl_pips": 200,         # SL maximum 20 pips ($2.00)
             "min_rr": 1.0,              # R:R minimum 1:1
@@ -44,8 +44,8 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
     # ──────────────── INTRADAY ────────────────
     "INTRADAY": {
         "XAUUSD": {
-            "sl_atr_multi": 2.5,
-            "tp_atr_multi": 4.0,
+            "sl_atr_multi": 2.0,        # SL = 2.0 × ATR(14)
+            "tp_atr_multi": 3.0,        # TP = 3.0 × ATR(14)
             "min_sl_pips": 300,         # SL minimum 30 pips ($3.00)
             "max_sl_pips": 600,         # SL maximum 60 pips ($6.00)
             "min_rr": 1.5,
@@ -62,8 +62,8 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
     # ──────────────── SWING ────────────────
     "SWING": {
         "XAUUSD": {
-            "sl_atr_multi": 2.5,
-            "tp_atr_multi": 5.0,
+            "sl_atr_multi": 3.0,        # SL = 3.0 × ATR(21)
+            "tp_atr_multi": 6.0,        # TP = 6.0 × ATR(21)
             "min_sl_pips": 1000,        # SL minimum 100 pips ($10.00)
             "max_sl_pips": 5000,        # SL maximum 500 pips ($50.00)
             "min_rr": 2.0,

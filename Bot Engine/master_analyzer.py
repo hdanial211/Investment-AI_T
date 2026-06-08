@@ -25,6 +25,7 @@ from ai_engine import get_ai_signal
 from trade_management.supabase_sync import SupabaseSync
 import system_settings
 from logger import setup_logging
+from style_params import get_style_params
 
 logger = setup_logging()
 
@@ -51,7 +52,7 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
     tick = connector.get_tick(symbol)
     if not tick: return
     
-    mdf = connector.get_multi_timeframe(symbol, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=100)
+    mdf = connector.get_multi_timeframe(symbol, timeframes=["D1", "H4", "H1", "M30", "M15", "M5", "M1"], bars=100)
     if not mdf: return
     
     indicators = calculate_multi_indicators(mdf, symbol=symbol)
@@ -72,6 +73,39 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
         if action in ["BUY", "SELL"]:
             sig_id = str(uuid.uuid4())[:8]
             
+            # --- V3 DETERMINISTIC SL/TP CALCULATION ---
+            s_params = get_style_params(style, symbol)
+            
+            if style == "SCALPING":
+                active_atr = indicators.get("atr_scalping", 0)
+            elif style == "INTRADAY":
+                active_atr = indicators.get("atr_intraday", 0)
+            elif style == "SWING":
+                active_atr = indicators.get("atr_swing", 0)
+            else:
+                active_atr = indicators.get("atr", 0)
+            
+            if active_atr == 0:
+                active_atr = 2.0 # Fallback for XAUUSD if data missing
+                
+            min_atr_dist = active_atr * 0.5
+            daily_limit_dist = indicators.get("atr_swing", 0) * 1.5 # Maximum 1.5x D1 ATR
+            
+            raw_sl_dist = active_atr * s_params.get("sl_atr_multi", 2.0)
+            raw_tp_dist = active_atr * s_params.get("tp_atr_multi", 3.0)
+            
+            final_sl_dist = max(min_atr_dist, raw_sl_dist)
+            if style in ["INTRADAY", "SWING"] and daily_limit_dist > 0:
+                final_sl_dist = min(final_sl_dist, daily_limit_dist)
+                
+            if action == "BUY":
+                calc_sl = tick["ask"] - final_sl_dist
+                calc_tp = tick["ask"] + raw_tp_dist
+            else:
+                calc_sl = tick["bid"] + final_sl_dist
+                calc_tp = tick["bid"] - raw_tp_dist
+            # ------------------------------------------
+            
             # V4 Architecture: Write one unified signal to market_signals
             market_payload = {
                 "symbol": symbol,
@@ -85,8 +119,8 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
                 "atr": indicators.get("atr", 0),
                 "signal_id": sig_id,
                 "entry_zone": ai_result.get("entry_zone", ""),
-                "sl_price": ai_result.get("sl_price", 0),
-                "tp_price": ai_result.get("tp_price", 0)
+                "sl_price": calc_sl,
+                "tp_price": calc_tp
             }
             
             try:
@@ -102,8 +136,8 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
                     "account_id": acc,
                     "symbol": symbol,
                     "action": action,
-                    "sl": ai_result.get("sl_price", 0),
-                    "tp": ai_result.get("tp_price", 0),
+                    "sl": calc_sl,
+                    "tp": calc_tp,
                     "confidence": int(ai_result.get("confidence", 0.8) * 100),
                     "style": style,
                     "reason": ai_result.get("reason", ""),

@@ -4,6 +4,7 @@ import signal
 import os
 import sys
 import time
+import math
 
 import config
 from mt5_connector import MT5Connector
@@ -201,7 +202,31 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 continue
                 
             # --- LULUS SEMUA TAPISAN, EKSEKUSI! ---
+            use_auto_lot = acct_settings._cache.get("use_auto_lot", True)
+            risk_percent = float(acct_settings._cache.get("max_risk_percent", 1.0))
+            
+            # Default fallback lot
             lot_size = acct_settings.get_lot_for_style(style) or 0.01
+            
+            # Auto Lot Logic based on SL Distance
+            if use_auto_lot and sl_price > 0:
+                tick = connector.get_tick(sym)
+                balance = connector.get_balance()
+                if tick and balance > 0:
+                    entry_price = tick["ask"] if action == "BUY" else tick["bid"]
+                    sl_dist = abs(entry_price - sl_price)
+                    
+                    # For XAUUSD, $1 move = $100 per 1.00 lot
+                    contract_size = 100 
+                    risk_amount = balance * (risk_percent / 100.0)
+                    
+                    if sl_dist > 0:
+                        calc_lot = risk_amount / (sl_dist * contract_size)
+                        # Round down to 2 decimals
+                        calc_lot = math.floor(calc_lot * 100) / 100.0
+                        lot_size = max(config.MIN_LOT, min(config.MAX_LOT, calc_lot))
+                        logger.info(f"Auto-Lot active: Bal={balance}, Risk={risk_percent}%, SL_Dist={sl_dist:.2f} -> Calc Lot={lot_size}")
+            
             logger.info(f"🚀 [{acc}] Risk Guard LULUS! Eksekusi {action} pada {sym} dengan Lot: {lot_size}")
             
             

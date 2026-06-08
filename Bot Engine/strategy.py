@@ -164,6 +164,7 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
             logger.warning(f"[{symbol}] Missing {tf} data for multi-timeframe analysis.")
             return None
 
+    df_d1 = mdf.get("D1")
     df_h4 = mdf["H4"]
     df_h1 = mdf["H1"]
     df_m30 = mdf.get("M30")
@@ -224,7 +225,12 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
     # 5. Core Price Metrics (Using M1 if available as closest to real-time)
     current_df = df_m1 if df_m1 is not None and not df_m1.empty else df_m5
     current_price = float(current_df['close'].iloc[-1])
-    atr_val = float(calc_atr(df_m15).iloc[-1])
+    
+    # AI V3 ATRs
+    atr_scalping = float(calc_atr(df_m15, period=7).iloc[-1])
+    atr_intraday = float(calc_atr(df_h1, period=14).iloc[-1])
+    atr_swing = float(calc_atr(df_d1, period=21).iloc[-1]) if df_d1 is not None and not df_d1.empty else atr_intraday * 3.0
+    atr_val = atr_scalping # fallback for backward compatibility
 
     symbol_upper = symbol.upper()
     if "XAU" in symbol_upper or "GOLD" in symbol_upper:
@@ -257,6 +263,9 @@ def calculate_multi_indicators(mdf: Dict[str, pd.DataFrame], symbol: str) -> Opt
         "m1_liquidity_sweep": m1_sweep,
         "m1_pattern": m1_engulfing,
         "atr": round(atr_val, 5),
+        "atr_scalping": round(atr_scalping, 5),
+        "atr_intraday": round(atr_intraday, 5),
+        "atr_swing": round(atr_swing, 5),
         "sufficient_volatility": atr_val > (config.MIN_VOLATILITY_PIPS * pip_size),
         "detected_patterns": detected_patterns,
         "pattern_bias": pattern_bias,
