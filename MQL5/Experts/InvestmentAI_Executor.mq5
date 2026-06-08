@@ -286,7 +286,9 @@ void CheckForSignals() {
    string sym = ExtractJSONValue(json, "symbol");
    double sl = StringToDouble(ExtractJSONValue(json, "sl"));
    double tp = StringToDouble(ExtractJSONValue(json, "tp"));
-   int conf = (int)StringToInteger(ExtractJSONValue(json, "confidence"));
+   double raw_conf = StringToDouble(ExtractJSONValue(json, "confidence"));
+   int conf = (int)(raw_conf * 100);
+   if (raw_conf > 1) conf = (int)raw_conf; // Fallback if already 85
    string style = ExtractJSONValue(json, "style");
    
    // Map AI symbol to chart symbol (e.g. XAUUSD -> XAUUSDc)
@@ -310,7 +312,7 @@ void CheckForSignals() {
 //| Fetch SL/TP Updates from AI Evaluator                            |
 //+------------------------------------------------------------------+
 void SyncSLTPUpdates() {
-   string json = SupabaseGET("/rest/v1/sl_tp_updates?account_id=eq." + InpAccountID + "&applied=eq.false&order=created_at.asc");
+   string json = SupabaseGET("/rest/v1/sl_tp_updates?account_id=eq." + InpAccountID + "&applied=eq.false");
    if (json == "" || StringFind(json, "[]") != -1) return;
    
    StringReplace(json, "},{", "|");
@@ -506,7 +508,11 @@ void OnTimer() {
    // Heartbeat every 60s
    if (now - last_heartbeat >= 60) {
       string payload = "{\"account_id\":\"" + InpAccountID + "\",\"status\":\"online\",\"last_seen_at\":\"" + TimeToString(now, TIME_DATE|TIME_MINUTES) + "\"}";
-      SupabasePOST("/rest/v1/bot_heartbeat", payload);
+      string url = "/rest/v1/bot_heartbeat?account_id=eq." + InpAccountID;
+      if (!SupabasePATCH(url, payload)) {
+         // If PATCH fails, try POST
+         SupabasePOST("/rest/v1/bot_heartbeat", payload);
+      }
       last_heartbeat = now;
    }
 }
