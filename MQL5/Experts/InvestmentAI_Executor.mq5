@@ -335,8 +335,14 @@ void SyncSLTPUpdates() {
       
       if (ticket > 0) {
          if (PositionSelectByTicket(ticket)) {
-            double v_sl = ObjectGetDouble(0, "V_SL_" + IntegerToString(ticket), OBJPROP_PRICE);
-            double v_tp = ObjectGetDouble(0, "V_TP_" + IntegerToString(ticket), OBJPROP_PRICE);
+            ulong mag = PositionGetInteger(POSITION_MAGIC);
+            int m = (int)(mag - InpMagicNumber);
+            string style_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
+            string dir_str = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+            string sym = PositionGetString(POSITION_SYMBOL);
+            
+            double v_sl = ObjectGetDouble(0, "B_SL_" + style_str + "_" + dir_str + "_" + sym, OBJPROP_PRICE);
+            double v_tp = ObjectGetDouble(0, "B_TP_" + style_str + "_" + dir_str + "_" + sym, OBJPROP_PRICE);
             
             bool sl_tighter = false;
             bool tp_tighter = false;
@@ -353,8 +359,13 @@ void SyncSLTPUpdates() {
             double final_tp = tp_tighter ? new_tp : v_tp;
             
             if (sl_tighter || tp_tighter) {
-               DrawVirtualLines(ticket, final_sl, final_tp);
-               SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(ticket), "{\"virtual_sl\":" + DoubleToString(final_sl, 5) + ",\"virtual_tp\":" + DoubleToString(final_tp, 5) + "}");
+               DrawBasketLines(style_str, dir_str, sym, final_sl, final_tp);
+               // Update all tickets in basket
+               for(int j = 0; j < PositionsTotal(); j++) {
+                  if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == PositionGetInteger(POSITION_TYPE)) {
+                     SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(position.Ticket()), "{\"virtual_sl\":" + DoubleToString(final_sl, 5) + ",\"virtual_tp\":" + DoubleToString(final_tp, 5) + "}");
+                  }
+               }
             }
          }
          SupabasePATCH("/rest/v1/sl_tp_updates?ticket=eq." + IntegerToString(ticket) + "&applied=eq.false", "{\"applied\":true}");
@@ -445,7 +456,8 @@ void ExecuteTrade(string sym, string action, double virtual_sl, double virtual_t
       string payload = "{\"ticket\":" + IntegerToString(ticket) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"" + sig_id + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + action + "\",\"lot\":" + DoubleToString(lot, 2) + ",\"virtual_sl\":" + DoubleToString(virtual_sl, 5) + ",\"virtual_tp\":" + DoubleToString(virtual_tp, 5) + ",\"trade_style\":\"" + style + "\"}";
       SupabasePOST("/rest/v1/active_trades", payload);
       
-      DrawVirtualLines(ticket, virtual_sl, virtual_tp);
+      string dir_str = (action == "BUY") ? "BUY" : "SELL";
+      DrawBasketLines(style, dir_str, sym, virtual_sl, virtual_tp);
    } else {
       Print("Trade execution failed: ", GetLastError());
    }
@@ -466,10 +478,13 @@ void RestoreVirtualLines() {
       long ticket = StringToInteger(ExtractJSONValue(chunks[i], "ticket"));
       double v_sl = StringToDouble(ExtractJSONValue(chunks[i], "virtual_sl"));
       double v_tp = StringToDouble(ExtractJSONValue(chunks[i], "virtual_tp"));
+      string style = ExtractJSONValue(chunks[i], "trade_style");
+      string dir_str = ExtractJSONValue(chunks[i], "direction");
+      string sym = ExtractJSONValue(chunks[i], "symbol");
       
-      if (ticket > 0 && (v_sl > 0 || v_tp > 0)) {
-         DrawVirtualLines(ticket, v_sl, v_tp);
-         Print("Restored Virtual SL/TP for ticket: ", ticket);
+      if (ticket > 0 && (v_sl > 0 || v_tp > 0) && style != "") {
+         DrawBasketLines(style, dir_str, sym, v_sl, v_tp);
+         Print("Restored Basket Virtual SL/TP for: ", style, " ", dir_str, " ", sym);
       }
    }
 }
@@ -478,16 +493,25 @@ void RestoreVirtualLines() {
 //| Draw Visual Lines on Chart for Virtual SL/TP                     |
 //+------------------------------------------------------------------+
 void DrawVirtualLines(ulong ticket, double sl, double tp) {
-   string sl_name = "V_SL_" + IntegerToString(ticket);
-   string tp_name = "V_TP_" + IntegerToString(ticket);
+   // Deprecated for individual trades. Use Basket lines instead.
+}
+
+void DrawBasketLines(string style, string dir_str, string sym, double sl, double tp) {
+   string sl_name = "B_SL_" + style + "_" + dir_str + "_" + sym;
+   string tp_name = "B_TP_" + style + "_" + dir_str + "_" + sym;
    
-   ObjectCreate(0, sl_name, OBJ_HLINE, 0, 0, sl);
-   ObjectSetInteger(0, sl_name, OBJPROP_COLOR, clrRed);
-   ObjectSetInteger(0, sl_name, OBJPROP_STYLE, STYLE_DASH);
-   
-   ObjectCreate(0, tp_name, OBJ_HLINE, 0, 0, tp);
-   ObjectSetInteger(0, tp_name, OBJPROP_COLOR, clrLimeGreen);
-   ObjectSetInteger(0, tp_name, OBJPROP_STYLE, STYLE_SOLID);
+   if (sl > 0) {
+      ObjectCreate(0, sl_name, OBJ_HLINE, 0, 0, sl);
+      ObjectSetDouble(0, sl_name, OBJPROP_PRICE, sl);
+      ObjectSetInteger(0, sl_name, OBJPROP_COLOR, clrRed);
+      ObjectSetInteger(0, sl_name, OBJPROP_STYLE, STYLE_DASH);
+   }
+   if (tp > 0) {
+      ObjectCreate(0, tp_name, OBJ_HLINE, 0, 0, tp);
+      ObjectSetDouble(0, tp_name, OBJPROP_PRICE, tp);
+      ObjectSetInteger(0, tp_name, OBJPROP_COLOR, clrLimeGreen);
+      ObjectSetInteger(0, tp_name, OBJPROP_STYLE, STYLE_SOLID);
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -529,8 +553,12 @@ void OnTimer() {
 //+------------------------------------------------------------------+
 //| Expert tick function (Stealth Manager)                           |
 //+------------------------------------------------------------------+
+void ManageBaskets();
+void ProcessBasket(string sym, ulong mag, string style_str, ENUM_POSITION_TYPE pos_type);
+
 void OnTick() {
    ProcessGridRecovery();
+   ManageBaskets();
    
    // Clean up orphaned virtual lines for closed trades
    int total_objs = ObjectsTotal(0);
@@ -544,186 +572,148 @@ void OnTick() {
          }
       }
    }
-   
-   // Iterate over all open positions
-   for(int i = PositionsTotal()-1; i >= 0; i--) {
-      if(position.SelectByIndex(i)) {
-         ulong mag = position.Magic();
-         
-         bool is_manual = false;
-         if (mag == 0) {
-            if (!g_manage_manual_be && !g_manage_manual_sl && !g_manage_manual_tp) continue;
-            is_manual = true;
-            ulong ticket = position.Ticket();
-            string man_flag = "V_MANUAL_" + IntegerToString(ticket);
-            if (ObjectFind(0, man_flag) < 0) {
-               double lot = position.Volume();
-               string sym = position.Symbol();
-               string action = (position.PositionType() == POSITION_TYPE_BUY) ? "BUY" : "SELL";
-               double virtual_sl = 0;
-               double virtual_tp = 0;
-               string payload = "{\"ticket\":" + IntegerToString(ticket) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"MANUAL_" + IntegerToString(ticket) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + action + "\",\"lot\":" + DoubleToString(lot, 2) + ",\"virtual_sl\":" + DoubleToString(virtual_sl, 5) + ",\"virtual_tp\":" + DoubleToString(virtual_tp, 5) + ",\"trade_style\":\"MANUAL\"}";
-               if (SupabasePOST("/rest/v1/active_trades", payload)) {
-                  ObjectCreate(0, man_flag, OBJ_LABEL, 0, 0, 0);
-                  ObjectSetString(0, man_flag, OBJPROP_TEXT, "MANUAL");
-                  ObjectSetInteger(0, man_flag, OBJPROP_HIDDEN, true);
-                  Print("Registered Manual Trade to Supabase: ", ticket);
-               }
+}
+
+void ManageBaskets() {
+   for(int m = 1; m <= 3; m++) {
+      ulong mag = InpMagicNumber + m;
+      string style_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
+      
+      string symbols[];
+      int sym_count = 0;
+      for(int j = 0; j < PositionsTotal(); j++) {
+         if(position.SelectByIndex(j) && position.Magic() == mag) {
+            bool found = false;
+            for(int k=0; k<sym_count; k++) { if(symbols[k] == position.Symbol()) { found = true; break; } }
+            if(!found) {
+               ArrayResize(symbols, sym_count+1);
+               symbols[sym_count] = position.Symbol();
+               sym_count++;
             }
-         } else if (mag < InpMagicNumber || mag > InpMagicNumber + 3) {
-            continue; // Ignore other EAs
          }
-         
-         ulong ticket = position.Ticket();
-         double current_price = (position.PositionType() == POSITION_TYPE_BUY) ? SymbolInfoDouble(position.Symbol(), SYMBOL_BID) : SymbolInfoDouble(position.Symbol(), SYMBOL_ASK);
-         double entry_price = position.PriceOpen();
-         
-         // Read Virtual SL/TP from the chart objects
-         string sl_name = "V_SL_" + IntegerToString(ticket);
-         string tp_name = "V_TP_" + IntegerToString(ticket);
-         
-         double v_sl = ObjectGetDouble(0, sl_name, OBJPROP_PRICE);
-         double v_tp = ObjectGetDouble(0, tp_name, OBJPROP_PRICE);
-         
-         string close_reason_text = "Virtual Exit";
-         bool should_close = false;
-         
-         if (position.PositionType() == POSITION_TYPE_BUY) {
-            if (v_sl > 0 && current_price <= v_sl) { close_reason_text = "Virtual SL Hit"; should_close = true; }
-            if (v_tp > 0 && current_price >= v_tp) { close_reason_text = "Virtual TP Hit"; should_close = true; }
-         } else {
-            if (v_sl > 0 && current_price >= v_sl) { close_reason_text = "Virtual SL Hit"; should_close = true; }
-            if (v_tp > 0 && current_price <= v_tp) { close_reason_text = "Virtual TP Hit"; should_close = true; }
-         }
-         
-         if (should_close) {
-            string sym_close = position.Symbol();
-            string action_close = (position.PositionType() == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+      }
+      
+      for(int k=0; k<sym_count; k++) {
+         string sym = symbols[k];
+         ProcessBasket(sym, mag, style_str, POSITION_TYPE_BUY);
+         ProcessBasket(sym, mag, style_str, POSITION_TYPE_SELL);
+      }
+   }
+}
+
+void ProcessBasket(string sym, ulong mag, string style_str, ENUM_POSITION_TYPE pos_type) {
+   double total_vol = 0;
+   double total_cost = 0;
+   int ticket_count = 0;
+   
+   for(int j = 0; j < PositionsTotal(); j++) {
+      if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == pos_type) {
+         total_vol += position.Volume();
+         total_cost += position.Volume() * position.PriceOpen();
+         ticket_count++;
+      }
+   }
+   
+   string dir_str = (pos_type == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+   string sl_name = "B_SL_" + style_str + "_" + dir_str + "_" + sym;
+   string tp_name = "B_TP_" + style_str + "_" + dir_str + "_" + sym;
+   
+   if (ticket_count == 0) {
+      ObjectsDeleteAll(0, sl_name);
+      ObjectsDeleteAll(0, tp_name);
+      return;
+   }
+   
+   double avg_price = total_cost / total_vol;
+   double current_price = (pos_type == POSITION_TYPE_BUY) ? SymbolInfoDouble(sym, SYMBOL_BID) : SymbolInfoDouble(sym, SYMBOL_ASK);
+   
+   double b_sl = ObjectGetDouble(0, sl_name, OBJPROP_PRICE);
+   double b_tp = ObjectGetDouble(0, tp_name, OBJPROP_PRICE);
+   
+   bool hit = false;
+   string close_reason = "";
+   if (pos_type == POSITION_TYPE_BUY) {
+      if (b_sl > 0 && current_price <= b_sl) { hit = true; close_reason = "Basket SL Hit"; }
+      if (b_tp > 0 && current_price >= b_tp) { hit = true; close_reason = "Basket TP Hit"; }
+   } else {
+      if (b_sl > 0 && current_price >= b_sl) { hit = true; close_reason = "Basket SL Hit"; }
+      if (b_tp > 0 && current_price <= b_tp) { hit = true; close_reason = "Basket TP Hit"; }
+   }
+   
+   if (hit) {
+      for(int j = PositionsTotal()-1; j >= 0; j--) {
+         if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == pos_type) {
+            ulong tkt = position.Ticket();
             double lot_close = position.Volume();
-            string style_close = "UNKNOWN";
-            if (mag == 0) style_close = "MANUAL";
-            else if (mag == InpMagicNumber+1) style_close = "SCALPING";
-            else if (mag == InpMagicNumber+2) style_close = "INTRADAY";
-            else if (mag == InpMagicNumber+3) style_close = "SWING";
-            
-            if (trade.PositionClose(ticket)) {
-               Sleep(500); // Give MT5 time to log deal
+            if (trade.PositionClose(tkt)) {
+               Sleep(200);
                double final_pl = 0;
                if(HistorySelect(TimeCurrent()-86400, TimeCurrent()+86400)) {
                   int deals_total = HistoryDealsTotal();
                   for(int d = deals_total-1; d >= 0; d--) {
                      ulong deal_ticket = HistoryDealGetTicket(d);
-                     if(HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID) == ticket && HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT) {
+                     if(HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID) == tkt && HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT) {
                         final_pl = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) + HistoryDealGetDouble(deal_ticket, DEAL_SWAP) + HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
                         break;
                      }
                   }
                }
-               if(final_pl == 0) { // fallback
-                  final_pl = position.Profit() + position.Swap() + position.Commission();
-               }
-
-               ObjectsDeleteAll(0, "V_SL_" + IntegerToString(ticket));
-               ObjectsDeleteAll(0, "V_TP_" + IntegerToString(ticket));
-               ObjectsDeleteAll(0, "V_MANUAL_" + IntegerToString(ticket));
+               if(final_pl == 0) final_pl = position.Profit() + position.Swap() + position.Commission();
                
-               Print("Closed ticket ", ticket, " due to ", close_reason_text);
-               string payload = "{\"ticket\":" + IntegerToString(ticket) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym_close + "\",\"direction\":\"" + action_close + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"" + style_close + "\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason_text + "\"}";
+               string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"" + style_str + "\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
                SupabasePOST("/rest/v1/closed_trades", payload);
-               SupabaseDELETE("/rest/v1/active_trades?ticket=eq." + IntegerToString(ticket));
+               SupabaseDELETE("/rest/v1/active_trades?ticket=eq." + IntegerToString(tkt));
             }
-         } else {
-            // Load individual settings based on magic number style
-            bool   style_grid_enabled = false;
-            double style_grid_dist = 0;
-            double style_grid_mult = 1.0;
-            int    style_grid_steps = 0;
-            double style_be_trigger = 0;
-            double style_trail_start = 0;
-            double style_trail_dist = 0;
-            
-            if (mag == InpMagicNumber + 1) { // SCALPING
-               style_grid_enabled = g_scalping_grid_enabled;
-               style_grid_dist = g_scalping_grid_dist;
-               style_grid_mult = g_scalping_grid_mult;
-               style_grid_steps = g_scalping_grid_steps;
-               style_be_trigger = g_scalping_be_trigger;
-               style_trail_start = g_scalping_trail_start;
-               style_trail_dist = g_scalping_trail_dist;
-            }
-            else if (mag == InpMagicNumber + 2 || is_manual) { // INTRADAY or MANUAL
-               style_grid_enabled = g_intraday_grid_enabled;
-               style_grid_dist = g_intraday_grid_dist;
-               style_grid_mult = g_intraday_grid_mult;
-               style_grid_steps = g_intraday_grid_steps;
-               style_be_trigger = g_intraday_be_trigger;
-               style_trail_start = g_intraday_trail_start;
-               style_trail_dist = g_intraday_trail_dist;
-            }
-            else if (mag == InpMagicNumber + 3) { // SWING
-               style_grid_enabled = g_swing_grid_enabled;
-               style_grid_dist = g_swing_grid_dist;
-               style_grid_mult = g_swing_grid_mult;
-               style_grid_steps = g_swing_grid_steps;
-               style_be_trigger = g_swing_be_trigger;
-               style_trail_start = g_swing_trail_start;
-               style_trail_dist = g_swing_trail_dist;
-            }
-            
-            if (is_manual && (!g_manage_manual_be && !g_manage_manual_sl)) {
-               // Skip BE/Trail if not managed
-            } else {
-               // Calculate ATR dynamically for distance conversions
-               double atr_value = 0.0010; // Fallback 10 pips
-               if(g_atr_handle != INVALID_HANDLE) {
-                  double atr_arr[];
-                  CopyBuffer(g_atr_handle, 0, 1, 1, atr_arr);
-                  if(ArraySize(atr_arr) > 0) atr_value = atr_arr[0];
-               }
-               
-               double pip_size = (StringFind(position.Symbol(), "JPY") != -1 || StringFind(position.Symbol(), "XAU") != -1) ? 0.01 : 0.0001;
-               
-               double be_trigger_price_dist = style_be_trigger * atr_value;
-               double trail_start_price_dist = style_trail_start * atr_value;
-               double trail_dist_price = style_trail_dist * atr_value;
-               
-               bool updated_sl = false;
-               
-               if (position.PositionType() == POSITION_TYPE_BUY) {
-                  double profit_dist = current_price - entry_price;
-                  // Break-Even
-                  if (profit_dist >= be_trigger_price_dist && (v_sl < entry_price || v_sl == 0)) {
-                     v_sl = entry_price + (pip_size * 2); // BE + 2 pips
-                     updated_sl = true;
-                  }
-                  // Trailing Stop
-                  if (profit_dist >= trail_start_price_dist) {
-                     double new_sl = current_price - trail_dist_price;
-                     if (v_sl == 0 || new_sl > v_sl) {
-                        v_sl = new_sl;
-                        updated_sl = true;
-                     }
-                  }
-               } else {
-                  double profit_dist = entry_price - current_price;
-                  // Break-Even
-                  if (profit_dist >= be_trigger_price_dist && (v_sl > entry_price || v_sl == 0)) {
-                     v_sl = entry_price - (pip_size * 2); // BE + 2 pips
-                     updated_sl = true;
-                  }
-                  // Trailing Stop
-                  if (profit_dist >= trail_start_price_dist) {
-                     double new_sl = current_price + trail_dist_price;
-                     if (new_sl < v_sl || v_sl == 0) {
-                        v_sl = new_sl;
-                        updated_sl = true;
-                     }
-                  }
-               }
-               
-               if (updated_sl) {
-                  DrawVirtualLines(ticket, v_sl, v_tp);
-                  SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(ticket), "{\"virtual_sl\":" + DoubleToString(v_sl, 5) + "}");
+         }
+      }
+      ObjectsDeleteAll(0, sl_name);
+      ObjectsDeleteAll(0, tp_name);
+      return;
+   }
+   
+   double style_be_trigger = 0;
+   double style_trail_start = 0;
+   double style_trail_dist = 0;
+   
+   if (style_str == "SCALPING") { style_be_trigger = g_scalping_be_trigger; style_trail_start = g_scalping_trail_start; style_trail_dist = g_scalping_trail_dist; }
+   else if (style_str == "INTRADAY") { style_be_trigger = g_intraday_be_trigger; style_trail_start = g_intraday_trail_start; style_trail_dist = g_intraday_trail_dist; }
+   else if (style_str == "SWING") { style_be_trigger = g_swing_be_trigger; style_trail_start = g_swing_trail_start; style_trail_dist = g_swing_trail_dist; }
+   
+   double atr_value = 0.0010;
+   if(g_atr_handle != INVALID_HANDLE) { double atr_arr[]; CopyBuffer(g_atr_handle, 0, 1, 1, atr_arr); if(ArraySize(atr_arr) > 0) atr_value = atr_arr[0]; }
+   double pip_size = (StringFind(sym, "JPY") != -1 || StringFind(sym, "XAU") != -1) ? 0.01 : 0.0001;
+   
+   double be_trigger_price_dist = style_be_trigger * atr_value;
+   double trail_start_price_dist = style_trail_start * atr_value;
+   double trail_dist_price = style_trail_dist * atr_value;
+   
+   bool updated_sl = false;
+   if (pos_type == POSITION_TYPE_BUY) {
+      double profit_dist = current_price - avg_price;
+      if (profit_dist >= be_trigger_price_dist && (b_sl < avg_price || b_sl == 0)) { b_sl = avg_price + (pip_size * 2); updated_sl = true; }
+      if (profit_dist >= trail_start_price_dist) {
+         double new_sl = current_price - trail_dist_price;
+         if (b_sl == 0 || new_sl > b_sl) { b_sl = new_sl; updated_sl = true; }
+      }
+   } else {
+      double profit_dist = avg_price - current_price;
+      if (profit_dist >= be_trigger_price_dist && (b_sl > avg_price || b_sl == 0)) { b_sl = avg_price - (pip_size * 2); updated_sl = true; }
+      if (profit_dist >= trail_start_price_dist) {
+         double new_sl = current_price + trail_dist_price;
+         if (new_sl < b_sl || b_sl == 0) { b_sl = new_sl; updated_sl = true; }
+      }
+   }
+   
+   if (updated_sl || ObjectFind(0, sl_name) < 0) {
+      if (b_sl > 0) {
+         ObjectCreate(0, sl_name, OBJ_HLINE, 0, 0, b_sl);
+         ObjectSetInteger(0, sl_name, OBJPROP_COLOR, clrRed);
+         ObjectSetInteger(0, sl_name, OBJPROP_STYLE, STYLE_DASH);
+         ObjectSetDouble(0, sl_name, OBJPROP_PRICE, b_sl);
+         if (updated_sl) {
+            for(int j = 0; j < PositionsTotal(); j++) {
+               if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == pos_type) {
+                  SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(position.Ticket()), "{\"virtual_sl\":" + DoubleToString(b_sl, 5) + "}");
                }
             }
          }
@@ -731,9 +721,6 @@ void OnTick() {
    }
 }
 
-//+------------------------------------------------------------------+
-//| Process Grid Recovery (Averaging)                                |
-//+------------------------------------------------------------------+
 void ProcessGridRecovery() {
    for(int m = 1; m <= 3; m++) {
       ulong mag = InpMagicNumber + m;
@@ -798,8 +785,9 @@ void ProcessGridRecovery() {
                if (position.PositionType() == POSITION_TYPE_BUY) {
                   total_buy_layers++;
                   if (grid_v_sl_buy == 0 && grid_v_tp_buy == 0) {
-                     grid_v_sl_buy = ObjectGetDouble(0, "V_SL_" + IntegerToString(position.Ticket()), OBJPROP_PRICE);
-                     grid_v_tp_buy = ObjectGetDouble(0, "V_TP_" + IntegerToString(position.Ticket()), OBJPROP_PRICE);
+                     string s_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
+                     grid_v_sl_buy = ObjectGetDouble(0, "B_SL_" + s_str + "_BUY_" + sym, OBJPROP_PRICE);
+                     grid_v_tp_buy = ObjectGetDouble(0, "B_TP_" + s_str + "_BUY_" + sym, OBJPROP_PRICE);
                   }
                   if (lowest_buy_price == 0 || position.PriceOpen() < lowest_buy_price) {
                      lowest_buy_price = position.PriceOpen();
@@ -808,8 +796,9 @@ void ProcessGridRecovery() {
                } else {
                   total_sell_layers++;
                   if (grid_v_sl_sell == 0 && grid_v_tp_sell == 0) {
-                     grid_v_sl_sell = ObjectGetDouble(0, "V_SL_" + IntegerToString(position.Ticket()), OBJPROP_PRICE);
-                     grid_v_tp_sell = ObjectGetDouble(0, "V_TP_" + IntegerToString(position.Ticket()), OBJPROP_PRICE);
+                     string s_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
+                     grid_v_sl_sell = ObjectGetDouble(0, "B_SL_" + s_str + "_SELL_" + sym, OBJPROP_PRICE);
+                     grid_v_tp_sell = ObjectGetDouble(0, "B_TP_" + s_str + "_SELL_" + sym, OBJPROP_PRICE);
                   }
                   if (highest_sell_price == 0 || position.PriceOpen() > highest_sell_price) {
                      highest_sell_price = position.PriceOpen();
