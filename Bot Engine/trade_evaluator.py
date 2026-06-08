@@ -300,22 +300,26 @@ def main():
     
     acct_settings = AccountSettings(account_id)
     
-    last_eval_time = 0
+    last_eval_minute = -1
     last_info_sync = 0
+    
+    from datetime import datetime
     
     while not _shutdown_requested:
         now = time.time()
+        current_minute = datetime.now().minute
         
         # Executor Loop (Setiap 5 saat)
         loop_signal_executor(supabase, connector, account_id, acct_settings)
         
-        # Evaluator Loop (Setiap 10 minit / 600s)
-        if now - last_eval_time >= 600:
+        # Evaluator Loop (Setiap 10 minit ikut jam sebenar: 00, 10, 20...)
+        # Juga akan jalan sekali sebaik sahaja bot dihidupkan (last_eval_minute == -1)
+        if (current_minute % 10 == 0 and current_minute != last_eval_minute) or last_eval_minute == -1:
             sync_active_trades_from_mt5(supabase, connector, account_id)
             loop_evaluator(supabase, connector, account_id)
-            last_eval_time = now
+            last_eval_minute = current_minute
             
-        # ── Kemaskini Balance & Info (Akan run FIRST TIME masa mula-mula sebab last_info_sync = 0)
+        # ── Kemaskini Balance & Info (Ikut masa 10 minit sekali, tak wajib genap)
         if now - last_info_sync >= 600:
             acct_info = connector.get_account_info() or {}
             acct_settings.update_connection_status(
