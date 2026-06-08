@@ -44,7 +44,7 @@ def get_enabled_accounts(supabase: SupabaseSync) -> list:
         logger.error(f"Failed to fetch accounts: {e}")
         return []
 
-def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accounts: list):
+def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accounts: list, target_style: str = None):
     logger.info("🔍 Running Pre-Signal & Signal Generator Loop...")
     symbol = "XAUUSD" # We only trade gold in V4
     
@@ -63,7 +63,7 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
     logger.info(f"Pre-Signal sent to AI: {pre_signal}")
     
     # Get Final Signals from AI for each style
-    styles = ["SCALPING", "INTRADAY", "SWING"]
+    styles = [target_style] if target_style else ["SCALPING", "INTRADAY", "SWING"]
     
     for style in styles:
         ai_result = get_ai_signal(indicators, tick["bid"], tick["ask"], trade_memory=None, symbol=symbol, forced_style=style)
@@ -135,7 +135,11 @@ def main():
     master_path = getattr(config, "MASTER_MT5_PATH", config.MT5_PATH)
     connector.connect(0, "", "", master_path)
     
-    last_signal_time = 0
+    last_runs = {
+        "SCALPING": "",
+        "INTRADAY": "",
+        "SWING": ""
+    }
     last_heartbeat = 0
     
     while not _shutdown_requested:
@@ -147,10 +151,25 @@ def main():
             loop_heartbeat(supabase)
             last_heartbeat = now
             
-        # 2. Signal Generator Loop (10m)
-        if now - last_signal_time >= 600:
-            loop_signal_generator(supabase, connector, accounts)
-            last_signal_time = now
+        # 2. Clock-Based Schedule (Genap Masa)
+        dt_now = datetime.now()
+        cur_min = dt_now.minute
+        time_str = dt_now.strftime("%Y-%m-%d %H:%M")
+        
+        # SWING (Setiap 1 Jam: XX:00)
+        if cur_min == 0 and last_runs["SWING"] != time_str:
+            loop_signal_generator(supabase, connector, accounts, target_style="SWING")
+            last_runs["SWING"] = time_str
+            
+        # INTRADAY (Setiap 30 Min: XX:00, XX:30)
+        if (cur_min == 0 or cur_min == 30) and last_runs["INTRADAY"] != time_str:
+            loop_signal_generator(supabase, connector, accounts, target_style="INTRADAY")
+            last_runs["INTRADAY"] = time_str
+            
+        # SCALPING (Setiap 10 Min: XX:00, XX:10, XX:20...)
+        if (cur_min % 10 == 0) and last_runs["SCALPING"] != time_str:
+            loop_signal_generator(supabase, connector, accounts, target_style="SCALPING")
+            last_runs["SCALPING"] = time_str
             
         time.sleep(5)
 
