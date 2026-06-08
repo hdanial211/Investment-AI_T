@@ -88,22 +88,35 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
             if active_atr == 0:
                 active_atr = 2.0 # Fallback for XAUUSD if data missing
                 
+            # 1. ATR Dynamic Bounds
             min_atr_dist = active_atr * 0.5
             daily_limit_dist = indicators.get("atr_swing", 0) * 1.5 # Maximum 1.5x D1 ATR
             
             raw_sl_dist = active_atr * s_params.get("sl_atr_multi", 2.0)
             raw_tp_dist = active_atr * s_params.get("tp_atr_multi", 3.0)
             
-            final_sl_dist = max(min_atr_dist, raw_sl_dist)
+            # 2. Hard Limits based on Pips (1 Pip = $0.10 for Gold)
+            pip_value = 0.10
+            min_sl_dist = s_params.get("min_sl_pips", 0) * pip_value
+            max_sl_dist = s_params.get("max_sl_pips", 9999) * pip_value
+            min_tp_dist = s_params.get("min_tp_pips", 0) * pip_value
+            max_tp_dist = s_params.get("max_tp_pips", 9999) * pip_value
+            
+            # 3. Apply ATR Constraints
+            atr_sl_dist = max(min_atr_dist, raw_sl_dist)
             if style in ["INTRADAY", "SWING"] and daily_limit_dist > 0:
-                final_sl_dist = min(final_sl_dist, daily_limit_dist)
+                atr_sl_dist = min(atr_sl_dist, daily_limit_dist)
+                
+            # 4. Apply Hard Limits (Clamp between Min and Max Pips)
+            final_sl_dist = max(min_sl_dist, min(max_sl_dist, atr_sl_dist))
+            final_tp_dist = max(min_tp_dist, min(max_tp_dist, raw_tp_dist))
                 
             if action == "BUY":
                 calc_sl = tick["ask"] - final_sl_dist
-                calc_tp = tick["ask"] + raw_tp_dist
+                calc_tp = tick["ask"] + final_tp_dist
             else:
                 calc_sl = tick["bid"] + final_sl_dist
-                calc_tp = tick["bid"] - raw_tp_dist
+                calc_tp = tick["bid"] - final_tp_dist
             # ------------------------------------------
             
             # V4 Architecture: Write one unified signal to market_signals

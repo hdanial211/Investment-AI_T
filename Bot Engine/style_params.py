@@ -28,8 +28,10 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
         "XAUUSD": {
             "sl_atr_multi": 1.5,        # SL = 1.5 × ATR(7)
             "tp_atr_multi": 2.0,        # TP = 2.0 × ATR(7)
-            "min_sl_pips": 150,         # SL minimum 15 pips ($1.50)
-            "max_sl_pips": 200,         # SL maximum 20 pips ($2.00)
+            "min_sl_pips": 20,          # SL minimum 20 pips ($2.00)
+            "max_sl_pips": 40,          # SL maximum 40 pips ($4.00)
+            "min_tp_pips": 30,          # TP minimum 30 pips ($3.00)
+            "max_tp_pips": 60,          # TP maximum 60 pips ($6.00)
             "min_rr": 1.0,              # R:R minimum 1:1
             "risk_percent": 0.5,        # 0.5% risiko per trade
             "trail_stage1": 0.3,        # Profit lock at 0.3×ATR
@@ -46,8 +48,10 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
         "XAUUSD": {
             "sl_atr_multi": 2.0,        # SL = 2.0 × ATR(14)
             "tp_atr_multi": 3.0,        # TP = 3.0 × ATR(14)
-            "min_sl_pips": 300,         # SL minimum 30 pips ($3.00)
-            "max_sl_pips": 600,         # SL maximum 60 pips ($6.00)
+            "min_sl_pips": 50,          # SL minimum 50 pips ($5.00)
+            "max_sl_pips": 100,         # SL maximum 100 pips ($10.00)
+            "min_tp_pips": 100,         # TP minimum 100 pips ($10.00)
+            "max_tp_pips": 200,         # TP maximum 200 pips ($20.00)
             "min_rr": 1.5,
             "risk_percent": 1.5,
             "trail_stage1": 0.5,
@@ -64,8 +68,10 @@ STYLE_PARAMS: Dict[str, Dict[str, dict]] = {
         "XAUUSD": {
             "sl_atr_multi": 3.0,        # SL = 3.0 × ATR(21)
             "tp_atr_multi": 6.0,        # TP = 6.0 × ATR(21)
-            "min_sl_pips": 1000,        # SL minimum 100 pips ($10.00)
-            "max_sl_pips": 5000,        # SL maximum 500 pips ($50.00)
+            "min_sl_pips": 120,         # SL minimum 120 pips ($12.00)
+            "max_sl_pips": 250,         # SL maximum 250 pips ($25.00)
+            "min_tp_pips": 300,         # TP minimum 300 pips ($30.00)
+            "max_tp_pips": 600,         # TP maximum 600 pips ($60.00)
             "min_rr": 2.0,
             "risk_percent": 1.0,
             "trail_stage1": 1.0,
