@@ -117,6 +117,7 @@ string SupabaseGET(string endpoint) {
    string result_headers;
    string url = InpSupabaseURL + endpoint;
    
+   ResetLastError();
    int res = WebRequest("GET", url, headers, 5000, post, result, result_headers);
    if (res == 200) {
       return CharArrayToString(result);
@@ -139,6 +140,7 @@ bool SupabasePOST(string endpoint, string payload) {
    string result_headers;
    string url = InpSupabaseURL + endpoint;
    
+   ResetLastError();
    int res = WebRequest("POST", url, headers, 5000, post, result, result_headers);
    if (res == 200 || res == 201 || res == 204) {
       return true;
@@ -158,10 +160,12 @@ bool SupabasePATCH(string endpoint, string payload) {
    string result_headers;
    string url = InpSupabaseURL + endpoint;
    
+   ResetLastError();
    int res = WebRequest("PATCH", url, headers, 5000, post, result, result_headers);
    if (res == 200 || res == 204) {
       return true;
    }
+   Print("WebRequest PATCH failed! Error: ", GetLastError(), " HTTP Code: ", res);
    return false;
 }
 
@@ -174,6 +178,7 @@ bool SupabaseDELETE(string endpoint) {
    string result_headers;
    string url = InpSupabaseURL + endpoint;
    
+   ResetLastError();
    int res = WebRequest("DELETE", url, headers, 5000, post, result, result_headers);
    if (res == 200 || res == 204) {
       return true;
@@ -284,10 +289,16 @@ void CheckForSignals() {
    int conf = (int)StringToInteger(ExtractJSONValue(json, "confidence"));
    string style = ExtractJSONValue(json, "style");
    
-   if (!IsSignalSafeToTrade(sym, action, conf)) {
+   // Map AI symbol to chart symbol (e.g. XAUUSD -> XAUUSDc)
+   string trade_sym = sym;
+   if (StringFind(_Symbol, sym) != -1 || StringFind(sym, _Symbol) != -1) {
+      trade_sym = _Symbol;
+   }
+   
+   if (!IsSignalSafeToTrade(trade_sym, action, conf)) {
       Print("Signal ", sig_id, " rejected by Risk Guard.");
    } else {
-      ExecuteTrade(sym, action, sl, tp, style, sig_id);
+      ExecuteTrade(trade_sym, action, sl, tp, style, sig_id);
    }
    
    // Mark signal inactive to avoid reprocessing
