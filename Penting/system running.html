@@ -107,53 +107,59 @@
 <body>
   <main>
     <header>
-      <span class="badge">V4 Multi-Account & 100% XAUUSD Exclusive</span>
+      <span class="badge">V4 100% Cloud-Native & Decoupled Architecture</span>
       <h1>System Architecture & Dashboard Manual</h1>
-      <p>Dokumentasi lengkap menggabungkan cara Dashboard beroperasi dengan senibina Cloud AI dan Windows Executor Bot.</p>
+      <p>Dokumentasi lengkap menggabungkan cara Dashboard beroperasi dengan senibina Cloud Supabase, AI Engine (Python), dan MQL5 Native Executor (MT5).</p>
     </header>
 
     <section>
       <div class="section-head">
         <h2>1. Permulaan Sistem (Startup Sequence)</h2>
-        <p>Proses ini berlaku di Laptop/PC/VPS Windows anda.</p>
+        <p>Proses ini dibahagikan kepada 2 bahagian: Server AI (Otak) dan MT5 Klien (Tangan).</p>
       </div>
-      <pre class="diagram"><span class="accent">[KLIK] start_bot.bat</span>
+      <pre class="diagram"><span class="blue">A. BAHAGIAN AI (SERVER/VPS)</span>
+[KLIK] start_bot.bat
   |
   v
-Memulakan <span class="good">bot_manager.py</span> (Pengurus Induk Utama)
+Memulakan <span class="good">master_analyzer.py</span> (Otak / Pembaca Market)
+Tarik Data Supabase (API Keys, Dashboard Roles, Active Trades).
+Menilai market setiap 10 minit & tolak keputusan ke Supabase Cloud.
+
+<span class="warn">B. BAHAGIAN KLIEN (MT5)</span>
+Klien pasang <span class="warn">InvestmentAI_Executor.mq5</span> pada chart MT5.
   |
   v
-Membaca Dashboard (Supabase) untuk kenal pasti Master & Akaun Klien Aktif
-  |
-  +------> Spawns 1x <span class="good">master_analyzer.py</span> (Otak / Pembaca Market)
-  |
-  +------> Spawns Nx <span class="good">executor_bot.py</span> (Tangan / Tukang Trade mengikut Akaun)
-  |
-  v
-<span class="warn">Sistem Auto-Restart:</span> Jika mana-mana terminal atau Python crash, 
-ia dihidupkan semula dalam 5 saat.</pre>
+EA berhubung <span class="accent">Natively</span> dengan Supabase Cloud:
+- Tarik `account_settings` setiap 60 saat.
+- Tarik `signals` dan `sl_tp_updates` setiap 10 saat.
+- Urus Virtual SL/TP, Break-Even, Trailing, & Grid Lapis secara NATIVE di MT5.</pre>
     </section>
 
     <section>
       <div class="section-head">
         <h2>2. Modul Dashboard: API Keys (Peranan AI)</h2>
-        <p>Di halaman <b>API Keys</b>, sistem mengasingkan otak AI kepada 3 peranan utama untuk keselamatan dan penjimatan quota API.</p>
+        <p>Di halaman <b>API Keys</b>, sistem mengasingkan otak AI kepada 4 peranan utama untuk keselamatan dan penjimatan quota API.</p>
       </div>
       <div class="cards">
         <div class="card">
           <span class="tag blue">MAIN MODEL</span>
           <h3>Master Analyzer</h3>
-          <p>Dipasang di tab "Master". AI ini membaca chart XAUUSD setiap 10/30/60 minit untuk menghasilkan keputusan BUY/SELL, berserta TP/SL sasaran.</p>
-        </div>
-        <div class="card">
-          <span class="tag red">RISK MODEL</span>
-          <h3>Executor Second Opinion</h3>
-          <p>Ditetapkan khas untuk akaun klien. Bertindak menapis signal dari Main Model. Contoh: "Akaun ini margin kecil, jangan ambil setup Swing ini."</p>
+          <p>Membaca chart XAUUSD setiap masa untuk menghasilkan keputusan BUY/SELL, berserta TP/SL sasaran awal. Memerlukan model yang laju dan pintar.</p>
         </div>
         <div class="card">
           <span class="tag green">TRADE EVALUATOR</span>
           <h3>Active Trade Evaluator</h3>
-          <p>Dipanggil setiap 20 minit apabila ada trade <i>floating</i>. Berperanan sebagai "Penasihat" untuk terus Hold, Ubah SL/TP, atau Cut-loss awal (Early Exit).</p>
+          <p>Dipanggil setiap 10 minit untuk menilai trade yang sedang <i>floating</i>. Bertindak mengubah SL/TP (dimasukkan ke `sl_tp_updates`) atau arah cut-loss awal.</p>
+        </div>
+        <div class="card">
+          <span class="tag purple">VISION MODEL</span>
+          <h3>Screenshot Analyst</h3>
+          <p>Digunakan khas jika analisa teknikal memerlukan AI melihat terus imej chart (vision) untuk mencari pattern candlestick tersembunyi.</p>
+        </div>
+        <div class="card">
+          <span class="tag red">RISK MODEL</span>
+          <h3>Second Opinion</h3>
+          <p>Penapis akhir signal. Boleh menolak entry dari Main Model jika ia rasakan setup itu terlampau berisiko berdasarkan sentimen.</p>
         </div>
       </div>
       <p><b>Nota Penting:</b> Sistem menyokong <i>Dynamic Failover (Fallback)</i>. Jika model utama (cth: <code>openai/gpt-oss</code>) gagal atau habis limit, ia automatik melompat ke <i>Fallback Provider</i> di bawahnya.</p>
@@ -162,77 +168,74 @@ ia dihidupkan semula dalam 5 saat.</pre>
     <section>
       <div class="section-head">
         <h2>3. Modul Dashboard: Account Settings</h2>
-        <p>Halaman ini menetapkan parameter trading khusus untuk setiap akaun. Robot di Windows akan sentiasa menarik data ini secara <i>real-time</i>.</p>
+        <p>Halaman ini menetapkan parameter trading khusus untuk setiap akaun. MQL5 EA akan sentiasa menarik data ini secara <i>real-time</i>.</p>
       </div>
       
-      <h4>A. Master Analyzer MT5 Settings</h4>
-      <ul>
-        <li>Hanya digunakan oleh "Otak" untuk menyedut data OHLCV & Tick pasaran.</li>
-        <li><b>TIDAK</b> digunakan untuk membuka apa-apa <i>trade</i>. Akaun demo disarankan.</li>
-      </ul>
-
-      <h4>B. Client Trading Settings (Ammar / Hakim / dsb.)</h4>
+      <h4>A. Client Trading Settings</h4>
       <p>Setiap klien mempunyai tetapan fleksibel yang dipecahkan kepada tiga gaya <i>trade</i>:</p>
       <table>
         <tr>
           <th>Gaya</th>
           <th>Lot Size</th>
-          <th>Grid Recovery</th>
+          <th>Grid Recovery / Lapis</th>
           <th>Trailing & BE</th>
         </tr>
         <tr>
           <td>Scalping</td>
           <td>Lot besar sedikit.</td>
-          <td>Sesuai jika salah arah jangka pendek.</td>
-          <td>Cepat Break-Even, Trailing rapat.</td>
+          <td>Dijalankan secara Auto (Native MQL5) jika jarak harga melepasi ATR yang ditetapkan.</td>
+          <td>Cepat Break-Even (+2 pips), Trailing sangat rapat.</td>
         </tr>
         <tr>
           <td>Intraday</td>
           <td>Lot sederhana.</td>
-          <td>Grid jarak sederhana.</td>
+          <td>Grid jarak sederhana mengikut gandaan Lot (Martingale/Linear).</td>
           <td>BE sederhana, bagi ruang harga bernafas.</td>
         </tr>
         <tr>
           <td>Swing</td>
           <td>Lot kecil.</td>
-          <td>Grid jarak besar.</td>
+          <td>Lapis jarak jauh jika setup valid tetapi salah masa entry.</td>
           <td>Trailing Stop yang luas (jarak jauh).</td>
         </tr>
       </table>
 
-      <h4>C. Global Limits & Filters (Pertahanan Utama Klien)</h4>
+      <h4>B. Global Limits & Filters</h4>
       <ul>
-        <li><b>Max Risk % / Max Drawdown %:</b> Jika <i>floating loss</i> melepasi tahap ini, bot tidak akan buka *trade* baru.</li>
-        <li><b>High-Impact News Action:</b> Boleh disetkan untuk menyekat <i>entry</i> baru atau menutup semua <i>trade</i> hijau sebelum *News* meletup.</li>
-        <li><b>Hedging Strategy:</b> Kebolehan bot untuk memegang BUY dan SELL serentak (*Locked Position*) jika pasaran ekstrem.</li>
-        <li><b>Manual Trade Management:</b> Walaupun anda buka trade secara manual di telefon (MT5 bimbit), anda boleh setkan di dashboard agar Bot tolong jagakan SL, TP, dan BE untuk <i>trade manual</i> tersebut!</li>
+        <li><b>Risk Guard:</b> Sebelum membuka sebarang trade isyarat (Signal), EA akan membaca tetapan Dashboard untuk menyemak Spread Maksimum, Had Dagangan Terbuka (Max Trades), Baki Keseluruhan Drawdown Harian (Daily Drawdown %), dan Waktu Larangan (Asia Session). Isyarat akan ditolak secara automatik jika tidak menepati tahap keselamatan.</li>
+        <li><b>Manual Trade Management:</b> Jika anda entry secara MANUAL di phone (Magic Number 0), EA MT5 akan kesan dan tolak terus ke Supabase. EA dan AI akan auto-jaga SL, TP dan BE mengikut setting dashboard anda!</li>
+        <li><b>Native Processing:</b> Jarak Trailing dan Break-even dikira secara "Real-Time" pada setiap Tick di dalam MT5 tanpa "Delay" dari sambungan Python.</li>
+        <li><b>Grid Protection:</b> Dagangan berlapis (Grid Recovery) kini mempunyai fungsi keselamatan SL/TP di mana ia secara automatik meminjam garisan maya trade induk (ibu), memastikan tiada lapisan dibiarkan tanpa penjagaan.</li>
+        <li><b>Evaluator Tighter-Only:</b> Apabila AI (Trade Evaluator) menghantar aras SL/TP terbaharu untuk dijaga, MQL5 EA di MT5 hanya akan menerimanya jika paras baharu itu terbukti LEBIH KETAT bagi mengunci keuntungan (lock profit) atau mengurangkan kerugian.</li>
+        <li><b>Specific History Reporting:</b> Apabila position ditutup (Virtual Hit), EA kini menangkap dengan tepat adakah "Virtual SL Hit" atau "Virtual TP Hit", berserta nilai Profit/Loss Sebenar (True Deal Profit) dari sejarah (history) terminal MT5, sebelum direkod ke Dashboard `closed_trades`.</li>
       </ul>
     </section>
 
     <section>
       <div class="section-head">
-        <h2>4. Flow Lengkap (Dari Bacaan AI hingga ke MT5 Terminal)</h2>
+        <h2>4. Flow Lengkap (100% Cloud-Native Decoupled)</h2>
       </div>
-      <pre class="diagram"><span class="blue">A. OTAC MEMBACA MARKET (Master Analyzer)</span>
-Setiap 10/30/60 Minit, Master tarik data dari Master MT5.
-|--> Hantar ke <span class="blue">MAIN MODEL AI</span>.
-|--> Main Model keluarkan signal: "XAUUSD BUY, SL: 2300, TP: 2320".
-|--> Master hantar signal (Broadcast) ke Dashboard (Supabase).
+      <pre class="diagram"><span class="blue">A. OTAK MEMBACA MARKET (Python AI Server)</span>
+Setiap 10 Minit, Master analisa market XAUUSD.
+|--> MAIN MODEL keluarkan signal.
+|--> Master hantar signal ke jadual `signals` di Supabase.
 
-<span class="warn">B. TANGAN MENERIMA SIGNAL (Executor Bot)</span>
-Executor Bot klien A mengesan ada signal baru di Supabase.
-|--> <span class="warn">RISK AI</span> dihidupkan untuk check baki Klien A. 
-|--> Jika "Lulus", masuk trade menggunakan Lot/Grid dari tetapan <span class="warn">Account Settings</span>.
-|--> Trade berjaya dibuka di Terminal MT5 Klien A.
+<span class="warn">B. TANGAN MENERIMA SIGNAL (MQL5 EA)</span>
+EA MT5 Klien A (OnTimer setiap 10 saat) semak Supabase.
+|--> Jika ada Signal = Buka Trade Natively (Stealth Mode).
+|--> Lukis garisan putus-putus merah (SL) dan hijau (TP) di Chart MT5.
 
-<span class="good">C. DUA LAPISAN PENJAGAAN TRADE AKTIF (Floating)</span>
-<span class="accent">Lapisan 1 (Python) - Setiap 2 Saat:</span>
-Executor Bot menyemak tick di MT5 setiap 2 saat. Jika harga kena Virtual SL/TP 
-yang ditetapkan di Account Settings, bot cut-loss/take-profit SERTA MERTA.
+<span class="good">C. TANGAN MENJAGA TRADE (Native OnTick)</span>
+Setiap kali harga bergerak (Setiap Tick), EA MT5 semak:
+|--> Kena SL Virtual / TP Virtual? (Cut-loss / Take-profit)
+|--> Harga pergi jauh? Alih garisan SL kepada Break-Even (+2 pips).
+|--> Masih floating untung? Gerakkan garisan Trailing Stop Natively.
+|--> Salah Arah? Buka lapis (Grid Recovery) secara Auto!
 
-<span class="accent">Lapisan 2 (Evaluator AI) - Setiap 20 Minit:</span>
-Master hantar ringkasan trade yang tengah floating ke <span class="green">TRADE EVALUATOR AI</span>.
-Evaluator AI menasihati sama ada untuk Hold, Ubah SL/TP, atau Potong awal (Reversal).</pre>
+<span class="accent">D. OTAK MENEGUR TANGAN (AI Evaluator via Supabase)</span>
+Setiap 10 minit, Master Analyzer semak `active_trades` di Supabase.
+|--> TRADE EVALUATOR nilai trade. Jika perlu ubah, hantar ke `sl_tp_updates`.
+|--> MQL5 EA kutip `sl_tp_updates`, ubah garisan di chart, hantar respon "applied".</pre>
     </section>
 
     <section>
@@ -241,16 +244,15 @@ Evaluator AI menasihati sama ada untuk Hold, Ubah SL/TP, atau Potong awal (Rever
         <p>Halaman pemerhatian pasif <i>(read-only)</i> yang boleh diakses dari mana-mana peranti untuk melihat "kesihatan" bot.</p>
       </div>
       <ul>
-        <li><b>Bot Status Heartbeat:</b> Memastikan laptop/Windows bot anda masih hidup. Jika tulis "Stale", maknanya skrip Python di rumah/VPS anda terputus.</li>
-        <li><b>Market Signals (Broadcast):</b> Sejarah isyarat AI (beserta <i>Signal ID</i>, Alasan AI, dan <i>Confidence Level</i>).</li>
-        <li><b>Active Trades:</b> Menunjukkan <i>ticket</i> yang sedang dibuka, arah, Lot, gaya (Scalping/Swing), dan paras <i>Virtual SL/TP</i> semasa.</li>
-        <li><b>Closed Trades (History):</b> Bukti penutupan trade. Akan tertera <i>Reason</i> (contoh: <code>SL (Profit)</code> untuk Trailing Stop, atau <code>reverse_signal</code> jika Evaluator AI mengesan <i>reversal</i>).</li>
-        <li><b>Pattern Ranking:</b> Analitik ketepatan <i>Candlestick Patterns</i>. Sistem mengira corak mana (cth: <i>Bullish Engulfing</i>, <i>Tweezer Bottom</i>) yang paling mempunyai <i>Win Rate</i> tinggi dan menyumbang kepada Net Profit terbesar di XAUUSD.</li>
+        <li><b>Bot Status Heartbeat:</b> Memastikan Python Server (Master) masih hidup dan EA MT5 klien (Executor) online.</li>
+        <li><b>Market Signals (Broadcast):</b> Sejarah isyarat AI (beserta <i>Signal ID</i> dan sebab-sebab entry).</li>
+        <li><b>Active Trades (Sync Live):</b> Semua trade aktif, TERSMASUK TRADE MANUAL, akan dipaparkan berserta jarak pips, profit terapung (floating profit), SL dan TP secara live.</li>
+        <li><b>SL / TP Updates History:</b> Jejak setiap kali AI Evaluator ubah posisi SL dan TP.</li>
       </ul>
     </section>
 
     <footer>
-      Investment-AI_T system running document - Menggabungkan integrasi Web Dashboard dan Local Windows Bot.
+      Investment-AI_T system running document - V4 Hybrid Cloud-Native Architecture. Decoupled, Robust, and Fast.
     </footer>
   </main>
 </body>

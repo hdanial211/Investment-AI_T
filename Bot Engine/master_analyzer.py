@@ -93,24 +93,41 @@ def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, accounts: li
     logger.info("🧠 Running Trade Evaluator Loop...")
     for acc in accounts:
         try:
-            resp = supabase.client.table("active_trades").select("*").eq("account_id", acc).execute()
+            resp = supabase.client.table("active_trades").select("*").eq("account_id", acc).neq("current_status", "CLOSED").execute()
             trades = resp.data
             for t in trades:
                 ticket = t["ticket"]
                 sym = t["symbol"]
                 sl = t.get("virtual_sl", 0)
                 tp = t.get("virtual_tp", 0)
+                style = t.get("trade_style", "UNKNOWN")
+                entry = t.get("entry_price", 0)
+                profit = t.get("floating_profit", 0)
                 
-                # Ask AI if we should update SL/TP
-                # (Simplified for now to save tokens, real implementation queries get_ai_signal with trade_eval_mode=True)
                 tick = connector.get_tick(sym)
                 if not tick: continue
                 
-                ai_result = get_ai_signal({"trade_eval": f"Ticket {ticket} SL={sl} TP={tp}"}, tick["bid"], tick["ask"], None, sym, trade_eval_mode=True)
+                mdf = connector.get_multi_timeframe(sym, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=50)
+                if not mdf: continue
+                indicators = calculate_multi_indicators(mdf, symbol=sym)
+                
+                eval_prompt = (
+                    f"Trade {ticket} | Style: {style} | Entry: {entry} | "
+                    f"Current SL: {sl} | Current TP: {tp} | Floating Profit: {profit}\n"
+                    f"Market ADX: {indicators.get('adx', 0)} | H4 Trend: {indicators.get('h4_trend', 'UNKNOWN')}\n"
+                    f"Are there any reversal patterns on M15/H1? Provide UPDATE_SL_TP or CLOSE_TRADE if risk is high, else HOLD."
+                )
+                
+                ai_result = get_ai_signal(
+                    {"trade_eval": eval_prompt}, 
+                    tick["bid"], tick["ask"], None, sym, 
+                    specific_provider_config=config.EVALUATOR_PROVIDER_CONFIG,
+                    trade_eval_mode=True
+                )
                 
                 if ai_result.get("action") == "UPDATE_SL_TP":
-                    new_sl = ai_result.get("sl")
-                    new_tp = ai_result.get("tp")
+                    new_sl = ai_result.get("sl") or sl
+                    new_tp = ai_result.get("tp") or tp
                     supabase.client.table("sl_tp_updates").insert({
                         "signal_id": t.get("signal_id", str(ticket)),
                         "account_id": acc,

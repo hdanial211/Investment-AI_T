@@ -35,9 +35,11 @@ def get_model_for_role(provider_config: Dict, role: str = "main") -> str:
     role = str(role or "main").strip().lower()
     
     if role == "risk":
-        model_name = provider_config.get("risk_model") or config.AI_RISK_MODEL
+        model_name = provider_config.get("risk_model") or provider_config.get("model") or getattr(config, "AI_RISK_MODEL", "auto")
+    elif role == "evaluator":
+        model_name = provider_config.get("model") or "auto"
     else:
-        model_name = provider_config.get("main_model") or config.AI_MAIN_MODEL
+        model_name = provider_config.get("main_model") or provider_config.get("model") or getattr(config, "AI_MAIN_MODEL", "auto")
         
     # Auto mode routing: If user selects "auto" in dashboard
     if str(model_name).lower().strip() == "auto":

@@ -69,6 +69,8 @@ def _apply_role_based_providers(providers: dict) -> None:
     """
     main_cfg = providers.get("main")
     vision_cfg = providers.get("vision")
+    evaluator_cfg = providers.get("evaluator")
+    risk_cfg = providers.get("risk")
     fallbacks = providers.get("fallbacks", [])
     
     # Set role-based configs
@@ -87,6 +89,18 @@ def _apply_role_based_providers(providers: dict) -> None:
             config.VISION_AI_MODEL = vision_cfg["model"]
         logger.info(
             f"Vision Model: {vision_cfg.get('provider')} / {vision_cfg.get('model')}"
+        )
+        
+    if evaluator_cfg and isinstance(evaluator_cfg, dict):
+        config.EVALUATOR_PROVIDER_CONFIG = evaluator_cfg
+        logger.info(
+            f"Evaluator Model: {evaluator_cfg.get('provider')} / {evaluator_cfg.get('model')}"
+        )
+        
+    if risk_cfg and isinstance(risk_cfg, dict):
+        config.RISK_PROVIDER_CONFIG = risk_cfg
+        logger.info(
+            f"Risk Model: {risk_cfg.get('provider')} / {risk_cfg.get('model')}"
         )
     
     if isinstance(fallbacks, list):

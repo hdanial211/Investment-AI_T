@@ -106,6 +106,8 @@ MASTER_AI_RISK_MODEL = None
 # Injected from Supabase system_settings.providers_list (role-based format).
 MAIN_PROVIDER_CONFIG = None       # {"provider": "nvidia", "api_key": "...", "model": "..."}
 VISION_PROVIDER_CONFIG = None     # {"provider": "nvidia", "api_key": "...", "model": "..."}
+EVALUATOR_PROVIDER_CONFIG = None  # {"provider": "...", "api_key": "...", "model": "..."}
+RISK_PROVIDER_CONFIG = None       # {"provider": "...", "api_key": "...", "model": "..."}
 MASTER_FALLBACK_PROVIDERS = []    # [{"provider": "groq", "api_key": "...", "model": "auto"}, ...]
 
 # ─────────────────────────────────────────────────────────────────────────────
