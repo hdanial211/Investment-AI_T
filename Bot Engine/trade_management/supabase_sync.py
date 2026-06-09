@@ -248,14 +248,54 @@ class SupabaseSync:
         return self._request("POST", f"{self.base_url}/rest/v1/{table}", payload)
 
     def _request(self, method: str, url: str, payload: Dict) -> Optional[requests.Response]:
-        try:
-            response = requests.request(method, url, headers=self.headers, json=payload, timeout=self.timeout)
-            if response.status_code == 409:
-                # Duplicate constraint hit
+        import re
+        import copy
+        
+        max_retries = 5
+        current_payload = copy.deepcopy(payload)
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.request(method, url, headers=self.headers, json=current_payload, timeout=self.timeout)
+                if response.status_code == 409:
+                    return response
+                
+                if response.status_code == 400:
+                    try:
+                        err_json = response.json()
+                    except:
+                        err_json = {}
+                        
+                    if err_json.get("code") == "PGRST204":
+                        msg = err_json.get("message", "")
+                        match = re.search(r"Could not find the '([^']+)' column", msg)
+                        if match:
+                            missing_col = match.group(1)
+                            logger.warning(f"⚠️ [Auto-Healing] Column '{missing_col}' missing in DB schema cache. Removing from payload and retrying (attempt {attempt + 1})...")
+                            
+                            # Remove the missing column from payload
+                            if isinstance(current_payload, dict):
+                                if missing_col in current_payload:
+                                    del current_payload[missing_col]
+                            elif isinstance(current_payload, list):
+                                for item in current_payload:
+                                    if isinstance(item, dict) and missing_col in item:
+                                        del item[missing_col]
+                            
+                            # Continue to next iteration of loop to retry with modified payload
+                            continue
+                
+                if response.status_code >= 400:
+                    logger.warning(f"Supabase sync failed {response.status_code}: {response.text[:240]}")
                 return response
-            if response.status_code >= 400:
-                logger.warning(f"Supabase sync failed {response.status_code}: {response.text[:240]}")
-            return response
+                
+            except Exception as exc:
+                logger.warning(f"Supabase sync error: {exc}")
+                return None
+        
+        # Final fallback request after retries exhausted
+        try:
+            return requests.request(method, url, headers=self.headers, json=current_payload, timeout=self.timeout)
         except Exception as exc:
             logger.warning(f"Supabase sync error: {exc}")
             return None

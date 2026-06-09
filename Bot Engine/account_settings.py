@@ -207,10 +207,10 @@ class AccountSettings:
             except: return None
 
         return {
-            "be_trigger_pips": _get_opt("be_trigger_pips"),
+            "be_trigger_pips": _get_opt("be_trigger"),
             "be_offset_pips": _get_opt("be_offset_pips"),
-            "trail_start_pips": _get_opt("trail_start_pips"),
-            "trail_dist_pips": _get_opt("trail_dist_pips")
+            "trail_start_pips": _get_opt("trail_start"),
+            "trail_dist_pips": _get_opt("trail_dist")
         }
 
     @property
