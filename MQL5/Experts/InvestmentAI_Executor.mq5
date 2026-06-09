@@ -115,7 +115,7 @@ string SupabaseGET(string endpoint) {
    string headers = "apikey: " + InpSupabaseAnon + "\r\nAuthorization: Bearer " + InpSupabaseAnon + "\r\nAccept: application/json\r\n";
    char post[], result[];
    string result_headers;
-   string url = InpSupabaseURL + endpoint;
+   string url = g_SupabaseURL + endpoint;
    
    ResetLastError();
    int res = WebRequest("GET", url, headers, 5000, post, result, result_headers);
@@ -138,7 +138,7 @@ bool SupabasePOST(string endpoint, string payload) {
    ArrayResize(post, ArraySize(post)-1); 
    
    string result_headers;
-   string url = InpSupabaseURL + endpoint;
+   string url = g_SupabaseURL + endpoint;
    
    ResetLastError();
    int res = WebRequest("POST", url, headers, 5000, post, result, result_headers);
@@ -158,7 +158,7 @@ bool SupabasePATCH(string endpoint, string payload) {
    StringToCharArray(payload, post, 0, WHOLE_ARRAY, CP_UTF8);
    ArrayResize(post, ArraySize(post)-1);
    string result_headers;
-   string url = InpSupabaseURL + endpoint;
+   string url = g_SupabaseURL + endpoint;
    
    ResetLastError();
    int res = WebRequest("PATCH", url, headers, 5000, post, result, result_headers);
@@ -176,7 +176,7 @@ bool SupabaseDELETE(string endpoint) {
    string headers = "apikey: " + InpSupabaseAnon + "\r\nAuthorization: Bearer " + InpSupabaseAnon + "\r\n";
    char post[], result[];
    string result_headers;
-   string url = InpSupabaseURL + endpoint;
+   string url = g_SupabaseURL + endpoint;
    
    ResetLastError();
    int res = WebRequest("DELETE", url, headers, 5000, post, result, result_headers);
@@ -190,8 +190,18 @@ bool SupabaseDELETE(string endpoint) {
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
+string g_AccountID;
+string g_SupabaseURL;
+
 int OnInit() {
-   Print("Initializing InvestmentAI Executor for Account: ", InpAccountID);
+   g_AccountID = InpAccountID;
+   StringTrimLeft(g_AccountID);
+   StringTrimRight(g_AccountID);
+   
+   g_SupabaseURL = InpSupabaseURL;
+   StringTrimLeft(g_SupabaseURL);
+   StringTrimRight(g_SupabaseURL);
+   Print("Initializing InvestmentAI Executor for Account: ", g_AccountID);
    trade.SetExpertMagicNumber(InpMagicNumber);
    
    if (!SyncAccountSettings()) {
@@ -224,7 +234,7 @@ void OnDeinit(const int reason) {
 //| Sync Account Settings from Supabase                              |
 //+------------------------------------------------------------------+
 bool SyncAccountSettings() {
-   string json = SupabaseGET("/rest/v1/account_settings?account_id=eq." + InpAccountID);
+   string json = SupabaseGET("/rest/v1/account_settings?account_id=eq." + g_AccountID);
    if (json == "" || StringFind(json, "[]") != -1) return false;
    
    g_scalping_lot = StringToDouble(ExtractJSONValue(json, "scalping_lot"));
@@ -302,7 +312,7 @@ struct ActiveTradeCache {
 ActiveTradeCache g_cached_trades[];
 
 void SyncActiveTrades() {
-   string json = SupabaseGET("/rest/v1/active_trades?account_id=eq." + InpAccountID + "&current_status=eq.OPEN");
+   string json = SupabaseGET("/rest/v1/active_trades?account_id=eq." + g_AccountID + "&current_status=eq.OPEN");
    if (json == "" || StringFind(json, "[]") != -1) {
       ArrayResize(g_cached_trades, 0);
       return;
@@ -335,7 +345,7 @@ void SyncActiveTrades() {
 //| Fetch New Signals                                                |
 //+------------------------------------------------------------------+
 void CheckForSignals() {
-   string json = SupabaseGET("/rest/v1/signals?account_id=eq." + InpAccountID + "&is_active=eq.true&order=generated_at.desc&limit=1");
+   string json = SupabaseGET("/rest/v1/signals?account_id=eq." + g_AccountID + "&is_active=eq.true&order=generated_at.desc&limit=1");
    if (json == "" || StringFind(json, "[]") != -1) return;
    
    string sig_id = ExtractJSONValue(json, "signal_id");
@@ -371,7 +381,7 @@ void CheckForSignals() {
 //| Fetch SL/TP Updates from AI Evaluator                            |
 //+------------------------------------------------------------------+
 void SyncSLTPUpdates() {
-   string json = SupabaseGET("/rest/v1/sl_tp_updates?account_id=eq." + InpAccountID + "&applied=eq.false");
+   string json = SupabaseGET("/rest/v1/sl_tp_updates?account_id=eq." + g_AccountID + "&applied=eq.false");
    if (json == "" || StringFind(json, "[]") != -1) return;
    
    StringReplace(json, "},{", "|");
@@ -503,7 +513,7 @@ void ExecuteTrade(string sym, string action, double virtual_sl, double virtual_t
       Print("Stealth Trade Opened: ", ticket, " | V_SL: ", virtual_sl, " | V_TP: ", virtual_tp);
       
       // Save Virtual SL/TP to Supabase
-      string payload = "{\"ticket\":" + IntegerToString(ticket) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"" + sig_id + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + action + "\",\"lot\":" + DoubleToString(lot, 2) + ",\"virtual_sl\":" + DoubleToString(virtual_sl, 5) + ",\"virtual_tp\":" + DoubleToString(virtual_tp, 5) + ",\"trade_style\":\"" + style + "\",\"current_status\":\"OPEN\"}";
+      string payload = "{\"ticket\":" + IntegerToString(ticket) + ",\"account_id\":\"" + g_AccountID + "\",\"signal_id\":\"" + sig_id + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + action + "\",\"lot\":" + DoubleToString(lot, 2) + ",\"virtual_sl\":" + DoubleToString(virtual_sl, 5) + ",\"virtual_tp\":" + DoubleToString(virtual_tp, 5) + ",\"trade_style\":\"" + style + "\",\"current_status\":\"OPEN\"}";
       SupabasePOST("/rest/v1/active_trades", payload);
       
       string dir_str = (action == "BUY") ? "BUY" : "SELL";
@@ -517,7 +527,7 @@ void ExecuteTrade(string sym, string action, double virtual_sl, double virtual_t
 //| Restore Virtual Lines from Supabase after MT5 Restart            |
 //+------------------------------------------------------------------+
 void RestoreVirtualLines() {
-   string json = SupabaseGET("/rest/v1/active_trades?account_id=eq." + InpAccountID + "&current_status=eq.OPEN");
+   string json = SupabaseGET("/rest/v1/active_trades?account_id=eq." + g_AccountID + "&current_status=eq.OPEN");
    if (json == "" || StringFind(json, "[]") != -1) return;
    
    StringReplace(json, "},{", "|");
@@ -595,8 +605,8 @@ void OnTimer() {
    
    // Heartbeat every 60s
    if (now - last_heartbeat >= 60) {
-      string payload = "{\"account_id\":\"" + InpAccountID + "\",\"status\":\"online\",\"last_seen_at\":\"" + TimeToString(now, TIME_DATE|TIME_MINUTES) + "\"}";
-      string url = "/rest/v1/bot_heartbeat?account_id=eq." + InpAccountID;
+      string payload = "{\"account_id\":\"" + g_AccountID + "\",\"status\":\"online\",\"last_seen_at\":\"" + TimeToString(now, TIME_DATE|TIME_MINUTES) + "\"}";
+      string url = "/rest/v1/bot_heartbeat?account_id=eq." + g_AccountID;
       if (!SupabasePATCH(url, payload)) {
          // If PATCH fails, try POST
          SupabasePOST("/rest/v1/bot_heartbeat", payload);
@@ -751,7 +761,7 @@ void ManageIndividualTrades() {
                }
                if(final_pl == 0) final_pl = position.Profit() + position.Swap() + position.Commission();
                
-               string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"" + style + "\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
+               string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + g_AccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"" + style + "\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
                SupabasePOST("/rest/v1/closed_trades", payload);
                SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(tkt), "{\"exit_reason\":\"" + close_reason + "\",\"current_status\":\"CLOSED\"}");
                
@@ -910,7 +920,7 @@ void ProcessGridRecovery() {
                if (trade.Buy(new_lot, sym, current_ask, 0, 0, "GridLayer_" + IntegerToString(total_buy_layers))) {
                   ulong tkt = trade.ResultOrder();
                   string style_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
-                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"BUY\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_buy, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_buy, 5) + ",\"trade_style\":\"" + style_str + "\",\"current_status\":\"OPEN\"}";
+                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + g_AccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"BUY\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_buy, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_buy, 5) + ",\"trade_style\":\"" + style_str + "\",\"current_status\":\"OPEN\"}";
                   SupabasePOST("/rest/v1/active_trades", payload);
                   DrawVirtualLines(tkt, grid_v_sl_buy, grid_v_tp_buy);
                   Print("Grid BUY opened for ", sym, " Layer ", total_buy_layers);
@@ -926,7 +936,7 @@ void ProcessGridRecovery() {
                if (trade.Sell(new_lot, sym, current_bid, 0, 0, "GridLayer_" + IntegerToString(total_sell_layers))) {
                   ulong tkt = trade.ResultOrder();
                   string style_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
-                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"SELL\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_sell, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_sell, 5) + ",\"trade_style\":\"" + style_str + "\",\"current_status\":\"OPEN\"}";
+                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + g_AccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"SELL\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_sell, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_sell, 5) + ",\"trade_style\":\"" + style_str + "\",\"current_status\":\"OPEN\"}";
                   SupabasePOST("/rest/v1/active_trades", payload);
                   DrawVirtualLines(tkt, grid_v_sl_sell, grid_v_tp_sell);
                   Print("Grid SELL opened for ", sym, " Layer ", total_sell_layers);
@@ -1095,7 +1105,7 @@ void ManageManualBaskets() {
                               }
                            }
                         }
-                        string payload = "{\"ticket\":" + IntegerToString(mtkt) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"MANUAL_BASKET\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
+                        string payload = "{\"ticket\":" + IntegerToString(mtkt) + ",\"account_id\":\"" + g_AccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"MANUAL_BASKET\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
                         SupabasePOST("/rest/v1/closed_trades", payload);
                         SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(mtkt), "{\"exit_reason\":\"" + close_reason + "\",\"current_status\":\"CLOSED\"}");
                         
