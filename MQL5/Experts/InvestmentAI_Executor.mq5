@@ -239,7 +239,7 @@ void OnDeinit(const int reason) {
 //+------------------------------------------------------------------+
 bool SyncAccountSettings() {
    string json = SupabaseGET("/rest/v1/account_settings?account_id=eq." + g_AccountID);
-   if (json == "" || StringFind(json, "[]") != -1) return false;
+   if (json == "" || StringFind(json, "\"account_id\"") == -1) return false;
    
    g_scalping_lot = StringToDouble(ExtractJSONValue(json, "scalping_lot"));
    g_intraday_lot = StringToDouble(ExtractJSONValue(json, "intraday_lot"));
