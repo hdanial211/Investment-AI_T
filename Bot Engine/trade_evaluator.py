@@ -292,16 +292,19 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
             f"Are there any reversal patterns on M15/H1? Provide UPDATE_SL_TP or CLOSE_TRADE if risk is high, else HOLD."
         )
         
-        # Guna API key individu dari dashboard (jika ada), tapi paksakan model ringan
+        # Guna konfigurasi Evaluator individu dari dashboard (jika ada)
         eval_cfg = acct_settings.get_evaluator_config() or {}
-        eval_api_key = eval_cfg.get("api_key") if eval_cfg else None
         
-        fast_provider = {
-            "provider": "groq", 
-            "model": "llama-3.1-8b-instant"
-        }
-        if eval_api_key:
-            fast_provider["api_key"] = eval_api_key
+        if eval_cfg.get("provider") and eval_cfg.get("api_key"):
+            # Jika user dah set provider/model/api_key khusus untuk Evaluator di Dashboard
+            fast_provider = eval_cfg
+        else:
+            # Fallback jika kosong
+            fast_provider = {
+                "provider": "groq", 
+                "model": "llama-3.1-8b-instant"
+            }
+        
         
         ai_result = get_ai_signal(
             {"trade_eval": eval_prompt}, 
