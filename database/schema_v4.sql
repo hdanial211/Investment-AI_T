@@ -13,7 +13,8 @@ CREATE TABLE active_trades (
   trade_style text,         -- SCALPING / INTRADAY / SWING
   virtual_sl double precision,
   virtual_tp double precision,
-  be_offset_pips double precision,   -- Pencetus Breakeven
+  be_trigger_pips double precision,  -- Pencetus Breakeven (Trigger)
+  be_offset_pips double precision,   -- Breakeven Offset
   trail_start_pips double precision, -- Jarak Trailing
   trail_dist_pips double precision,
   entry_price double precision,

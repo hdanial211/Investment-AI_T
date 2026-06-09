@@ -226,7 +226,7 @@ class SupabaseSync:
                 "account_id": acc,
                 "symbol": signal_data.get("symbol"),
                 "action": signal_data.get("action"),
-                "style": signal_data.get("trade_style"),
+                "style": signal_data.get("style") or signal_data.get("trade_style"),
                 "sl": signal_data.get("sl"),
                 "tp": signal_data.get("tp"),
                 "confidence": signal_data.get("confidence"),

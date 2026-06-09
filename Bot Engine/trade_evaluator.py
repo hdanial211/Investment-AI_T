@@ -58,7 +58,7 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, acc: str, acct_settings)
                     "ticket": tkt,
                     "account_id": acc,
                     "symbol": p["symbol"],
-                    "direction": p["type"],  # type=0 is BUY, type=1 is SELL
+                    "direction": "BUY" if p["type"] == 0 else "SELL",  # type=0 is BUY, type=1 is SELL
                     "lot": p["volume"],
                     "entry_price": p["price_open"],
                     "floating_profit": p["profit"],
@@ -143,7 +143,7 @@ def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: Accoun
         
         for sig in signals:
             sym = sig.get("symbol", "XAUUSD")
-            action = sig.get("action", "")
+            action = sig.get("action") or sig.get("direction", "")
             style = sig.get("trade_style", sig.get("style", "UNKNOWN"))
             confidence = sig.get("confidence", 0)
             sig_id = sig.get("id")
@@ -171,7 +171,7 @@ def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: Accoun
             # Jika hedging tidak dibenarkan, check adakah ada posisi berlawanan
             if not getattr(acct_settings, "allow_hedging", True):
                 opposite = "SELL" if action == "BUY" else "BUY"
-                has_opposite = any(p["direction"] == opposite for p in open_positions if p["symbol"] == sym)
+                has_opposite = any(("BUY" if p.get("type") == 0 else "SELL") == opposite for p in open_positions if p.get("symbol") == sym)
                 if has_opposite:
                     logger.warning(f"[{acc}] Signal {action} dibatalkan: Hedging tidak dibenarkan dan ada posisi {opposite} aktif.")
                     requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Hedging disabled"})
@@ -327,8 +327,10 @@ def loop_evaluator(supabase, account_id, acct_settings, current_minute, is_start
         
     for t in trades:
         sym = t["symbol"]
-        action = t["direction"]
-        style = t.get("trade_style", "UNKNOWN").upper()
+        action_raw = t.get("direction") or t.get("action") or ""
+        action_raw_str = str(action_raw).strip().upper()
+        action = "BUY" if action_raw_str in ["0", "BUY"] else "SELL" if action_raw_str in ["1", "SELL"] else action_raw_str
+        style = (t.get("trade_style") or t.get("style") or "UNKNOWN").upper()
         ticket = t["ticket"]
         sl = t.get("virtual_sl", 0)
         tp = t.get("virtual_tp", 0)
@@ -395,7 +397,7 @@ def loop_evaluator(supabase, account_id, acct_settings, current_minute, is_start
 def evaluate_pending_manual_trades(supabase: SupabaseSync, account_id: str, acct_settings: AccountSettings):
     active_trades = supabase.fetch_active_trades(account_id)
     if not active_trades: return
-    pending_manuals = [t for t in active_trades if t.get("current_status") == "OPEN" and t.get("trade_style") == "MANUAL_PENDING_AI"]
+    pending_manuals = [t for t in active_trades if t.get("current_status") == "OPEN" and (t.get("trade_style") == "MANUAL_PENDING_AI" or t.get("style") == "MANUAL_PENDING_AI")]
     
     if not pending_manuals:
         return
@@ -403,7 +405,9 @@ def evaluate_pending_manual_trades(supabase: SupabaseSync, account_id: str, acct
     for p in pending_manuals:
         ticket = p.get("ticket")
         symbol = p.get("symbol")
-        direction = p.get("direction")
+        dir_raw = p.get("direction") or p.get("action") or ""
+        dir_raw_str = str(dir_raw).strip().upper()
+        direction = "BUY" if dir_raw_str in ["0", "BUY"] else "SELL" if dir_raw_str in ["1", "SELL"] else dir_raw_str
         entry_price = float(p.get("entry_price", 0))
         
         from style_params import get_style_params
