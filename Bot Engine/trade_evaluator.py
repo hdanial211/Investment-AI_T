@@ -298,12 +298,17 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
         if eval_cfg.get("provider") and eval_cfg.get("api_key"):
             # Jika user dah set provider/model/api_key khusus untuk Evaluator di Dashboard
             fast_provider = eval_cfg
+            _prov = fast_provider.get("provider")
+            _key = fast_provider.get("api_key")
+            _mask = f"{_key[:4]}...{_key[-4:]}" if len(_key) > 8 else "***"
+            logger.info(f"🔑 [Account {acc_id}] Evaluator mengikut Dashboard: Provider='{_prov}', Model='{fast_provider.get('model')}', Key='{_mask}'")
         else:
             # Fallback jika kosong
             fast_provider = {
                 "provider": "groq", 
                 "model": "llama-3.1-8b-instant"
             }
+            logger.info(f"⚠️ [Account {acc_id}] Evaluator di Dashboard KOSONG. Guna Fallback: Provider='groq', Model='llama-3.1-8b-instant'")
         
         
         ai_result = get_ai_signal(
