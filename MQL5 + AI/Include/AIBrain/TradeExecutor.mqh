@@ -19,9 +19,9 @@ private:
    ENUM_ORDER_TYPE_FILLING _GetFillingMode(const string symbol)
    {
       uint filling = (uint)SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE);
-      // Bit 0 = FOK (0), Bit 1 = IOC (1), Bit 2 = RETURN (2)
-      if(filling & 1) return ORDER_FILLING_FOK;
-      if(filling & 2) return ORDER_FILLING_IOC;
+      // Bit 0 = FOK, Bit 1 = IOC, Bit 2 = RETURN
+      if((filling & 1) != 0) return ORDER_FILLING_FOK;
+      if((filling & 2) != 0) return ORDER_FILLING_IOC;
       return ORDER_FILLING_RETURN;
    }
 

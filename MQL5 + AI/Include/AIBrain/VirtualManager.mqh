@@ -90,21 +90,21 @@ public:
       if(_FindIdx(ticket) != -1) return; // Already registered
 
       ArrayResize(m_states, m_count + 1);
-      VirtTradeState &s = m_states[m_count];
-      s.ticket      = ticket;
-      s.symbol      = symbol;
-      s.direction   = direction;
-      s.style       = style;
-      s.lot         = lot;
-      s.open_price  = open_price;
-      s.v_sl        = v_sl;
-      s.v_tp        = v_tp;
-      s.v_trail     = 0;
-      s.be_pips     = be_pips;
-      s.be_offset   = be_offset;
-      s.trail_start = trail_start;
-      s.trail_dist  = trail_dist;
-      s.pip_size    = (StringFind(symbol, "XAU") != -1) ? 0.01 : 0.0001;
+      // Assign directly by index — MQL5 struct array references require constant index
+      m_states[m_count].ticket      = ticket;
+      m_states[m_count].symbol      = symbol;
+      m_states[m_count].direction   = direction;
+      m_states[m_count].style       = style;
+      m_states[m_count].lot         = lot;
+      m_states[m_count].open_price  = open_price;
+      m_states[m_count].v_sl        = v_sl;
+      m_states[m_count].v_tp        = v_tp;
+      m_states[m_count].v_trail     = 0;
+      m_states[m_count].be_pips     = be_pips;
+      m_states[m_count].be_offset   = be_offset;
+      m_states[m_count].trail_start = trail_start;
+      m_states[m_count].trail_dist  = trail_dist;
+      m_states[m_count].pip_size    = (StringFind(symbol, "XAU") != -1) ? 0.01 : 0.0001;
       m_count++;
 
       // Draw initial lines
@@ -117,59 +117,72 @@ public:
    }
 
    //--- Called on every tick — checks all registered positions
-   //    Returns list of closed tickets to remove from state
    void OnTick()
    {
       for(int i = m_count - 1; i >= 0; i--)
       {
-         VirtTradeState &s = m_states[i];
-         if(!PositionSelectByTicket(s.ticket)) continue; // Already closed externally
+         // Use local copy for reads; write back to array where needed
+         ulong  tkt        = m_states[i].ticket;
+         string sym        = m_states[i].symbol;
+         string dir        = m_states[i].direction;
+         string sty        = m_states[i].style;
+         double lot        = m_states[i].lot;
+         double open_px    = m_states[i].open_price;
+         double v_sl       = m_states[i].v_sl;
+         double v_tp       = m_states[i].v_tp;
+         double v_trail    = m_states[i].v_trail;
+         double be_p       = m_states[i].be_pips;
+         double be_o       = m_states[i].be_offset;
+         double ts_p       = m_states[i].trail_start;
+         double td_p       = m_states[i].trail_dist;
+         double pip        = m_states[i].pip_size;
 
-         double cur_price = (s.direction == "BUY")
-                          ? SymbolInfoDouble(s.symbol, SYMBOL_BID)
-                          : SymbolInfoDouble(s.symbol, SYMBOL_ASK);
-         double profit_pips = (s.direction == "BUY")
-                            ? (cur_price - s.open_price) / s.pip_size
-                            : (s.open_price - cur_price) / s.pip_size;
+         if(!PositionSelectByTicket(tkt)) continue; // Closed externally
 
-         bool   should_close   = false;
-         string close_reason   = "";
+         double cur_price  = (dir == "BUY")
+                           ? SymbolInfoDouble(sym, SYMBOL_BID)
+                           : SymbolInfoDouble(sym, SYMBOL_ASK);
+         double profit_pips = (dir == "BUY")
+                            ? (cur_price - open_px) / pip
+                            : (open_px - cur_price) / pip;
+
+         bool   should_close = false;
+         string close_reason = "";
 
          // ── Check Virtual SL / TP ────────────────────────────────
-         if(s.direction == "BUY")
+         if(dir == "BUY")
          {
-            if(s.v_sl > 0 && cur_price <= s.v_sl) { should_close = true; close_reason = "Virtual SL Hit"; }
-            if(s.v_tp > 0 && cur_price >= s.v_tp) { should_close = true; close_reason = "Virtual TP Hit"; }
+            if(v_sl > 0 && cur_price <= v_sl) { should_close = true; close_reason = "Virtual SL Hit"; }
+            if(v_tp > 0 && cur_price >= v_tp) { should_close = true; close_reason = "Virtual TP Hit"; }
          }
          else
          {
-            if(s.v_sl > 0 && cur_price >= s.v_sl) { should_close = true; close_reason = "Virtual SL Hit"; }
-            if(s.v_tp > 0 && cur_price <= s.v_tp) { should_close = true; close_reason = "Virtual TP Hit"; }
+            if(v_sl > 0 && cur_price >= v_sl) { should_close = true; close_reason = "Virtual SL Hit"; }
+            if(v_tp > 0 && cur_price <= v_tp) { should_close = true; close_reason = "Virtual TP Hit"; }
          }
 
          // ── Check Trailing/BE line hit ───────────────────────────
-         if(!should_close && s.v_trail > 0)
+         if(!should_close && v_trail > 0)
          {
-            if(s.direction == "BUY"  && cur_price <= s.v_trail) { should_close = true; close_reason = "Trailing/BE Hit"; }
-            if(s.direction == "SELL" && cur_price >= s.v_trail) { should_close = true; close_reason = "Trailing/BE Hit"; }
+            if(dir == "BUY"  && cur_price <= v_trail) { should_close = true; close_reason = "Trailing/BE Hit"; }
+            if(dir == "SELL" && cur_price >= v_trail) { should_close = true; close_reason = "Trailing/BE Hit"; }
          }
 
          // ── Close if needed ──────────────────────────────────────
          if(should_close)
          {
-            double pnl = PositionGetDouble(POSITION_PROFIT)
-                       + PositionGetDouble(POSITION_SWAP);
-            bool closed = m_exec.ClosePosition(s.ticket);
+            double pnl    = PositionGetDouble(POSITION_PROFIT) + PositionGetDouble(POSITION_SWAP);
+            bool   closed = m_exec.ClosePosition(tkt);
             if(closed)
             {
                Sleep(200);
-               double final_pnl = m_exec.GetRealisedPL(s.ticket);
+               double final_pnl = m_exec.GetRealisedPL(tkt);
                if(final_pnl == 0) final_pnl = pnl;
-               m_supa.CloseTrade(s.ticket, s.symbol, s.direction, s.lot, s.style, final_pnl, close_reason);
-               if(final_pnl < 0) m_risk.RecordLoss(s.style);
-               _RemoveLines(s.ticket);
-               PrintFormat("[VirtMgr] ✅ Closed ticket %d | %s | PnL: %.2f", s.ticket, close_reason, final_pnl);
-               // Remove from array
+               m_supa.CloseTrade(tkt, sym, dir, lot, sty, final_pnl, close_reason);
+               if(final_pnl < 0) m_risk.RecordLoss(sty);
+               _RemoveLines(tkt);
+               PrintFormat("[VirtMgr] ✅ Closed ticket %d | %s | PnL: %.2f", tkt, close_reason, final_pnl);
+               // Remove from array by shifting
                for(int k = i; k < m_count - 1; k++) m_states[k] = m_states[k + 1];
                m_count--;
                ArrayResize(m_states, m_count);
@@ -178,41 +191,39 @@ public:
          }
 
          // ── Update Trailing Stop / Break-Even ────────────────────
-         bool updated_trail = false;
-         string base = IntegerToString(s.ticket);
+         bool   updated_trail = false;
+         string base          = IntegerToString(tkt);
 
-         if(s.direction == "BUY")
+         if(dir == "BUY")
          {
-            // Break-Even activation
-            if(s.be_pips > 0 && profit_pips >= s.be_pips && (s.v_trail < s.open_price || s.v_trail == 0))
+            if(be_p > 0 && profit_pips >= be_p && (v_trail < open_px || v_trail == 0))
             {
-               s.v_trail    = s.open_price + s.be_offset * s.pip_size;
+               v_trail       = open_px + be_o * pip;
                updated_trail = true;
             }
-            // Trailing activation
-            if(s.trail_start > 0 && profit_pips >= s.trail_start)
+            if(ts_p > 0 && profit_pips >= ts_p)
             {
-               double new_trail = cur_price - s.trail_dist * s.pip_size;
-               if(s.v_trail == 0 || new_trail > s.v_trail)
+               double new_tr = cur_price - td_p * pip;
+               if(v_trail == 0 || new_tr > v_trail)
                {
-                  s.v_trail    = new_trail;
+                  v_trail       = new_tr;
                   updated_trail = true;
                }
             }
          }
          else // SELL
          {
-            if(s.be_pips > 0 && profit_pips >= s.be_pips && (s.v_trail > s.open_price || s.v_trail == 0))
+            if(be_p > 0 && profit_pips >= be_p && (v_trail > open_px || v_trail == 0))
             {
-               s.v_trail    = s.open_price - s.be_offset * s.pip_size;
+               v_trail       = open_px - be_o * pip;
                updated_trail = true;
             }
-            if(s.trail_start > 0 && profit_pips >= s.trail_start)
+            if(ts_p > 0 && profit_pips >= ts_p)
             {
-               double new_trail = cur_price + s.trail_dist * s.pip_size;
-               if(s.v_trail == 0 || new_trail < s.v_trail)
+               double new_tr = cur_price + td_p * pip;
+               if(v_trail == 0 || new_tr < v_trail)
                {
-                  s.v_trail    = new_trail;
+                  v_trail       = new_tr;
                   updated_trail = true;
                }
             }
@@ -220,18 +231,20 @@ public:
 
          if(updated_trail)
          {
-            _DrawLine("VTR_" + base, s.v_trail, clrOrange, STYLE_DASH, s.style + " TRAIL/BE");
-            m_supa.UpdateTradeVSL(s.ticket, s.v_trail);
-            // Also update the SL line visually
-            s.v_sl = s.v_trail;
-            ObjectSetDouble(0, "VSL_" + base, OBJPROP_PRICE, s.v_sl);
+            _DrawLine("VTR_" + base, v_trail, clrOrange, STYLE_DASH, sty + " TRAIL/BE");
+            m_supa.UpdateTradeVSL(tkt, v_trail);
+            // Write back updated values to array
+            m_states[i].v_trail = v_trail;
+            m_states[i].v_sl    = v_trail;
+            ObjectSetDouble(0, "VSL_" + base, OBJPROP_PRICE, v_trail);
          }
       }
 
       // ── Clean up orphaned chart objects ──────────────────────────
-      for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+      int total_objs = ObjectsTotal(0);
+      for(int j = total_objs - 1; j >= 0; j--)
       {
-         string obj = ObjectName(0, i);
+         string obj = ObjectName(0, j);
          if(StringFind(obj, "VSL_") == 0 || StringFind(obj, "VTP_") == 0 || StringFind(obj, "VTR_") == 0)
          {
             string tkt_str = StringSubstr(obj, 4);
