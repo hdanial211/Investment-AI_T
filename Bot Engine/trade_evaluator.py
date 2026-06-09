@@ -391,7 +391,7 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
         else:
             logger.info(f"🔵 [Evaluator: {acc}] Trade {ticket} status: HOLD.")
 
-def evaluate_pending_manual_trades(supabase: SupabaseSync, , account_id: str, acct_settings: AccountSettings):
+def evaluate_pending_manual_trades(supabase: SupabaseSync, account_id: str, acct_settings: AccountSettings):
     active_trades = supabase.fetch_active_trades(account_id)
     if not active_trades: return
     pending_manuals = [t for t in active_trades if t.get("current_status") == "OPEN" and t.get("trade_style") == "MANUAL_PENDING_AI"]
