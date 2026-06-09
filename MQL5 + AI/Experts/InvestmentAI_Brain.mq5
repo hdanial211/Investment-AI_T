@@ -71,9 +71,9 @@ datetime g_last_settings  = 0;
 datetime g_last_heartbeat = 0;
 
 // Intervals (seconds)
-#define INTERVAL_SCALPING   300     // 5 minutes
-#define INTERVAL_INTRADAY   3600    // 1 hour
-#define INTERVAL_SWING      7200    // 2 hours
+#define INTERVAL_SCALPING   300     // 5 minit
+#define INTERVAL_INTRADAY   1800    // 30 minit
+#define INTERVAL_SWING      3600    // 1 jam
 #define INTERVAL_SETTINGS   60      // 1 minute
 #define INTERVAL_HEARTBEAT  60      // 1 minute
 
