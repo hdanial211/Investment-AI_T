@@ -471,6 +471,7 @@ class MT5Connector:
                 "profit":        pos.profit,
                 "swap":          pos.swap,
                 "comment":       pos.comment,
+                "magic":         pos.magic,
                 "time":          datetime.fromtimestamp(pos.time),
             })
         return result
