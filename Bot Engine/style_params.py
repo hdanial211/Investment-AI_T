@@ -28,7 +28,7 @@ STYLE_PARAMS = {
     }
 }
 
-def get_style_params(style: str) -> dict:
+def get_style_params(style: str, symbol: str = None) -> dict:
     """Returns the parameters for the given style, defaulting to INTRADAY if unknown."""
     style_upper = style.upper()
     return STYLE_PARAMS.get(style_upper, STYLE_PARAMS["INTRADAY"])
