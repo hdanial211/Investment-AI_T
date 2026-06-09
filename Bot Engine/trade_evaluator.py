@@ -43,9 +43,9 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
                 style = "UNKNOWN"
                 magic = int(p.get("magic", 0))
                 if magic == 0: style = "MANUAL"
-                elif str(magic).endswith("1"): style = "SCALPING"
-                elif str(magic).endswith("2"): style = "INTRADAY"
-                elif str(magic).endswith("3"): style = "SWING"
+                elif magic == 888801: style = "SCALPING"
+                elif magic == 888802: style = "INTRADAY"
+                elif magic == 888803: style = "SWING"
                 
                 payload = {
                     "ticket": tkt,
@@ -133,10 +133,11 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
         for sig in signals:
             sym = sig.get("symbol", "XAUUSD")
             action = sig.get("action", "")
-            style = sig.get("trade_style", "UNKNOWN")
+            style = sig.get("trade_style", sig.get("style", "UNKNOWN"))
             confidence = sig.get("confidence", 0)
             sig_id = sig.get("id")
             sl_price = float(sig.get("sl") or 0)
+            tp_price = float(sig.get("tp") or 0)
             
             # --- V2 Risk Guard Saringan Ketat ---
             
@@ -147,9 +148,8 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 continue
                 
             # 2. Limit Trade Mengikut Style
-            style_trades_count = len([p for p in open_positions if style.upper() in p.get("comment", "").upper() or str(p.get("magic", "")).endswith(
-                "1" if style.upper()=="SCALPING" else "2" if style.upper()=="INTRADAY" else "3"
-            )])
+            expected_magic = 888801 if style.upper()=="SCALPING" else 888802 if style.upper()=="INTRADAY" else 888803
+            style_trades_count = len([p for p in open_positions if style.upper() in p.get("comment", "").upper() or int(p.get("magic", 0)) == expected_magic])
             max_style_trades = acct_settings.get_max_trades_for_style(style) or 3
             if style_trades_count >= max_style_trades:
                 logger.warning(f"[{acc}] Signal {action} dibatalkan: Max {style} trades capai limit ({style_trades_count}/{max_style_trades})")
@@ -216,15 +216,65 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             
             logger.info(f"🚀 [{acc}] Risk Guard LULUS! Eksekusi {action} pada {sym} dengan Lot: {lot_size}")
             
+            # Magic number: 888801=SCALPING, 888802=INTRADAY, 888803=SWING
+            magic_number = 888800
+            if style.upper() == "SCALPING": magic_number = 888801
+            elif style.upper() == "INTRADAY": magic_number = 888802
+            elif style.upper() == "SWING": magic_number = 888803
             
-            magic_number = 888999
-            if style.upper() == "SCALPING": magic_number = 889000
-            elif style.upper() == "INTRADAY": magic_number = 889001
-            elif style.upper() == "SWING": magic_number = 889002
-            
+            # V4: Buka trade TANPA broker SL/TP (sl=0, tp=0).
+            # Virtual SL/TP akan diuruskan oleh bot sendiri dan disimpan ke Supabase.
             res_trade = connector.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}", magic=magic_number)
             if res_trade:
-                logger.info(f"✅ [{acc}] Berjaya membuka {action} {sym}")
+                ticket_id = res_trade if isinstance(res_trade, int) else res_trade.get("ticket", 0) if isinstance(res_trade, dict) else 0
+                logger.info(f"✅ [{acc}] Berjaya membuka {action} {sym} (Ticket: {ticket_id})")
+                
+                # --- TULIS VIRTUAL SL/TP/TRAILING KE SUPABASE ---
+                from style_params import get_style_params
+                s_params = get_style_params(style, sym)
+                trailing_settings = acct_settings.get_trailing_settings(style)
+                
+                # Guna SL/TP dari signal. Jika kosong (0), kira semula dari style_params.
+                final_sl = sl_price
+                final_tp = tp_price
+                if final_sl == 0 or final_tp == 0:
+                    pip_value = 0.10  # Gold: 1 pip = $0.10
+                    tick_data = connector.get_tick(sym)
+                    if tick_data:
+                        avg_sl_pips = (s_params.get("min_sl_pips", 20) + s_params.get("max_sl_pips", 40)) / 2.0
+                        avg_tp_pips = (s_params.get("min_tp_pips", 30) + s_params.get("max_tp_pips", 60)) / 2.0
+                        sl_dist = avg_sl_pips * pip_value
+                        tp_dist = avg_tp_pips * pip_value
+                        if action == "BUY":
+                            final_sl = final_sl or round(tick_data["ask"] - sl_dist, 2)
+                            final_tp = final_tp or round(tick_data["ask"] + tp_dist, 2)
+                        else:
+                            final_sl = final_sl or round(tick_data["bid"] + sl_dist, 2)
+                            final_tp = final_tp or round(tick_data["bid"] - tp_dist, 2)
+                
+                # Trailing Start: guna trail_stage1 dari style_params (ATR-based)
+                trail_stage1 = trailing_settings.get("trail_stage1") or s_params.get("trail_stage1", 0.3)
+                
+                # Tulis ke active_trades di Supabase dengan virtual SL/TP penuh
+                if ticket_id:
+                    trade_payload = {
+                        "ticket": ticket_id,
+                        "account_id": acc,
+                        "symbol": sym,
+                        "direction": action,
+                        "lot": lot_size,
+                        "entry_price": connector.get_tick(sym)["ask"] if action == "BUY" else connector.get_tick(sym)["bid"],
+                        "trade_style": style,
+                        "virtual_sl": final_sl,
+                        "virtual_tp": final_tp,
+                        "virtual_trailing_stop": f"Start: {trail_stage1}xATR",
+                        "current_status": "OPEN",
+                        "floating_profit": 0,
+                        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    }
+                    supabase._upsert("active_trades", trade_payload, conflict="ticket")
+                    logger.info(f"📊 [{acc}] Virtual SL: {final_sl} | Virtual TP: {final_tp} | Trailing: {trail_stage1}xATR")
+                
                 requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Executed successfully"})
                 current_trades_count += 1
             else:
