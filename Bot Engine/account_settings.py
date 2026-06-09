@@ -24,7 +24,7 @@ SHARED_STATE_FILE = os.path.join(os.path.dirname(__file__), "shared_state.json")
 
 # Default settings that mirror config.py / .env
 _DEFAULTS = {
-    "account_id": "acc_1",
+    "account_id": "",
     "account_label": "Default",
     "mt5_login": str(config.MT5_LOGIN),
     "mt5_server": config.MT5_SERVER,

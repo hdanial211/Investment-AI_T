@@ -33,7 +33,8 @@ MASTER_MT5_PATH     = os.getenv("MASTER_MT5_PATH",     "")
 # ─────────────────────────────────────────────────────────────────────────────
 # ACCOUNT ID (for multi-account settings via Supabase)
 # ─────────────────────────────────────────────────────────────────────────────
-ACCOUNT_ID   = os.getenv("ACCOUNT_ID",       "acc_1").strip()
+# Setup Account ID from environment (usually passed by trade_evaluator)
+ACCOUNT_ID   = os.getenv("ACCOUNT_ID", "").strip()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRADING SETTINGS

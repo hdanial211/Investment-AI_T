@@ -38,7 +38,7 @@ class SupabaseSync:
             logger.warning("Supabase sync disabled because the requests package is not installed.")
 
     def upsert_heartbeat(self, *, cycle: int = 0, status: str = "online", message: str = "") -> None:
-        account_id = getattr(config, "ACCOUNT_ID", "acc_1")
+        account_id = getattr(config, "ACCOUNT_ID", None)
         payload = {
             "account_id": account_id,
             "enabled": True,
@@ -53,7 +53,7 @@ class SupabaseSync:
         """
         payload = {
             "ticket": state.get("ticket"),
-            "account_id": state.get("account_id") or getattr(config, "ACCOUNT_ID", "acc_1"),
+            "account_id": state.get("account_id") or getattr(config, "ACCOUNT_ID", None),
             "symbol": state.get("symbol"),
             "direction": state.get("action") or state.get("direction"),
             "lot": state.get("lot"),
@@ -90,7 +90,7 @@ class SupabaseSync:
         # But if Python does the close, we insert to closed_trades.
         payload = {
             "ticket": state.get("ticket"),
-            "account_id": state.get("account_id") or getattr(config, "ACCOUNT_ID", "acc_1"),
+            "account_id": state.get("account_id") or getattr(config, "ACCOUNT_ID", None),
             "symbol": state.get("symbol"),
             "direction": state.get("action") or state.get("direction"),
             "lot": state.get("lot"),
@@ -159,7 +159,7 @@ class SupabaseSync:
 
     def fetch_all_enabled_accounts(self) -> List[str]:
         if not self.enabled:
-            return ["acc_1"]
+            return []
         url = f"{self.base_url}/rest/v1/account_settings?select=account_id,enabled"
         try:
             response = requests.get(url, headers=self.headers, timeout=self.timeout)
@@ -167,7 +167,7 @@ class SupabaseSync:
                 return [acc["account_id"] for acc in response.json() if acc.get("enabled", False)]
         except Exception as e:
             logger.warning(f"Error fetching enabled accounts: {e}")
-        return ["acc_1"]
+        return []
 
     def upsert_market_signal(self, signal_data: Dict) -> None:
         """Upsert a raw AI signal to market_signals."""
