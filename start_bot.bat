@@ -1,28 +1,37 @@
 @echo off
-title Investment-AI_T V4 — Cloud-Native Bot Manager
+title Investment-AI_T V4 — Cloud-Native System Starter
 cd /d "%~dp0"
 
 echo ============================================================
 echo   Investment-AI_T V4 — 100%% Cloud-Native Hybrid
-echo   Master Analyzer (Otak AI) - Supabase DB
+echo   Booting All Systems (Bot, Dashboard, Telegram)...
 echo ============================================================
 echo.
 
-echo [1/3] Mendapatkan update terbaru dari GitHub...
+echo [1/5] Mendapatkan update terbaru dari GitHub...
 git pull 2>nul
 echo.
 
-echo [2/3] Membuka Terminal MT5 (Master dan Individu)...
+echo [2/5] Membuka Terminal MT5 (Master dan Individu)...
 python "Bot Engine\launch_terminals.py"
 echo.
 
-echo "[3/3] Memulakan Master Analyzer..."
+echo [3/5] Memulakan Papan Pemuka Visual (Next.js)...
+start "Dashboard Next.js" cmd /k "cd frontend-dashboard && npm run dev"
+echo Papan Pemuka sedang dilancarkan. (Akan tersedia di http://localhost:3000)
+echo.
+
+echo [4/5] Memulakan Telegram Alert Service...
+start "Telegram Alerts" cmd /k "python ""Bot Engine\telegram_alert.py"""
+echo Sistem amaran Telegram dibuka pada tetingkap (window) berasingan.
+echo.
+
+echo [5/5] Memulakan Bot Manager...
 echo   - Membaca market dan menghantar signal ke Supabase
-echo   - Menilai (Evaluate) Active Trades setiap 10 minit
-echo   - (Executor / MT5 berjalan berasingan di terminal klien)
+echo   - Menilai (Evaluate) Active Trades secara live
 echo.
 echo ============================================================
-echo   Tekan Ctrl+C untuk hentikan Master Analyzer.
+echo   Biarkan tetingkap ini terbuka. Tutup tetingkap untuk berhenti.
 echo ============================================================
 echo.
 
