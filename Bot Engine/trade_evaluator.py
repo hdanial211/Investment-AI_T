@@ -66,9 +66,9 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
                 
                 # --- MANUAL TRADE MANAGEMENT ---
                 if is_manual:
-                    manage_sl = acct_settings.raw_data.get("manage_manual_sl", False)
-                    manage_tp = acct_settings.raw_data.get("manage_manual_tp", False)
-                    manage_be = acct_settings.raw_data.get("manage_manual_be", False)
+                    manage_sl = acct_settings._cache.get("manage_manual_sl", False)
+                    manage_tp = acct_settings._cache.get("manage_manual_tp", False)
+                    manage_be = acct_settings._cache.get("manage_manual_be", False)
                     
                     if manage_sl or manage_tp or manage_be:
                         payload["trade_style"] = "MANUAL_PENDING_AI"
