@@ -373,7 +373,7 @@ def query_ai_provider(
         for provider_config in providers:
             provider_name = provider_config.get("provider", "unknown")
             
-            raw_model_cfg = str(provider_config.get(f"{role}_model") or ("auto" if role=="main" else "auto")).strip().lower()
+            raw_model_cfg = str(provider_config.get(f"{role}_model") or provider_config.get("model") or ("auto" if role=="main" else "auto")).strip().lower()
             if raw_model_cfg == "auto" and not model:
                 from ai_clients.provider_factory import get_auto_models_for_provider
                 models_to_try = get_auto_models_for_provider(provider_name)

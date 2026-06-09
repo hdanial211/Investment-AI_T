@@ -564,7 +564,7 @@ void OnTick() {
    ProcessGridRecovery();
    ManageBaskets();
    
-   // Clean up orphaned virtual lines for closed trades
+   // Clean up orphaned virtual and basket lines for closed trades
    int total_objs = ObjectsTotal(0);
    for (int i = total_objs - 1; i >= 0; i--) {
       string obj_name = ObjectName(0, i);
@@ -573,6 +573,38 @@ void OnTick() {
          long ticket = StringToInteger(ticket_str);
          if (ticket > 0 && !PositionSelectByTicket(ticket)) {
             ObjectDelete(0, obj_name);
+         }
+      } else if (StringFind(obj_name, "B_SL_") == 0 || StringFind(obj_name, "B_TP_") == 0 || StringFind(obj_name, "B_TR_") == 0) {
+         string parts[];
+         StringSplit(obj_name, '_', parts);
+         if (ArraySize(parts) >= 5) {
+            string style = parts[2];
+            string dir = parts[3];
+            string sym = parts[4];
+            
+            ulong mag = InpMagicNumber;
+            if (style == "SCALPING") mag = InpMagicNumber + 1;
+            else if (style == "INTRADAY") mag = InpMagicNumber + 2;
+            else if (style == "SWING") mag = InpMagicNumber + 3;
+            
+            long pos_type = (dir == "BUY") ? POSITION_TYPE_BUY : POSITION_TYPE_SELL;
+            
+            bool has_trades = false;
+            for(int j = 0; j < PositionsTotal(); j++) {
+               ulong tkt = PositionGetTicket(j);
+               if(tkt > 0 && PositionGetString(POSITION_SYMBOL) == sym) {
+                  ulong p_mag = PositionGetInteger(POSITION_MAGIC);
+                  long p_type = PositionGetInteger(POSITION_TYPE);
+                  if (style == "MANUAL" && (p_mag == 0 || p_mag == InpMagicNumber) && p_type == pos_type) {
+                     has_trades = true; break;
+                  } else if (p_mag == mag && p_type == pos_type) {
+                     has_trades = true; break;
+                  }
+               }
+            }
+            if (!has_trades) {
+               ObjectDelete(0, obj_name);
+            }
          }
       }
    }

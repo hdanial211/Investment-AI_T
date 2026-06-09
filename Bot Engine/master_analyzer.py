@@ -73,43 +73,18 @@ def loop_signal_generator(supabase: SupabaseSync, connector: MT5Connector, accou
         if action in ["BUY", "SELL"]:
             sig_id = str(uuid.uuid4())[:8]
             
-            # --- V3 DETERMINISTIC SL/TP CALCULATION ---
+            # --- V4 STATIC PIP CALCULATION FOR INITIAL SIGNAL ---
+            # Seperti arahan: Initial signal guna julat pip statik. ATR hanya untuk active management (trailing).
             s_params = get_style_params(style, symbol)
             
-            if style == "SCALPING":
-                active_atr = indicators.get("atr_scalping", 0)
-            elif style == "INTRADAY":
-                active_atr = indicators.get("atr_intraday", 0)
-            elif style == "SWING":
-                active_atr = indicators.get("atr_swing", 0)
-            else:
-                active_atr = indicators.get("atr", 0)
+            pip_value = 0.10  # 1 pip = $0.10 for Gold
             
-            if active_atr == 0:
-                active_atr = 2.0 # Fallback for XAUUSD if data missing
-                
-            # 1. ATR Dynamic Bounds
-            min_atr_dist = active_atr * 0.5
-            daily_limit_dist = indicators.get("atr_swing", 0) * 1.5 # Maximum 1.5x D1 ATR
+            # Ambil nilai tengah (average) dari julat pip statik yang ditetapkan
+            avg_sl_pips = (s_params.get("min_sl_pips", 20) + s_params.get("max_sl_pips", 40)) / 2.0
+            avg_tp_pips = (s_params.get("min_tp_pips", 30) + s_params.get("max_tp_pips", 60)) / 2.0
             
-            raw_sl_dist = active_atr * s_params.get("sl_atr_multi", 2.0)
-            raw_tp_dist = active_atr * s_params.get("tp_atr_multi", 3.0)
-            
-            # 2. Hard Limits based on Pips (1 Pip = $0.10 for Gold)
-            pip_value = 0.10
-            min_sl_dist = s_params.get("min_sl_pips", 0) * pip_value
-            max_sl_dist = s_params.get("max_sl_pips", 9999) * pip_value
-            min_tp_dist = s_params.get("min_tp_pips", 0) * pip_value
-            max_tp_dist = s_params.get("max_tp_pips", 9999) * pip_value
-            
-            # 3. Apply ATR Constraints
-            atr_sl_dist = max(min_atr_dist, raw_sl_dist)
-            if style in ["INTRADAY", "SWING"] and daily_limit_dist > 0:
-                atr_sl_dist = min(atr_sl_dist, daily_limit_dist)
-                
-            # 4. Apply Hard Limits (Clamp between Min and Max Pips)
-            final_sl_dist = max(min_sl_dist, min(max_sl_dist, atr_sl_dist))
-            final_tp_dist = max(min_tp_dist, min(max_tp_dist, raw_tp_dist))
+            final_sl_dist = avg_sl_pips * pip_value
+            final_tp_dist = avg_tp_pips * pip_value
                 
             if action == "BUY":
                 calc_sl = tick["ask"] - final_sl_dist
@@ -201,20 +176,21 @@ def main():
         # 2. Clock-Based Schedule (Genap Masa)
         dt_now = datetime.now()
         cur_min = dt_now.minute
+        cur_hour = dt_now.hour
         time_str = dt_now.strftime("%Y-%m-%d %H:%M")
         
-        # SWING (Setiap 1 Jam: XX:00)
-        if cur_min == 0 and last_runs["SWING"] != time_str:
+        # SWING (Setiap 2 Jam: Jam genap, minit 00)
+        if (cur_hour % 2 == 0) and cur_min == 0 and last_runs["SWING"] != time_str:
             loop_signal_generator(supabase, connector, accounts, target_style="SWING")
             last_runs["SWING"] = time_str
             
-        # INTRADAY (Setiap 30 Min: XX:00, XX:30)
-        if (cur_min == 0 or cur_min == 30) and last_runs["INTRADAY"] != time_str:
+        # INTRADAY (Setiap 1 Jam: XX:00)
+        if cur_min == 0 and last_runs["INTRADAY"] != time_str:
             loop_signal_generator(supabase, connector, accounts, target_style="INTRADAY")
             last_runs["INTRADAY"] = time_str
             
-        # SCALPING (Setiap 10 Min: XX:00, XX:10, XX:20...)
-        if (cur_min % 10 == 0) and last_runs["SCALPING"] != time_str:
+        # SCALPING (Setiap 30 Min: XX:00, XX:30)
+        if (cur_min == 0 or cur_min == 30) and last_runs["SCALPING"] != time_str:
             loop_signal_generator(supabase, connector, accounts, target_style="SCALPING")
             last_runs["SCALPING"] = time_str
             

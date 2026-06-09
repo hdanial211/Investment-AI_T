@@ -109,10 +109,48 @@ class ManagedProcess:
         return True
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN LOOP
+# MAIN LOOP & CLEANUP
 # ─────────────────────────────────────────────────────────────────────────────
+def kill_orphaned_processes():
+    """Membunuh semua proses python lama berkaitan bot sebelum mula baru."""
+    import subprocess
+    import os
+    
+    current_pid = os.getpid()
+    logger.info("🧹 Menyemak dan membersihkan proses lama (Ghost Processes)...")
+    
+    ps_command = (
+        "Get-WmiObject Win32_Process -Filter \"name='python.exe'\" | "
+        "Where-Object {$_.CommandLine -match 'bot_manager|master_analyzer|trade_evaluator'} | "
+        "Select-Object ProcessId"
+    )
+    try:
+        result = subprocess.run(["powershell", "-NoProfile", "-Command", ps_command], capture_output=True, text=True)
+        lines = result.stdout.strip().split("\n")
+        
+        killed_count = 0
+        for line in lines:
+            line = line.strip()
+            if line.isdigit():
+                pid = int(line)
+                if pid != current_pid:
+                    logger.info(f"🛑 Mematikan proses lama (PID: {pid})")
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    killed_count += 1
+                    
+        if killed_count > 0:
+            logger.info(f"✅ Selesai mematikan {killed_count} proses lama. Menunggu 2 saat...")
+            time.sleep(2)
+        else:
+            logger.info("✨ Tiada proses lama ditemui.")
+            
+    except Exception as e:
+        logger.error(f"Ralat semasa membersihkan proses: {e}")
+
 def main():
     global _shutdown_requested
+
+    kill_orphaned_processes()
 
     logger.info("=" * 70)
     logger.info("  🚀 BOT MANAGER & SUPABASE WATCHER — Multi-Process Hybrid")
@@ -183,6 +221,7 @@ def main():
                     )
                     proc.start()
                     evaluators[acc_id] = proc
+                    time.sleep(3) # Delay 3 saat untuk elak MT5 IPC pipe clash antara Python subprocesses
 
                 # B. Akaun di-OFF-kan -> Matikan Trade Evaluator
                 accounts_to_stop = current_running - enabled_accounts

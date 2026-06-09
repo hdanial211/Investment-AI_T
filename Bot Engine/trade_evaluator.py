@@ -36,7 +36,7 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
         db_tickets = {int(t["ticket"]) for t in db_trades if t.get("ticket")}
         mt5_tickets = {int(p["ticket"]) for p in mt5_positions}
         
-        # 1. Sync new/missing MT5 trades to Supabase
+        # 1. Sync new/missing MT5 trades and update existing floating profit
         for p in mt5_positions:
             tkt = int(p["ticket"])
             if tkt not in db_tickets:
@@ -61,6 +61,13 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
                 }
                 supabase._upsert("active_trades", payload, conflict="ticket")
                 logger.info(f"🔄 [Sync: {acc}] Added missing MT5 trade {tkt} to Supabase")
+            else:
+                # Update floating profit for existing active trades
+                supabase._upsert("active_trades", {
+                    "ticket": tkt,
+                    "floating_profit": p["profit"],
+                    "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                }, conflict="ticket")
                 
         # 2. Mark closed trades in Supabase
         for t in db_trades:
@@ -112,7 +119,8 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
         # Determine Asia Session (Broker Time Hour 0 to 8)
         # Using the tick time of the first available symbol to get broker time
         is_asia = False
-        sample_tick = connector.get_tick("XAUUSD")
+        gold_symbol = acct_settings._cache.get("symbol_xauusd", "XAUUSD")
+        sample_tick = connector.get_tick(gold_symbol)
         if sample_tick:
             import time
             broker_hour = time.gmtime(sample_tick["time"]).tm_hour
@@ -126,8 +134,9 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             sym = sig.get("symbol", "XAUUSD")
             action = sig.get("action", "")
             style = sig.get("trade_style", "UNKNOWN")
-            confidence = sig.get("confidence_score", 0)
+            confidence = sig.get("confidence", 0)
             sig_id = sig.get("id")
+            sl_price = float(sig.get("sl") or 0)
             
             # --- V2 Risk Guard Saringan Ketat ---
             
@@ -202,30 +211,8 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 continue
                 
             # --- LULUS SEMUA TAPISAN, EKSEKUSI! ---
-            use_auto_lot = acct_settings._cache.get("use_auto_lot", True)
-            risk_percent = float(acct_settings._cache.get("max_risk_percent", 1.0))
-            
             # Default fallback lot
             lot_size = acct_settings.get_lot_for_style(style) or 0.01
-            
-            # Auto Lot Logic based on SL Distance
-            if use_auto_lot and sl_price > 0:
-                tick = connector.get_tick(sym)
-                balance = connector.get_balance()
-                if tick and balance > 0:
-                    entry_price = tick["ask"] if action == "BUY" else tick["bid"]
-                    sl_dist = abs(entry_price - sl_price)
-                    
-                    # For XAUUSD, $1 move = $100 per 1.00 lot
-                    contract_size = 100 
-                    risk_amount = balance * (risk_percent / 100.0)
-                    
-                    if sl_dist > 0:
-                        calc_lot = risk_amount / (sl_dist * contract_size)
-                        # Round down to 2 decimals
-                        calc_lot = math.floor(calc_lot * 100) / 100.0
-                        lot_size = max(config.MIN_LOT, min(config.MAX_LOT, calc_lot))
-                        logger.info(f"Auto-Lot active: Bal={balance}, Risk={risk_percent}%, SL_Dist={sl_dist:.2f} -> Calc Lot={lot_size}")
             
             logger.info(f"🚀 [{acc}] Risk Guard LULUS! Eksekusi {action} pada {sym} dengan Lot: {lot_size}")
             
@@ -237,7 +224,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             
             res_trade = connector.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}", magic=magic_number)
             if res_trade:
-                logger.success(f"✅ [{acc}] Berjaya membuka {action} {sym}")
+                logger.info(f"✅ [{acc}] Berjaya membuka {action} {sym}")
                 requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Executed successfully"})
                 current_trades_count += 1
             else:
@@ -245,7 +232,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 
     except Exception as e:
         logger.error(f"Signal Executor error for {acc}: {e}")
-def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, acc: str):
+def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, acc: str, acct_settings: AccountSettings, current_minute: int = 0, is_startup: bool = False):
     logger.info(f"🧠 [Evaluator: {acc}] Running Trade Evaluator Loop...")
     try:
         trades = supabase.fetch_active_trades(acc)
@@ -258,9 +245,23 @@ def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, acc: str):
             sym = t["symbol"]
             sl = t.get("virtual_sl", 0)
             tp = t.get("virtual_tp", 0)
-            style = t.get("trade_style", "UNKNOWN")
+            style = str(t.get("trade_style", "UNKNOWN")).upper().strip()
             entry = t.get("entry_price", 0)
             profit = t.get("floating_profit", 0)
+            
+            # ── LOGIK SIFIR MASA MENGIKUT STYLE ──
+            if not is_startup:
+                if style == "INTRADAY":
+                    # Intraday: Setiap 30 minit (00, 30)
+                    if current_minute % 30 != 0:
+                        logger.info(f"⏭️ [Evaluator: {acc}] Skip trade {ticket} (Intraday) pada minit {current_minute}")
+                        continue
+                elif style == "SWING":
+                    # Swing: Setiap 1 jam (00 sahaja)
+                    if current_minute != 0:
+                        logger.info(f"⏭️ [Evaluator: {acc}] Skip trade {ticket} (Swing) pada minit {current_minute}")
+                        continue
+                # SCALPING atau UNKNOWN akan lepas selagi current_minute % 15 == 0
             
             tick = connector.get_tick(sym)
             if not tick: continue
@@ -276,10 +277,21 @@ def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, acc: str):
                 f"Are there any reversal patterns on M15/H1? Provide UPDATE_SL_TP or CLOSE_TRADE if risk is high, else HOLD."
             )
             
+            # Guna API key individu dari dashboard (jika ada), tapi paksakan model ringan
+            eval_cfg = acct_settings.get_evaluator_config() or {}
+            eval_api_key = eval_cfg.get("api_key") if eval_cfg else None
+            
+            fast_provider = {
+                "provider": "groq", 
+                "model": "llama-3.1-8b-instant"
+            }
+            if eval_api_key:
+                fast_provider["api_key"] = eval_api_key
+            
             ai_result = get_ai_signal(
                 {"trade_eval": eval_prompt}, 
                 tick["bid"], tick["ask"], None, sym, 
-                specific_provider_config=config.EVALUATOR_PROVIDER_CONFIG,
+                specific_provider_config=fast_provider,
                 trade_eval_mode=True
             )
             
@@ -336,14 +348,14 @@ def main():
         
         # Executor Loop (Setiap 5 saat)
         loop_signal_executor(supabase, connector, account_id, acct_settings)
+        sync_active_trades_from_mt5(supabase, connector, account_id)
         
-        # Evaluator Loop (Setiap 10 minit ikut jam sebenar: 00, 10, 20...)
+        # Evaluator Loop (Setiap 15 minit ikut jam sebenar: 00, 15, 30, 45)
         # Juga akan jalan sekali sebaik sahaja bot dihidupkan (last_eval_minute == -1)
-        if (current_minute % 10 == 0 and current_minute != last_eval_minute) or last_eval_minute == -1:
-            sync_active_trades_from_mt5(supabase, connector, account_id)
-            loop_evaluator(supabase, connector, account_id)
+        is_startup = (last_eval_minute == -1)
+        if (current_minute % 15 == 0 and current_minute != last_eval_minute) or is_startup:
+            loop_evaluator(supabase, connector, account_id, acct_settings, current_minute, is_startup)
             last_eval_minute = current_minute
-            
         # ── Kemaskini Balance & Info (Ikut masa 10 minit sekali, tak wajib genap)
         if now - last_info_sync >= 600:
             acct_info = connector.get_account_info() or {}
