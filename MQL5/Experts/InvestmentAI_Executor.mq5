@@ -565,14 +565,6 @@ void DrawIndividualLines(ulong ticket, string sym, string style, string dir_str,
       ObjectSetString(0, tp_name, OBJPROP_TEXT, style + " " + dir_str + " TP");
    }
 }
-   if (tp > 0 && ObjectFind(0, tp_name) < 0) {
-      ObjectCreate(0, tp_name, OBJ_HLINE, 0, 0, tp);
-      ObjectSetDouble(0, tp_name, OBJPROP_PRICE, tp);
-      ObjectSetInteger(0, tp_name, OBJPROP_COLOR, clrLimeGreen);
-      ObjectSetInteger(0, tp_name, OBJPROP_STYLE, STYLE_SOLID);
-      ObjectSetString(0, tp_name, OBJPROP_TEXT, style + " " + dir_str + " TP");
-   }
-}
 
 //+------------------------------------------------------------------+
 //| Expert timer function                                            |
