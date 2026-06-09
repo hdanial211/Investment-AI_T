@@ -41,8 +41,10 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
             tkt = int(p["ticket"])
             if tkt not in db_tickets:
                 style = "UNKNOWN"
-                magic = int(p.get("magic", 0))
-                if magic == 0: style = "MANUAL"
+                is_manual = False
+                if magic == 0: 
+                    style = "MANUAL"
+                    is_manual = True
                 elif magic == 888801: style = "SCALPING"
                 elif magic == 888802: style = "INTRADAY"
                 elif magic == 888803: style = "SWING"
@@ -59,6 +61,43 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
                     "current_status": "OPEN",
                     "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 }
+                
+                # --- MANUAL TRADE MANAGEMENT ---
+                if is_manual:
+                    manage_sl = acct_settings.raw_data.get("manage_manual_sl", False)
+                    manage_tp = acct_settings.raw_data.get("manage_manual_tp", False)
+                    manage_be = acct_settings.raw_data.get("manage_manual_be", False)
+                    
+                    if manage_sl or manage_tp or manage_be:
+                        # Fall under SCALPING class so Evaluator will manage it actively
+                        style = "SCALPING"
+                        payload["trade_style"] = style
+                        
+                        from style_params import get_style_params
+                        s_params = get_style_params(style, p["symbol"])
+                        trailing_settings = acct_settings.get_trailing_settings(style)
+                        
+                        pip_value = 0.10  # Assuming Gold
+                        avg_sl_pips = (s_params.get("min_sl_pips", 20) + s_params.get("max_sl_pips", 40)) / 2.0
+                        avg_tp_pips = (s_params.get("min_tp_pips", 30) + s_params.get("max_tp_pips", 60)) / 2.0
+                        sl_dist = avg_sl_pips * pip_value
+                        tp_dist = avg_tp_pips * pip_value
+                        
+                        if manage_sl:
+                            if p["direction"] == "BUY":
+                                payload["virtual_sl"] = round(p["price_open"] - sl_dist, 2)
+                            else:
+                                payload["virtual_sl"] = round(p["price_open"] + sl_dist, 2)
+                        
+                        if manage_tp:
+                            if p["direction"] == "BUY":
+                                payload["virtual_tp"] = round(p["price_open"] + tp_dist, 2)
+                            else:
+                                payload["virtual_tp"] = round(p["price_open"] - tp_dist, 2)
+                                
+                        if manage_be:
+                            trail_stage1 = trailing_settings.get("trail_stage1") or s_params.get("trail_stage1", 0.3)
+                            payload["virtual_trailing_stop"] = f"Start: {trail_stage1}xATR"
                 supabase._upsert("active_trades", payload, conflict="ticket")
                 logger.info(f"🔄 [Sync: {acc}] Added missing MT5 trade {tkt} to Supabase")
             else:
