@@ -2,7 +2,7 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
-from supabase_sync import SupabaseSync
+from trade_management.supabase_sync import SupabaseSync
 
 load_dotenv()
 
@@ -31,7 +31,7 @@ def main():
         return
         
     print("Telegram Alert Service started.")
-    db = SupabaseSync(SUPABASE_URL, SUPABASE_KEY)
+    db = SupabaseSync()
     
     last_checked_signals = set()
     last_checked_trades = set()

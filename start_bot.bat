@@ -22,7 +22,7 @@ echo Papan Pemuka sedang dilancarkan. (Akan tersedia di http://localhost:3000)
 echo.
 
 echo [4/5] Memulakan Telegram Alert Service...
-start "Telegram Alerts" cmd /k "python ""Bot Engine\telegram_alert.py"""
+start "Telegram Alerts" cmd /k "cd ""Bot Engine"" && python telegram_alert.py"
 echo Sistem amaran Telegram dibuka pada tetingkap (window) berasingan.
 echo.
 
