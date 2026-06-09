@@ -50,8 +50,8 @@ export default function Dashboard() {
           <p className="text-slate-400 font-jetbrains">Investment-AI_T V4 Core Engine</p>
         </div>
         <div className="mt-4 md:mt-0 glass-panel px-6 py-3 flex items-center gap-3">
-          <Activity className={botSettings?.is_enabled ? "text-primary animate-pulse" : "text-red-500"} />
-          <span className="font-bold text-lg">{botSettings?.is_enabled ? "SYSTEM ONLINE" : "SYSTEM OFFLINE"}</span>
+          <Activity className={botSettings?.enabled ? "text-primary animate-pulse" : "text-red-500"} />
+          <span className="font-bold text-lg">{botSettings?.enabled ? "SYSTEM ONLINE" : "SYSTEM OFFLINE"}</span>
         </div>
       </header>
 
