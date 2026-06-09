@@ -47,6 +47,10 @@ double   g_swing_be_trigger = 2.0;
 double   g_swing_trail_start = 3.0;
 double   g_swing_trail_dist = 1.5;
 
+double   g_scalping_be_offset = 2.0;
+double   g_intraday_be_offset = 5.0;
+double   g_swing_be_offset = 10.0;
+
 int      g_max_total_trades = 5;
 double   g_max_daily_drawdown_pct = 5.0;
 int      g_min_ai_confidence = 70;
@@ -271,6 +275,10 @@ bool SyncAccountSettings() {
    g_swing_be_trigger = StringToDouble(ExtractJSONValue(json, "swing_be_trigger"));
    g_swing_trail_start = StringToDouble(ExtractJSONValue(json, "swing_trail_start"));
    g_swing_trail_dist = StringToDouble(ExtractJSONValue(json, "swing_trail_dist"));
+   
+   g_scalping_be_offset = StringToDouble(ExtractJSONValue(json, "scalping_be_offset_pips"));
+   g_intraday_be_offset = StringToDouble(ExtractJSONValue(json, "intraday_be_offset_pips"));
+   g_swing_be_offset    = StringToDouble(ExtractJSONValue(json, "swing_be_offset_pips"));
    
    g_max_total_trades = (int)StringToInteger(ExtractJSONValue(json, "max_total_trades"));
    
@@ -722,6 +730,27 @@ void ManageIndividualTrades() {
          double ts_p = g_cached_trades[cache_idx].trail_start;
          double td_p = g_cached_trades[cache_idx].trail_dist;
          
+         if (be_p == 0) {
+            if (StringFind(style, "SCALPING") != -1) be_p = g_scalping_be_trigger;
+            else if (StringFind(style, "INTRADAY") != -1) be_p = g_intraday_be_trigger;
+            else if (StringFind(style, "SWING") != -1) be_p = g_swing_be_trigger;
+         }
+         if (be_o == 0) {
+            if (StringFind(style, "SCALPING") != -1) be_o = g_scalping_be_offset;
+            else if (StringFind(style, "INTRADAY") != -1) be_o = g_intraday_be_offset;
+            else if (StringFind(style, "SWING") != -1) be_o = g_swing_be_offset;
+         }
+         if (ts_p == 0) {
+            if (StringFind(style, "SCALPING") != -1) ts_p = g_scalping_trail_start;
+            else if (StringFind(style, "INTRADAY") != -1) ts_p = g_intraday_trail_start;
+            else if (StringFind(style, "SWING") != -1) ts_p = g_swing_trail_start;
+         }
+         if (td_p == 0) {
+            if (StringFind(style, "SCALPING") != -1) td_p = g_scalping_trail_dist;
+            else if (StringFind(style, "INTRADAY") != -1) td_p = g_intraday_trail_dist;
+            else if (StringFind(style, "SWING") != -1) td_p = g_swing_trail_dist;
+         }
+         
          double current_price = (pos_type == POSITION_TYPE_BUY) ? SymbolInfoDouble(sym, SYMBOL_BID) : SymbolInfoDouble(sym, SYMBOL_ASK);
          double open_price = position.PriceOpen();
          double pip_size = (StringFind(sym, "JPY") != -1 || StringFind(sym, "XAU") != -1) ? 0.01 : 0.0001;
@@ -1022,6 +1051,27 @@ void ManageManualBaskets() {
                   }
                }
             }
+         }
+         
+         if (be_p == 0) {
+            if (StringFind(style, "SCALPING") != -1) be_p = g_scalping_be_trigger;
+            else if (StringFind(style, "INTRADAY") != -1) be_p = g_intraday_be_trigger;
+            else if (StringFind(style, "SWING") != -1) be_p = g_swing_be_trigger;
+         }
+         if (be_o == 0) {
+            if (StringFind(style, "SCALPING") != -1) be_o = g_scalping_be_offset;
+            else if (StringFind(style, "INTRADAY") != -1) be_o = g_intraday_be_offset;
+            else if (StringFind(style, "SWING") != -1) be_o = g_swing_be_offset;
+         }
+         if (ts_p == 0) {
+            if (StringFind(style, "SCALPING") != -1) ts_p = g_scalping_trail_start;
+            else if (StringFind(style, "INTRADAY") != -1) ts_p = g_intraday_trail_start;
+            else if (StringFind(style, "SWING") != -1) ts_p = g_swing_trail_start;
+         }
+         if (td_p == 0) {
+            if (StringFind(style, "SCALPING") != -1) td_p = g_scalping_trail_dist;
+            else if (StringFind(style, "INTRADAY") != -1) td_p = g_intraday_trail_dist;
+            else if (StringFind(style, "SWING") != -1) td_p = g_swing_trail_dist;
          }
          
          if (ticket_count > 0 && total_vol > 0) {
