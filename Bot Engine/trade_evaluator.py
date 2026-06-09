@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 
 import config
+import MetaTrader5 as mt5
 from mt5_connector import mt5_conn
 from strategy import calculate_multi_indicators
 from ai_engine import get_ai_signal, query_ai_provider
