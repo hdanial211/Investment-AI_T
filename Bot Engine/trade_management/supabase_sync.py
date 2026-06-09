@@ -39,6 +39,8 @@ class SupabaseSync:
 
     def upsert_heartbeat(self, *, cycle: int = 0, status: str = "online", message: str = "") -> None:
         account_id = getattr(config, "ACCOUNT_ID", None)
+        if not account_id:
+            return
         payload = {
             "account_id": account_id,
             "enabled": True,
@@ -51,9 +53,13 @@ class SupabaseSync:
         Upsert trade data to Supabase active_trades table.
         Returns False if HTTP 409 Conflict (Duplicate signal) is encountered, True otherwise.
         """
+        acc_id = state.get("account_id") or getattr(config, "ACCOUNT_ID", None)
+        if not acc_id:
+            return
+            
         payload = {
             "ticket": state.get("ticket"),
-            "account_id": state.get("account_id") or getattr(config, "ACCOUNT_ID", None),
+            "account_id": acc_id,
             "symbol": state.get("symbol"),
             "direction": state.get("action") or state.get("direction"),
             "lot": state.get("lot"),
@@ -88,9 +94,13 @@ class SupabaseSync:
         # First remove from active_trades if we want to move it (or we can just leave it to EA to delete, but let's sync)
         # Actually in V4, Python marks closing_requested = True, and EA deletes. 
         # But if Python does the close, we insert to closed_trades.
+        acc_id = state.get("account_id") or getattr(config, "ACCOUNT_ID", None)
+        if not acc_id:
+            return
+            
         payload = {
             "ticket": state.get("ticket"),
-            "account_id": state.get("account_id") or getattr(config, "ACCOUNT_ID", None),
+            "account_id": acc_id,
             "symbol": state.get("symbol"),
             "direction": state.get("action") or state.get("direction"),
             "lot": state.get("lot"),

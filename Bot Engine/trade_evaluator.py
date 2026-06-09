@@ -496,6 +496,7 @@ def main():
         sys.exit(1)
         
     account_id = sys.argv[1]
+    config.ACCOUNT_ID = account_id
     
     logger.info("==============================================")
     logger.info(f" 🧠 TRADE EVALUATOR PROCESS ({account_id}) ")
