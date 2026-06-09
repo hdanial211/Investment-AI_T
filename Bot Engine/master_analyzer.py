@@ -103,14 +103,22 @@ def loop_heartbeat(supabase: SupabaseSync):
         logger.error(f"Heartbeat error: {e}")
 
 def main():
-    logger.info("==============================================")
+    # Try connecting to Master MT5 using dynamic settings from Supabase
+    system_settings.fetch_and_apply_system_settings(silent_global=True)
+    
+    m_provider = config.MAIN_PROVIDER_CONFIG.get("provider", "groq") if hasattr(config, "MAIN_PROVIDER_CONFIG") else "groq"
+    m_model = config.MASTER_AI_MAIN_MODEL if hasattr(config, "MASTER_AI_MAIN_MODEL") else "llama-3.3-70b-versatile"
+    v_provider = config.VISION_PROVIDER_CONFIG.get("provider", "groq") if hasattr(config, "VISION_PROVIDER_CONFIG") else "groq"
+    v_model = config.VISION_AI_MODEL if hasattr(config, "VISION_AI_MODEL") else "llama-3.3-70b-versatile"
+    
+    logger.info("==================================================")
     logger.info(" 🧠 MASTER ANALYZER (V4 CLOUD-NATIVE BRAIN) ")
-    logger.info("==============================================")
+    logger.info(f" Main Model: {m_provider} / {m_model}")
+    logger.info(f" Vision Model: {v_provider} / {v_model}")
+    logger.info("==================================================")
     
     supabase = SupabaseSync()
     
-    # Try connecting to Master MT5 using dynamic settings from Supabase
-    system_settings.fetch_and_apply_system_settings()
     master_path = getattr(config, "MASTER_MT5_PATH", config.MT5_PATH)
     mt5_conn.connect(0, "", "", master_path)
     

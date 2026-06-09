@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 SHARED_STATE_FILE = os.path.join(os.path.dirname(__file__), "shared_state.json")
 
-def fetch_and_apply_system_settings() -> bool:
+def fetch_and_apply_system_settings(silent_global: bool = False) -> bool:
     """
     Reads the global system settings from Supabase and overwrites config.py.
     """
@@ -33,10 +33,10 @@ def fetch_and_apply_system_settings() -> bool:
         
         if isinstance(providers_list, dict):
             # ── NEW: Role-based format ────────────────────────────────────
-            _apply_role_based_providers(providers_list)
+            _apply_role_based_providers(providers_list, silent_global)
         elif isinstance(providers_list, list) and len(providers_list) > 0:
             # ── LEGACY: Flat array format (backward compatible) ───────────
-            _apply_legacy_providers(providers_list)
+            _apply_legacy_providers(providers_list, silent_global)
         else:
             logger.warning("No providers_list found in Supabase settings.")
         
@@ -57,7 +57,7 @@ def fetch_and_apply_system_settings() -> bool:
         return False
 
 
-def _apply_role_based_providers(providers: dict) -> None:
+def _apply_role_based_providers(providers: dict, silent_global: bool = False) -> None:
     """Parse role-based providers_list format (v4 architecture).
     
     Expected format:
@@ -78,18 +78,20 @@ def _apply_role_based_providers(providers: dict) -> None:
         config.MAIN_PROVIDER_CONFIG = main_cfg
         config.MASTER_AI_PROVIDER = main_cfg.get("provider")
         config.MASTER_AI_MAIN_MODEL = main_cfg.get("model")
-        logger.info(
-            f"Main Model: {main_cfg.get('provider')} / {main_cfg.get('model')}"
-        )
+        if not silent_global:
+            logger.info(
+                f"Main Model: {main_cfg.get('provider')} / {main_cfg.get('model')}"
+            )
     
     if vision_cfg and isinstance(vision_cfg, dict):
         config.VISION_PROVIDER_CONFIG = vision_cfg
         # Also update the legacy VISION_AI_MODEL for backward compat
         if vision_cfg.get("model"):
             config.VISION_AI_MODEL = vision_cfg["model"]
-        logger.info(
-            f"Vision Model: {vision_cfg.get('provider')} / {vision_cfg.get('model')}"
-        )
+        if not silent_global:
+            logger.info(
+                f"Vision Model: {vision_cfg.get('provider')} / {vision_cfg.get('model')}"
+            )
         
     if evaluator_cfg and isinstance(evaluator_cfg, dict):
         config.EVALUATOR_PROVIDER_CONFIG = evaluator_cfg
@@ -126,7 +128,7 @@ def _apply_role_based_providers(providers: dict) -> None:
     )
 
 
-def _apply_legacy_providers(providers_list: list) -> None:
+def _apply_legacy_providers(providers_list: list, silent_global: bool = False) -> None:
     """Parse legacy flat array format (backward compatible).
     
     Expected format:
@@ -140,6 +142,11 @@ def _apply_legacy_providers(providers_list: list) -> None:
     config.MASTER_AI_MAIN_MODEL = master_provider.get("main_model")
     config.MASTER_AI_RISK_MODEL = master_provider.get("risk_model")
     
+    if not silent_global:
+        logger.info(
+            f"Main Model: {master_provider.get('provider')} / {master_provider.get('main_model')}"
+        )
+
     # Also populate role-based configs from legacy format for forward compat
     config.MAIN_PROVIDER_CONFIG = {
         "provider": master_provider.get("provider"),

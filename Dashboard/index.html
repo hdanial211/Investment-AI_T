@@ -564,7 +564,7 @@
       $("activeRows").innerHTML = filtered.map((r) => `
         <tr>
           <td>${safe(r.ticket)}</td>
-          <td style="font-size:0.85em;color:var(--muted)">${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : "-")}</td>
+          <td style="font-size:0.85em;color:var(--muted)">${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : (r.created_at ? new Date(r.created_at).toLocaleString() : "-"))}</td>
           <td><span class="pill">${safe(r.symbol)}</span></td>
           <td class="${String(r.direction).toLowerCase() === "buy" ? "buy" : "sell"}">${safe(r.direction)}</td>
           <td>${safe(r.lot)}</td>
@@ -620,7 +620,7 @@
       
       $("eventRows").innerHTML = filtered.map((r) => `
         <tr>
-          <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : "-")}</td>
+          <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : (r.opened_at ? new Date(r.opened_at).toLocaleString() : (r.created_at ? new Date(r.created_at).toLocaleString() : "-"))}</td>
           <td>${r.updated_at ? new Date(r.updated_at).toLocaleString() : "-"}</td>
           <td>${safe(r.ticket)}</td>
           <td><span class="pill">${safe(r.symbol)}</span></td>
