@@ -97,7 +97,11 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
                                 
                         if manage_be:
                             trail_stage1 = trailing_settings.get("trail_stage1") or s_params.get("trail_stage1", 0.3)
-                            payload["virtual_trailing_stop"] = f"Start: {trail_stage1}xATR"
+                            activation_dist = float(trail_stage1) * pip_value * 10  # simplified ATR distance for UI
+                            if p["direction"] == "BUY":
+                                payload["trail_activation_price"] = round(p["price_open"] + activation_dist, 2)
+                            else:
+                                payload["trail_activation_price"] = round(p["price_open"] - activation_dist, 2)
                 supabase._upsert("active_trades", payload, conflict="ticket")
                 logger.info(f"🔄 [Sync: {acc}] Added missing MT5 trade {tkt} to Supabase")
             else:
@@ -294,6 +298,15 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 # Trailing Start: guna trail_stage1 dari style_params (ATR-based)
                 trail_stage1 = trailing_settings.get("trail_stage1") or s_params.get("trail_stage1", 0.3)
                 
+                # Kira activation price
+                pip_value = 0.10
+                activation_dist = float(trail_stage1) * pip_value * 10
+                entry_price = connector.get_tick(sym)["ask"] if action == "BUY" else connector.get_tick(sym)["bid"]
+                if action == "BUY":
+                    trail_act = round(entry_price + activation_dist, 2)
+                else:
+                    trail_act = round(entry_price - activation_dist, 2)
+                
                 # Tulis ke active_trades di Supabase dengan virtual SL/TP penuh
                 if ticket_id:
                     trade_payload = {
@@ -302,11 +315,11 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                         "symbol": sym,
                         "direction": action,
                         "lot": lot_size,
-                        "entry_price": connector.get_tick(sym)["ask"] if action == "BUY" else connector.get_tick(sym)["bid"],
+                        "entry_price": entry_price,
                         "trade_style": style,
                         "virtual_sl": final_sl,
                         "virtual_tp": final_tp,
-                        "virtual_trailing_stop": f"Start: {trail_stage1}xATR",
+                        "trail_activation_price": trail_act,
                         "current_status": "OPEN",
                         "floating_profit": 0,
                         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
