@@ -300,7 +300,7 @@ def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: Accoun
     except Exception as e:
         logger.error(f"Signal Executor error for {acc}: {e}")
 
-def loop_evaluator(supabase, connector, account_id, acct_settings, current_minute, is_startup=False):
+def loop_evaluator(supabase, account_id, acct_settings, current_minute, is_startup=False):
     """
     Menilai setiap active trade dan menggunakan Provider (Main & Risk) 
     untuk menapis sentimen pasaran dan pergerakan semasa.
@@ -525,14 +525,14 @@ def main():
         current_minute = datetime.now().minute
         
         # Executor Loop (Setiap 5 saat)
-        loop_signal_executor(supabase, connector, account_id, acct_settings)
-        sync_active_trades_from_mt5(supabase, connector, account_id, acct_settings)
+        loop_signal_executor(supabase, account_id, acct_settings)
+        sync_active_trades_from_mt5(supabase, account_id, acct_settings)
         
         # Evaluator Loop (Jalankan setiap minit, dan saring di dalam loop mengikut Trade Style)
         # Scalping (15m), Intraday (30m), Swing (60m). Startup (Sekali sahaja)
         is_startup = (last_eval_minute == -1)
         if current_minute != last_eval_minute or is_startup:
-            loop_evaluator(supabase, connector, account_id, acct_settings, current_minute, is_startup)
+            loop_evaluator(supabase, account_id, acct_settings, current_minute, is_startup)
             last_eval_minute = current_minute
             
         # ── Kemaskini Balance & Info (Ikut masa 10 minit sekali, tak wajib genap)
