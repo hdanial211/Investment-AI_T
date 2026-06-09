@@ -297,6 +297,7 @@ struct ActiveTradeCache {
    double be_offset;
    double trail_start;
    double trail_dist;
+   bool closing_requested;
 };
 ActiveTradeCache g_cached_trades[];
 
@@ -323,6 +324,7 @@ void SyncActiveTrades() {
       g_cached_trades[i].be_offset = StringToDouble(ExtractJSONValue(chunks[i], "be_offset_pips"));
       g_cached_trades[i].trail_start = StringToDouble(ExtractJSONValue(chunks[i], "trail_start_pips"));
       g_cached_trades[i].trail_dist = StringToDouble(ExtractJSONValue(chunks[i], "trail_dist_pips"));
+      g_cached_trades[i].closing_requested = (ExtractJSONValue(chunks[i], "closing_requested") == "true");
       
       if (g_cached_trades[i].v_sl > 0 || g_cached_trades[i].v_tp > 0) {
          DrawIndividualLines(g_cached_trades[i].ticket, g_cached_trades[i].sym, g_cached_trades[i].style, g_cached_trades[i].dir, g_cached_trades[i].v_sl, g_cached_trades[i].v_tp);
@@ -501,7 +503,7 @@ void ExecuteTrade(string sym, string action, double virtual_sl, double virtual_t
       Print("Stealth Trade Opened: ", ticket, " | V_SL: ", virtual_sl, " | V_TP: ", virtual_tp);
       
       // Save Virtual SL/TP to Supabase
-      string payload = "{\"ticket\":" + IntegerToString(ticket) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"" + sig_id + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + action + "\",\"lot\":" + DoubleToString(lot, 2) + ",\"virtual_sl\":" + DoubleToString(virtual_sl, 5) + ",\"virtual_tp\":" + DoubleToString(virtual_tp, 5) + ",\"trade_style\":\"" + style + "\"}";
+      string payload = "{\"ticket\":" + IntegerToString(ticket) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"" + sig_id + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + action + "\",\"lot\":" + DoubleToString(lot, 2) + ",\"virtual_sl\":" + DoubleToString(virtual_sl, 5) + ",\"virtual_tp\":" + DoubleToString(virtual_tp, 5) + ",\"trade_style\":\"" + style + "\",\"current_status\":\"OPEN\"}";
       SupabasePOST("/rest/v1/active_trades", payload);
       
       string dir_str = (action == "BUY") ? "BUY" : "SELL";
@@ -609,11 +611,32 @@ void OnTimer() {
 void ManageIndividualTrades();
 void ManageManualBaskets();
 
-
+void ApplyEmergencyHardSL() {
+   for(int j = PositionsTotal()-1; j >= 0; j--) {
+      if(position.SelectByIndex(j)) {
+         ulong mag = position.Magic();
+         if (mag == InpMagicNumber || mag == InpMagicNumber + 1 || mag == InpMagicNumber + 2 || mag == InpMagicNumber + 3) {
+            if (position.StopLoss() == 0.0) {
+               double pip_size = (StringFind(position.Symbol(), "JPY") != -1 || StringFind(position.Symbol(), "XAU") != -1) ? 0.01 : 0.0001;
+               double hard_sl_dist = 200.0 * pip_size; // 200 pips hard emergency SL
+               double new_sl = 0;
+               if (position.PositionType() == POSITION_TYPE_BUY) {
+                  new_sl = position.PriceOpen() - hard_sl_dist;
+               } else {
+                  new_sl = position.PriceOpen() + hard_sl_dist;
+               }
+               trade.PositionModify(position.Ticket(), new_sl, 0.0);
+               Print("Applied Hard Emergency SL to ticket ", position.Ticket(), " at ", new_sl);
+            }
+         }
+      }
+   }
+}
 void OnTick() {
    ProcessGridRecovery();
    ManageIndividualTrades();
    ManageManualBaskets();
+   ApplyEmergencyHardSL();
    
    // Clean up orphaned virtual and basket lines for closed trades
    int total_objs = ObjectsTotal(0);
@@ -704,6 +727,11 @@ void ManageIndividualTrades() {
             if (v_sl > 0 && current_price >= v_sl) { hit = true; close_reason = "Virtual SL Hit"; }
             else if (v_tp > 0 && current_price <= v_tp) { hit = true; close_reason = "Virtual TP Hit"; }
             else if (v_tr > 0 && current_price >= v_tr) { hit = true; close_reason = "Virtual BE/Trailing Hit"; }
+         }
+         
+         if (g_cached_trades[cache_idx].closing_requested) {
+            hit = true;
+            close_reason = "Manual Close via Dashboard";
          }
          
          if (hit) {
@@ -882,7 +910,7 @@ void ProcessGridRecovery() {
                if (trade.Buy(new_lot, sym, current_ask, 0, 0, "GridLayer_" + IntegerToString(total_buy_layers))) {
                   ulong tkt = trade.ResultOrder();
                   string style_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
-                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"BUY\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_buy, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_buy, 5) + ",\"trade_style\":\"" + style_str + "\"}";
+                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"BUY\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_buy, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_buy, 5) + ",\"trade_style\":\"" + style_str + "\",\"current_status\":\"OPEN\"}";
                   SupabasePOST("/rest/v1/active_trades", payload);
                   DrawVirtualLines(tkt, grid_v_sl_buy, grid_v_tp_buy);
                   Print("Grid BUY opened for ", sym, " Layer ", total_buy_layers);
@@ -898,7 +926,7 @@ void ProcessGridRecovery() {
                if (trade.Sell(new_lot, sym, current_bid, 0, 0, "GridLayer_" + IntegerToString(total_sell_layers))) {
                   ulong tkt = trade.ResultOrder();
                   string style_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
-                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"SELL\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_sell, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_sell, 5) + ",\"trade_style\":\"" + style_str + "\"}";
+                  string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"signal_id\":\"GRID_" + IntegerToString(tkt) + "\",\"symbol\":\"" + sym + "\",\"direction\":\"SELL\",\"lot\":" + DoubleToString(new_lot, 2) + ",\"virtual_sl\":" + DoubleToString(grid_v_sl_sell, 5) + ",\"virtual_tp\":" + DoubleToString(grid_v_tp_sell, 5) + ",\"trade_style\":\"" + style_str + "\",\"current_status\":\"OPEN\"}";
                   SupabasePOST("/rest/v1/active_trades", payload);
                   DrawVirtualLines(tkt, grid_v_sl_sell, grid_v_tp_sell);
                   Print("Grid SELL opened for ", sym, " Layer ", total_sell_layers);

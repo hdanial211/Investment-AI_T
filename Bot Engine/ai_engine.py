@@ -285,7 +285,7 @@ def _extract_json(raw_text: str) -> Optional[Dict]:
     return None
 
 
-def _validate_signal(data: Dict) -> Optional[Dict]:
+def _validate_signal(data: Dict, bid: float = 0.0, ask: float = 0.0) -> Optional[Dict]:
     if not isinstance(data, dict):
         return None
 
@@ -314,6 +314,22 @@ def _validate_signal(data: Dict) -> Optional[Dict]:
         tp_price = float(data.get("tp_price") or 0.0)
     except (TypeError, ValueError):
         tp_price = 0.0
+
+    # V4 Sanity Check: Ensure SL/TP are mathematically logical
+    if action == "BUY" and bid > 0 and ask > 0:
+        if (sl_price > ask) or (tp_price > 0 and tp_price < ask):
+            logger.warning(f"Sanity Check Failed (BUY): SL {sl_price} > Ask {ask} OR TP {tp_price} < Ask {ask}")
+            action = "HOLD"
+            reason = "[Sanity Check Failed] " + reason
+            sl_price = 0.0
+            tp_price = 0.0
+    elif action == "SELL" and bid > 0 and ask > 0:
+        if (sl_price > 0 and sl_price < bid) or (tp_price > 0 and tp_price > bid):
+            logger.warning(f"Sanity Check Failed (SELL): SL {sl_price} < Bid {bid} OR TP {tp_price} > Bid {bid}")
+            action = "HOLD"
+            reason = "[Sanity Check Failed] " + reason
+            sl_price = 0.0
+            tp_price = 0.0
 
     entry_zone = str(data.get("entry_zone", ""))[:100]
 
@@ -545,7 +561,7 @@ def get_ai_signal(indicators: Dict, bid: float, ask: float, trade_memory=None, s
         logger.info(f"AI Trade Eval → {result['action']} | Reason: {result['reason']}")
         return result
 
-    signal = _validate_signal(parsed)
+    signal = _validate_signal(parsed, bid=bid, ask=ask)
     if not signal:
         return {**default_response, "reason": "Signal validation failed", "raw_response": raw_text}
 

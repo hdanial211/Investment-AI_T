@@ -1,761 +1,226 @@
-"""
-🏆 GOLD AI Trading Algo — MT5 Connector
-=========================================
-MetaTrader 5 connection manager.
-- AUTO-LAUNCHES MT5 terminal if it is not running.
-- Connects to an already-running MT5 terminal (just mt5.initialize()).
-- Falls back to credential-based login if needed.
-- Falls back to DEMO MODE only if MetaTrader5 package is not installed.
-
-Handle: connect, tick data, OHLCV, order execution.
-"""
-
-import os
-import random
-import subprocess
-import time
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional
+import MetaTrader5 as mt5
+import logging
+from typing import Dict, Optional, List, Union
 import pandas as pd
-from loguru import logger
+from datetime import datetime
 
-try:
-    import MetaTrader5 as mt5
-    MT5_AVAILABLE = True
-except ImportError:
-    MT5_AVAILABLE = False
-    logger.warning("DEMO MODE: MT5 not available. Using simulated data.")
-
-import config
-
-
-# ── MT5 Auto-Launch Helpers ────────────────────────────────────────────────────
-
-# Common MT5 install locations on Windows
-_MT5_SEARCH_PATHS = [
-    r"C:\Program Files\MetaTrader 5\terminal64.exe",
-    r"C:\Program Files (x86)\MetaTrader 5\terminal64.exe",
-    r"C:\Program Files\RoboForex MT5\terminal64.exe",
-    r"C:\Program Files\RoboForex - MetaTrader 5\terminal64.exe",
-    r"C:\Program Files (x86)\RoboForex - MetaTrader 5\terminal64.exe",
-    r"C:\Program Files\MetaTrader 5 RoboForex\terminal64.exe",
-    r"C:\Program Files (x86)\MetaTrader 5 RoboForex\terminal64.exe",
-    # User-level installs
-    str(Path.home() / "AppData" / "Roaming" / "MetaTrader 5" / "terminal64.exe"),
-    str(Path.home() / "AppData" / "Local" / "Programs" / "MetaTrader 5" / "terminal64.exe"),
-]
-
-
-def _find_mt5_exe() -> Optional[str]:
-    """Find MT5 executable path. Checks config first, then common locations."""
-    # 1. Use path from config/.env if set
-    if config.MT5_PATH and Path(config.MT5_PATH).exists():
-        return config.MT5_PATH
-
-    # 2. Search common paths
-    for p in _MT5_SEARCH_PATHS:
-        if Path(p).exists():
-            logger.debug(f"Found MT5 at: {p}")
-            return p
-
-    # 3. Search APPDATA for any terminal64.exe
-    appdata = Path(os.environ.get("APPDATA", ""))
-    for match in appdata.rglob("terminal64.exe"):
-        logger.debug(f"Found MT5 at: {match}")
-        return str(match)
-
-    return None
-
-
-def _is_mt5_running() -> bool:
-    """Check if MT5 process is already running (Windows only)."""
-    try:
-        output = subprocess.check_output(
-            ["tasklist", "/FI", "IMAGENAME eq terminal64.exe"],
-            stderr=subprocess.DEVNULL,
-        ).decode(errors="ignore")
-        return "terminal64.exe" in output
-    except Exception:
-        return False
-
-
-def _launch_mt5(exe_path: str, wait_seconds: int = 12) -> bool:
-    """
-    Launch MT5 terminal and wait for it to be ready.
-    Returns True if launched successfully.
-    """
-    logger.info(f"🚀 Launching MT5: {exe_path}")
-    try:
-        subprocess.Popen([exe_path], close_fds=True)
-    except Exception as e:
-        logger.error(f"Failed to launch MT5: {e}")
-        return False
-
-    logger.info(f"⏳ Waiting {wait_seconds}s for MT5 to start...")
-    for i in range(wait_seconds):
-        time.sleep(1)
-        if _is_mt5_running():
-            logger.info("✅ MT5 process detected — waiting a bit more for it to be ready...")
-            time.sleep(4)   # extra wait for terminal to fully initialise
-            return True
-
-    logger.warning("MT5 process not detected after launch attempt.")
-    return True  # still try to connect — might be slow
-
-
-# ── Timeframe mapping ──────────────────────────────────────────────────────────
-TF_MAP = {
-    "M1":  mt5.TIMEFRAME_M1  if MT5_AVAILABLE else 1,
-    "M5":  mt5.TIMEFRAME_M5  if MT5_AVAILABLE else 5,
-    "M15": mt5.TIMEFRAME_M15 if MT5_AVAILABLE else 15,
-    "M30": mt5.TIMEFRAME_M30 if MT5_AVAILABLE else 30,
-    "H1":  mt5.TIMEFRAME_H1  if MT5_AVAILABLE else 60,
-    "H4":  mt5.TIMEFRAME_H4  if MT5_AVAILABLE else 240,
-    "D1":  mt5.TIMEFRAME_D1  if MT5_AVAILABLE else 1440,
-    "W1":  mt5.TIMEFRAME_W1  if MT5_AVAILABLE else 10080,
-}
-
-# Demo base prices per symbol
-_DEMO_BASE = {
-    "XAUUSD": 2320.0,
-    "GBPUSD": 1.2700,
-    "USDJPY": 155.00,
-    "BTCUSD": 67000.0,
-}
-
-_demo_ticket_counter = 100000
-_demo_positions: dict = {}  # ticket -> position dict
-
-
-def _get_demo_price(symbol: str) -> float:
-    base = _DEMO_BASE.get(symbol, 1.0)
-    return round(base + random.uniform(-base * 0.001, base * 0.001), 5)
-
+logger = logging.getLogger(__name__)
 
 class MT5Connector:
-    """
-    MetaTrader 5 connection manager.
-
-    Priority:
-      1. Use already-logged-in MT5 terminal (just mt5.initialize())
-      2. Login via credentials from .env (MT5_LOGIN / MT5_PASSWORD / MT5_SERVER)
-      3. DEMO fallback (simulated data only)
-    """
-
     def __init__(self):
         self.connected = False
-        self.demo_mode = False
-        self._account_cache: Optional[dict] = None
 
-    # ── CONNECTION ────────────────────────────────────────────────────────────
-
-    def connect(self, login: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None, path: Optional[str] = None) -> bool:
-        """
-        Connect to MT5 terminal.
-        Flow:
-          1. Auto-launch MT5 if not already running.
-          2. mt5.initialize() to attach to the terminal.
-          3. Login with credentials (either passed from Supabase or from .env).
-          4. Fall back to DEMO only if MetaTrader5 package is missing.
-        """
-        if not MT5_AVAILABLE:
-            logger.warning("DEMO MODE: MetaTrader5 package not installed.")
-            self.demo_mode = True
-            self.connected = True
-            return True
-
-        # ── Step 1: Auto-launch MT5 if not running ───────────────────────────
-        if not _is_mt5_running():
-            exe = path if path else _find_mt5_exe()
-            if exe:
-                _launch_mt5(exe)
-            else:
-                logger.warning(
-                    "MT5 executable not found. "
-                    "Set MT5_PATH in your .env or Supabase to the full path of terminal64.exe."
-                )
-
-        target_login = int(login) if login else (int(config.MT5_LOGIN) if config.MT5_LOGIN else 0)
-        target_password = password if password else config.MT5_PASSWORD
-        target_server = server if server else config.MT5_SERVER
-
-        # ── Step 2: Initialize (attach to running terminal & auto-download server if missing) ──
-        target_path = path if path else (config.MT5_PATH if config.MT5_PATH else None)
-        
-        kwargs = {}
-        if target_path:
-            kwargs["path"] = target_path
-        if target_login and target_password and target_server:
-            kwargs["login"] = target_login
-            kwargs["password"] = target_password
-            kwargs["server"] = target_server
+    def initialize(self, path: str = "", login: int = 0, password: str = "", server: str = "") -> bool:
+        """Initialize connection to MT5 terminal."""
+        if path and login > 0:
+            init_res = mt5.initialize(path=path, login=login, password=password, server=server)
+        elif path:
+            init_res = mt5.initialize(path=path)
+        else:
+            init_res = mt5.initialize()
             
-        init_ok = mt5.initialize(**kwargs)
-
-        if not init_ok:
+        if not init_res:
             logger.error(f"MT5 initialize failed: {mt5.last_error()}")
-            logger.warning("Falling back to DEMO mode.")
-            self._enter_demo()
-            return True
-
-        # ── Step 3: Verify Login with credentials ───────────────────────────────────
-
-        account = mt5.account_info()
-
-        if target_login > 0 and target_password and target_server:
-            if account is None or account.login != target_login:
-                # Not logged in yet, or logged in as a different account
-                logger.info(f"Logging in to account #{target_login} on {target_server}...")
-                authorized = mt5.login(
-                    login=target_login,
-                    password=target_password,
-                    server=target_server,
-                )
-                if not authorized:
-                    logger.error(f"MT5 login failed: {mt5.last_error()}")
-                    mt5.shutdown()
-                    self._enter_demo()
-                    return True
-                account = mt5.account_info()
-        elif account is None:
-            logger.warning("MT5 is running but not logged into any account, and no credentials provided.")
-            self._enter_demo()
-            return True
-
-        # ✅ MT5 connected & account ready
+            self.connected = False
+            return False
+            
         self.connected = True
-        self.demo_mode = False
-        self._account_cache = {
-            "login":      account.login,
-            "balance":    account.balance,
-            "equity":     account.equity,
-            "margin":     account.margin,
-            "free_margin":account.margin_free,
-            "profit":     account.profit,
-            "leverage":   account.leverage,
-            "currency":   account.currency,
-            "server":     account.server,
-            "name":       account.name,
-        }
-
-        logger.success(f"✅ MT5 Connected — Account #{account.login} ({account.name})")
-        logger.info(f"   Balance: {account.balance:,.2f} {account.currency}")
-        logger.info(f"   Server:  {account.server}")
-        logger.info(f"   Leverage: 1:{account.leverage}")
+        logger.info("MT5 initialized successfully.")
         return True
 
-    def _enter_demo(self):
-        """Switch to DEMO (simulated) mode."""
-        self.demo_mode = True
-        self.connected = True
-        logger.warning("⚠ Running in DEMO MODE — no real trades will be executed.")
-
-    def disconnect(self):
-        """Shutdown MT5 connection."""
-        if MT5_AVAILABLE and not self.demo_mode:
-            mt5.shutdown()
-        self.connected = False
-        logger.info("🔌 MT5 Disconnected")
+    def connect(self, login: int, password: str, server: str, path: str = "") -> bool:
+        """Legacy alias for initialize"""
+        return self.initialize(path, login, password, server)
 
     def is_connected(self) -> bool:
-        """Check if MT5 is still connected."""
+        """Check if connected to MT5."""
         if not self.connected:
             return False
-        if self.demo_mode:
-            return True
-        if MT5_AVAILABLE:
-            try:
-                info = mt5.account_info()
-                return info is not None
-            except Exception:
-                self.connected = False
-                return False
-        return False
+        info = mt5.terminal_info()
+        return info is not None and info.connected
 
-    # ── ACCOUNT ───────────────────────────────────────────────────────────────
+    def shutdown(self):
+        """Close connection to MT5 terminal."""
+        if self.connected:
+            mt5.shutdown()
+            self.connected = False
 
-    def get_account_info(self) -> dict:
-        """Return current account info dict."""
-        if self.demo_mode:
-            return {
-                "login":       0,
-                "balance":     10_000.0,
-                "equity":      10_000.0,
-                "margin":      0.0,
-                "free_margin": 10_000.0,
-                "profit":      0.0,
-                "leverage":    100,
-                "currency":    "USD",
-                "server":      "DEMO",
-                "name":        "Demo Account",
-            }
-
-        account = mt5.account_info()
-        if account is None:
-            return self._account_cache or {}
-
-        self._account_cache = {
-            "login":       account.login,
-            "balance":     account.balance,
-            "equity":      account.equity,
-            "margin":      account.margin,
-            "free_margin": account.margin_free,
-            "profit":      account.profit,
-            "leverage":    account.leverage,
-            "currency":    account.currency,
-            "server":      account.server,
-            "name":        account.name,
+    def get_symbol_info(self, symbol: str) -> Optional[Dict]:
+        """Fetch symbol properties like tick value, tick size, etc."""
+        if not self.is_connected():
+            return None
+        info = mt5.symbol_info(symbol)
+        if info is None:
+            logger.warning(f"Failed to get symbol info for {symbol}")
+            return None
+            
+        return {
+            "ask": info.ask,
+            "bid": info.bid,
+            "point": info.point,
+            "trade_tick_value": info.trade_tick_value,
+            "trade_tick_size": info.trade_tick_size,
+            "trade_contract_size": info.trade_contract_size,
+            "digits": info.digits,
+            "spread": info.spread
         }
-        return self._account_cache
 
-    # ── MARKET DATA ───────────────────────────────────────────────────────────
-
-    def get_tick(self, symbol: str) -> Optional[dict]:
-        """Get current bid/ask tick for a symbol."""
-        if self.demo_mode:
-            price = _get_demo_price(symbol)
-            spread = 0.0003 if "USD" in symbol and "XAU" not in symbol else 0.30
-            return {"bid": round(price - spread / 2, 5), "ask": round(price + spread / 2, 5), "time": int(time.time())}
-
-        mt5.symbol_select(symbol, True)
+    def get_tick(self, symbol: str) -> Optional[Dict]:
+        """Get latest tick for a symbol."""
+        if not self.is_connected():
+            return None
         tick = mt5.symbol_info_tick(symbol)
-        if tick is None:
-            logger.error(f"Cannot get tick for {symbol}: {mt5.last_error()}")
+        if not tick:
             return None
-        return {"bid": tick.bid, "ask": tick.ask, "time": tick.time}
+        return {
+            "time": tick.time,
+            "bid": tick.bid,
+            "ask": tick.ask,
+            "last": tick.last,
+            "volume": tick.volume
+        }
 
-    def get_ohlcv(
-        self,
-        symbol: str,
-        timeframe: str = None,
-        bars: int = None,
-    ) -> Optional[pd.DataFrame]:
-        """
-        Get OHLCV bars as a DataFrame.
-        Returns DataFrame with columns: time, open, high, low, close, volume, spread
-        """
-        tf_str = timeframe or config.TIMEFRAME
-        bars   = bars or config.BARS_TO_FETCH
-
-        if self.demo_mode:
-            return self._generate_demo_ohlcv(symbol, bars)
-
-        tf = TF_MAP.get(tf_str)
-        if tf is None:
-            logger.error(f"Invalid timeframe: {tf_str}")
+    def get_account_info(self) -> Optional[Dict]:
+        """Get account balance, equity, margin, etc."""
+        if not self.is_connected():
             return None
+        info = mt5.account_info()
+        if not info:
+            return None
+        return info._asdict()
 
-        # Ensure symbol is visible
-        mt5.symbol_select(symbol, True)
-
-        rates = mt5.copy_rates_from_pos(symbol, tf, 0, bars)
+    def get_ohlc_data(self, symbol: str, timeframe: int, count: int = 100) -> pd.DataFrame:
+        """Fetch OHLC data for analysis."""
+        if not self.is_connected():
+            return pd.DataFrame()
+            
+        rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)
         if rates is None or len(rates) == 0:
-            logger.error(f"No data for {symbol} {tf_str}: {mt5.last_error()}")
-            return None
-
+            return pd.DataFrame()
+            
         df = pd.DataFrame(rates)
-        df["time"] = pd.to_datetime(df["time"], unit="s")
-        df = df.rename(columns={"tick_volume": "volume"})
-        if "spread" not in df.columns:
-            df["spread"] = 0
-        return df[["time", "open", "high", "low", "close", "volume", "spread"]]
+        df['time'] = pd.to_datetime(df['time'], unit='s')
+        return df
 
-    def get_multi_timeframe(self, symbol: str, timeframes: list = None, bars: int = None) -> dict:
-        """
-        Get OHLCV for multiple timeframes.
-        Returns: Dict of {timeframe: DataFrame}
-        """
-        if timeframes is None:
-            timeframes = ["H4", "H1", "M15", "M5"]
+    def get_multi_timeframe(self, symbol: str, timeframes: List[str], bars: int = 100) -> Dict[str, pd.DataFrame]:
+        """Fetch OHLC data for multiple timeframes."""
+        if not self.is_connected():
+            return {}
+            
+        tf_map = {
+            "M1": mt5.TIMEFRAME_M1,
+            "M5": mt5.TIMEFRAME_M5,
+            "M15": mt5.TIMEFRAME_M15,
+            "M30": mt5.TIMEFRAME_M30,
+            "H1": mt5.TIMEFRAME_H1,
+            "H4": mt5.TIMEFRAME_H4,
+            "D1": mt5.TIMEFRAME_D1,
+            "W1": mt5.TIMEFRAME_W1
+        }
         
         result = {}
-        for tf in timeframes:
-            df = self.get_ohlcv(symbol, tf, bars)
-            if df is not None and not df.empty:
-                result[tf] = df
+        for tf_str in timeframes:
+            tf_enum = tf_map.get(tf_str.upper())
+            if tf_enum is None: continue
+            
+            df = self.get_ohlc_data(symbol, tf_enum, bars)
+            if not df.empty:
+                result[tf_str.upper()] = df
+                
         return result
 
-    def _generate_demo_ohlcv(self, symbol: str, bars: int) -> pd.DataFrame:
-        """Generate realistic-looking synthetic OHLCV data for DEMO mode."""
-        base = _DEMO_BASE.get(symbol, 1.0)
-        rows = []
-        now = datetime.now()
-        price = base
-        for i in range(bars, 0, -1):
-            t = now - timedelta(minutes=5 * i)
-            change = random.uniform(-base * 0.002, base * 0.002)
-            o = round(price, 5)
-            c = round(price + change, 5)
-            h = round(max(o, c) + abs(change) * random.uniform(0, 0.5), 5)
-            l = round(min(o, c) - abs(change) * random.uniform(0, 0.5), 5)
-            rows.append({"time": t, "open": o, "high": h, "low": l, "close": c, "volume": random.randint(100, 1000), "spread": 3})
-            price = c
-        return pd.DataFrame(rows)
+    def execute_stealth_entry(self, symbol: str, direction: str, lot: float, magic_number: int) -> Optional[int]:
+        """
+        Execute a market order WITH NO SL AND TP (Stealth Mode).
+        Returns the ticket number if successful, None otherwise.
+        """
+        if not self.is_connected():
+            logger.error("MT5 not connected. Cannot execute entry.")
+            return None
 
-    # ── SYMBOL INFO ───────────────────────────────────────────────────────────
-
-    def get_pip_value(self, symbol: str) -> float:
-        """Return pip value (point size) for the symbol."""
-        if self.demo_mode:
-            return config.get_pip_multiplier(symbol)
-
+        order_type = mt5.ORDER_TYPE_BUY if direction.upper() == 'BUY' else mt5.ORDER_TYPE_SELL
         info = mt5.symbol_info(symbol)
-        if info is None:
-            return config.get_pip_multiplier(symbol)
-        return info.point
+        if not info:
+            logger.error(f"Symbol {symbol} not found.")
+            return None
+            
+        price = info.ask if direction.upper() == 'BUY' else info.bid
 
-    def get_contract_size(self, symbol: str) -> float:
-        """Return contract size for the symbol."""
-        if self.demo_mode:
-            return 100.0 if "XAU" in symbol else 100_000.0
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": float(lot),
+            "type": order_type,
+            "price": price,
+            "sl": 0.0,  # Stealth mode
+            "tp": 0.0,  # Stealth mode
+            "deviation": 20,
+            "magic": magic_number,
+            "comment": "V4_AI_Stealth",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
+        }
 
-        info = mt5.symbol_info(symbol)
-        if info is None:
-            return 100_000.0
-        return info.trade_contract_size
+        result = mt5.order_send(request)
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            logger.error(f"Order failed for {symbol}. Error: {result.comment} (Code: {result.retcode})")
+            return None
+            
+        logger.info(f"Stealth Entry Success: Ticket {result.order} for {symbol} ({direction} {lot} lots)")
+        return result.order
 
-    # ── POSITIONS ─────────────────────────────────────────────────────────────
+    def open_trade(self, action: str, lot: float, sl: float, tp: float, symbol: str, comment: str = "", magic: int = 0) -> Union[int, Dict, None]:
+        """Legacy alias that routes to Stealth Entry since V4 ignores broker SL/TP."""
+        return self.execute_stealth_entry(symbol, action, lot, magic)
 
-    def has_open_position(self, symbol: str) -> bool:
-        """Return True if there is an open position on this symbol."""
-        if self.demo_mode:
-            return any(p["symbol"] == symbol for p in _demo_positions.values())
-
-        positions = mt5.positions_get(symbol=symbol)
-        return positions is not None and len(positions) > 0
-
-    def get_open_positions(self, symbol: str = None) -> list:
-        """Get all open positions (optionally filtered by symbol)."""
-        if self.demo_mode:
-            positions = [p for p in _demo_positions.values() if not symbol or p["symbol"] == symbol]
-            result = []
-            for pos in positions:
-                tick = self.get_tick(pos["symbol"])
-                current = tick["bid"] if pos["direction"] == "BUY" else tick["ask"]
-                if pos["direction"] == "BUY":
-                    profit = (current - pos["price_open"]) * pos["volume"]
-                else:
-                    profit = (pos["price_open"] - current) * pos["volume"]
-                result.append({
-                    **pos,
-                    "price_current": current,
-                    "profit": round(profit, 2),
-                })
-            return result
-
+    def get_open_positions(self, symbol: str = "") -> List[Dict]:
+        """Fetch all open positions."""
+        if not self.is_connected():
+            return []
+            
         if symbol:
             positions = mt5.positions_get(symbol=symbol)
         else:
             positions = mt5.positions_get()
-
+            
         if positions is None:
-            err = mt5.last_error()
-            if err[0] == mt5.RES_E_NOT_FOUND:
-                return []
-            else:
-                logger.warning(f"mt5.positions_get() returned None with error {err}. Skipping this cycle to prevent wiping memory.")
-                return None
-
-        result = []
-        for pos in positions:
-            result.append({
-                "ticket":        pos.ticket,
-                "symbol":        pos.symbol,
-                "direction":     "BUY" if pos.type == 0 else "SELL",
-                "volume":        pos.volume,
-                "price_open":    pos.price_open,
-                "price_current": pos.price_current,
-                "sl":            pos.sl,
-                "tp":            pos.tp,
-                "profit":        pos.profit,
-                "swap":          pos.swap,
-                "comment":       pos.comment,
-                "magic":         pos.magic,
-                "time":          datetime.fromtimestamp(pos.time),
-            })
-        return result
-
-    def update_trailing_stop(self, symbol: str, atr: float = None):
-        """
-        Multi-Stage Trailing Stop:
-        Stage 1: If profit > 0.5 * ATR, move SL to Break Even.
-        Stage 2: If profit > 1.5 * ATR, trail SL by 1.0 * ATR.
-        """
-        if self.demo_mode or not MT5_AVAILABLE or not atr:
-            return
-
-        positions = mt5.positions_get(symbol=symbol)
-        if not positions:
-            return
-
-        stage1_distance = 0.5 * atr
-        stage2_distance = 1.5 * atr
-        trail_distance = 1.0 * atr
-
-        for pos in positions:
-            action = "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
-            current_sl = pos.sl
+            return []
             
-            if action == "BUY":
-                profit_distance = pos.price_current - pos.price_open
-                
-                # Stage 2: Trailing
-                if profit_distance > stage2_distance:
-                    new_sl = pos.price_current - trail_distance
-                    if new_sl > current_sl: # Only move up
-                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
-                        
-                # Stage 1: Break Even
-                elif profit_distance > stage1_distance:
-                    new_sl = pos.price_open
-                    if current_sl < new_sl:
-                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
-                        
-            elif action == "SELL":
-                profit_distance = pos.price_open - pos.price_current
-                
-                # Stage 2: Trailing
-                if profit_distance > stage2_distance:
-                    new_sl = pos.price_current + trail_distance
-                    if current_sl == 0.0 or new_sl < current_sl: # Only move down
-                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
-                        
-                # Stage 1: Break Even
-                elif profit_distance > stage1_distance:
-                    new_sl = pos.price_open
-                    if current_sl == 0.0 or current_sl > new_sl:
-                        self.modify_sl_tp(pos.ticket, pos.symbol, new_sl, pos.tp)
+        return [p._asdict() for p in positions]
 
-    def modify_sl_tp(self, ticket: int, symbol: str, new_sl: float, new_tp: float):
-        if self.demo_mode or not MT5_AVAILABLE:
+    def close_position(self, ticket: int, lot: float, symbol: str, direction: str) -> bool:
+        """Close an existing position (Used for emergency or manual intervention from Python)."""
+        if not self.is_connected():
             return False
-            
+
+        info = mt5.symbol_info(symbol)
+        if not info:
+            return False
+
+        # If it was a BUY (0), we close by SELLING (1) at BID.
+        close_type = mt5.ORDER_TYPE_SELL if direction == 0 or str(direction).upper() == 'BUY' else mt5.ORDER_TYPE_BUY
+        price = info.bid if close_type == mt5.ORDER_TYPE_SELL else info.ask
+
         request = {
-            "action": mt5.TRADE_ACTION_SLTP,
-            "position": ticket,
+            "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
-            "sl": float(new_sl),
-            "tp": float(new_tp),
-        }
-        result = mt5.order_send(request)
-        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-            logger.info(f"[{symbol}] MT5 SL/TP updated | Ticket {ticket} | SL: {new_sl:.5f} | TP: {new_tp:.5f}")
-            return True
-        else:
-            logger.error(f"Failed to modify SL/TP for {ticket}: {result.comment if result else mt5.last_error()}")
-            return False
-
-    # ── ORDER EXECUTION ───────────────────────────────────────────────────────
-
-    def place_order(
-        self,
-        symbol:   str,
-        action:   str,
-        lot:      float,
-        sl_price: float,
-        tp_price: float,
-        comment:  str = "AI_BOT",
-        magic:    int = 123456,
-    ) -> dict:
-        """
-        Place a market order.
-        Returns: {"success": bool, "ticket": int|None, "message": str}
-        """
-        if self.demo_mode:
-            return self._place_demo_order(symbol, action, lot, sl_price, tp_price, comment)
-
-        # Ensure symbol is available
-        if not mt5.symbol_select(symbol, True):
-            return {"success": False, "ticket": None, "message": f"Cannot select symbol {symbol}"}
-
-        tick = mt5.symbol_info_tick(symbol)
-        if tick is None:
-            return {"success": False, "ticket": None, "message": f"No tick for {symbol}"}
-
-        order_type = mt5.ORDER_TYPE_BUY if action == "BUY" else mt5.ORDER_TYPE_SELL
-        price      = tick.ask if action == "BUY" else tick.bid
-
-        # Determine supported filling mode
-        filling_type = mt5.ORDER_FILLING_IOC
-        sym_info = mt5.symbol_info(symbol)
-        if sym_info:
-            # Bit 1 (value 1) is FOK, Bit 2 (value 2) is IOC
-            if sym_info.filling_mode & 1:
-                filling_type = mt5.ORDER_FILLING_FOK
-            elif sym_info.filling_mode & 2:
-                filling_type = mt5.ORDER_FILLING_IOC
-            else:
-                filling_type = mt5.ORDER_FILLING_RETURN
-
-        request = {
-            "action":        mt5.TRADE_ACTION_DEAL,
-            "symbol":        symbol,
-            "volume":        float(lot),
-            "type":          order_type,
-            "price":         price,
-            "deviation":     20,
-            "magic":         magic,
-            "comment":       comment,
-            "type_time":     mt5.ORDER_TIME_GTC,
-            "type_filling":  filling_type,
-        }
-
-        if config.USE_BROKER_SL_TP:
-            # Validate broker-visible SL/TP direction only when explicitly enabled.
-            if action == "BUY" and sl_price >= price:
-                sl_price = price * 0.995
-            if action == "SELL" and sl_price <= price:
-                sl_price = price * 1.005
-            if action == "BUY" and tp_price <= price:
-                tp_price = price * 1.01
-            if action == "SELL" and tp_price >= price:
-                tp_price = price * 0.99
-            request["sl"] = round(sl_price, 5)
-            request["tp"] = round(tp_price, 5)
-
-        result = mt5.order_send(request)
-
-        if result is None:
-            return {"success": False, "ticket": None, "message": f"order_send returned None: {mt5.last_error()}"}
-
-        if result.retcode == mt5.TRADE_RETCODE_DONE:
-            logger.success(f"✅ Order placed: {action} {lot} {symbol} @ {price} | Ticket: {result.order}")
-            return {"success": True, "ticket": result.order, "message": "OK", "price": price}
-        else:
-            msg = f"Order rejected (code {result.retcode}): {result.comment}"
-            logger.error(f"❌ {msg}")
-            return {"success": False, "ticket": None, "message": msg}
-
-    def _place_demo_order(self, symbol, action, lot, sl_price, tp_price, comment) -> dict:
-        global _demo_ticket_counter
-        _demo_ticket_counter += 1
-        ticket = _demo_ticket_counter
-        tick = self.get_tick(symbol)
-        price = tick["ask"] if action == "BUY" else tick["bid"]
-        _demo_positions[ticket] = {
-            "ticket":     ticket,
-            "symbol":     symbol,
-            "direction":  action,
-            "volume":     lot,
-            "price_open": price,
-            "sl":         sl_price,
-            "tp":         tp_price,
-            "comment":    comment,
-            "time":       datetime.now(),
-        }
-        logger.info(f"[DEMO] Order placed: {action} {lot} {symbol} | Ticket: {ticket}")
-        return {"success": True, "ticket": ticket, "message": "DEMO", "price": price}
-
-    def close_trade(self, ticket: int, symbol: str, comment: str = "AI_BOT_CLOSE") -> bool:
-        """Close an open position by ticket."""
-        if self.demo_mode:
-            if ticket in _demo_positions:
-                del _demo_positions[ticket]
-                logger.info(f"[DEMO] Position {ticket} closed")
-                return True
-            return False
-
-        position = mt5.positions_get(ticket=ticket)
-        if not position:
-            logger.error(f"Position {ticket} not found")
-            return False
-
-        pos = position[0]
-        close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-        tick = mt5.symbol_info_tick(symbol)
-        price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
-
-        sym_info = mt5.symbol_info(symbol)
-        filling_type = mt5.ORDER_FILLING_IOC
-        if sym_info:
-            if sym_info.filling_mode & 1:
-                filling_type = mt5.ORDER_FILLING_FOK
-            elif sym_info.filling_mode & 2:
-                filling_type = mt5.ORDER_FILLING_IOC
-            else:
-                filling_type = mt5.ORDER_FILLING_RETURN
-
-        request = {
-            "action":       mt5.TRADE_ACTION_DEAL,
-            "symbol":       symbol,
-            "volume":       pos.volume,
-            "type":         close_type,
-            "position":     ticket,
-            "price":        price,
-            "deviation":    20,
-            "magic":        123456,
-            "comment":      "AI_BOT_CLOSE",
-            "type_time":    mt5.ORDER_TIME_GTC,
-            "type_filling": filling_type,
+            "volume": float(lot),
+            "type": close_type,
+            "position": ticket,
+            "price": price,
+            "deviation": 20,
+            "magic": 0,
+            "comment": "V4_Python_Close",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
         }
 
         result = mt5.order_send(request)
-        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-            logger.success(f"✅ Position {ticket} closed @ {price}")
-            return True
-        else:
-            logger.error(f"❌ Close failed: {result.comment if result else mt5.last_error()}")
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            logger.error(f"Failed to close ticket {ticket}. Code: {result.retcode}")
             return False
-
-    def get_position_close_info(self, position_ticket: int) -> dict:
-        """Get net profit and closing comment of a closed position by fetching its historical deals."""
-        if self.demo_mode:
-            return {"profit": 0.0, "comment": ""}
             
-        import MetaTrader5 as mt5
-        deals = mt5.history_deals_get(position=position_ticket)
-        if not deals:
-            return {"profit": 0.0, "comment": ""}
-            
-        profit = sum(d.profit + d.commission + d.swap for d in deals)
-        
-        # The closing deal is usually the last one (entry=1 or OUT)
-        closing_deal = None
-        for d in reversed(deals):
-            if d.entry == 1: # DEAL_ENTRY_OUT
-                closing_deal = d
-                break
-                
-        comment = closing_deal.comment if closing_deal else ""
-        return {"profit": profit, "comment": comment}
+        return True
 
-    def get_trade_history(self, days: int = 30) -> list:
-        """Get closed trade history."""
-        if self.demo_mode:
-            return []
-
-        from_date = datetime.now() - timedelta(days=days)
-        to_date   = datetime.now()
-        deals = mt5.history_deals_get(from_date, to_date)
-        if deals is None:
-            return []
-
-        result = []
-        for deal in deals:
-            if deal.entry == 1:
-                result.append({
-                    "ticket":     deal.order,
-                    "direction":  "BUY" if deal.type == 0 else "SELL",
-                    "volume":     deal.volume,
-                    "price":      deal.price,
-                    "profit":     deal.profit,
-                    "commission": deal.commission,
-                    "swap":       deal.swap,
-                    "comment":    deal.comment,
-                    "time":       datetime.fromtimestamp(deal.time),
-                })
-        return result
-
-    # ── COMPAT: Old API aliases ───────────────────────────────────────────────
-    # (kept for backward compat with any direct references)
-
-    def get_current_price(self, symbol: str) -> Optional[dict]:
-        return self.get_tick(symbol)
-
-    def open_trade(self, direction, lot_size, sl, tp, symbol=None, comment="AI_BOT", magic=123456) -> Optional[dict]:
-        sym = symbol or config.SYMBOLS[0]
-        result = self.place_order(sym, direction, lot_size, sl, tp, comment, magic)
-        if result["success"]:
-            return result
-        return None
+# Singleton instance for easy import
+mt5_conn = MT5Connector()

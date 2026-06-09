@@ -1,259 +1,940 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>System Architecture & Dashboard Manual — Investment-AI_T V4</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investment-AI_T V4 — Ultimate System Blueprint</title>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+
     :root {
-      --bg: #0f172a;
-      --bg-card: #1e293b;
-      --text: #f8fafc;
+      --bg-color: #0b0f19;
+      --surface: #171f33;
+      --surface-hover: #1e2943;
+      --primary: #00f2fe;
+      --secondary: #4facfe;
+      --accent: #ff0844;
+      --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --accent: #3b82f6;
-      --accent-hover: #2563eb;
-      --border: #334155;
-      --good: #10b981;
-      --warn: #f59e0b;
-      --danger: #ef4444;
-      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --border: rgba(255, 255, 255, 0.08);
+      --code-bg: #000000;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      background: var(--bg); color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
-      line-height: 1.6; padding: 2rem;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.7;
+      background-image:
+        radial-gradient(circle at top right, rgba(79, 172, 254, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at bottom left, rgba(255, 8, 68, 0.05) 0%, transparent 40%);
     }
-    main { max-width: 1000px; margin: 0 auto; }
-    h1, h2, h3, h4 { color: #fff; margin-bottom: 0.5rem; }
-    p { color: var(--text-muted); margin-bottom: 1rem; }
-    ul { color: var(--text-muted); margin-left: 1.5rem; margin-bottom: 1rem; }
-    li { margin-bottom: 0.5rem; }
-    
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
     header {
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 2rem; margin-bottom: 2rem;
-    }
-    .badge {
-      display: inline-block; padding: 0.25rem 0.75rem;
-      background: var(--accent); color: #fff;
-      border-radius: 999px; font-size: 0.875rem; font-weight: 500;
-      margin-bottom: 1rem;
+      text-align: center;
+      margin-bottom: 60px;
     }
 
-    section {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
+    h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+      letter-spacing: -1px;
     }
-    .section-head { margin-bottom: 1.5rem; }
-    
-    .diagram {
-      background: #000;
-      color: #e2e8f0;
-      padding: 1.5rem;
-      border-radius: 8px;
-      font-family: var(--font-mono);
-      font-size: 0.9rem;
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      font-weight: 400;
+    }
+
+    .mermaid-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 50px;
       overflow-x: auto;
-      white-space: pre;
-      line-height: 1.5;
-      margin-bottom: 1.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     }
-    .diagram span.good { color: var(--good); font-weight: bold; }
-    .diagram span.warn { color: var(--warn); font-weight: bold; }
-    .diagram span.danger { color: var(--danger); font-weight: bold; }
-    .diagram span.accent { color: var(--accent); font-weight: bold; }
 
-    .cards {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 1rem; margin-top: 1rem; margin-bottom: 1rem;
+    h2 {
+      font-size: 2rem;
+      margin-top: 50px;
+      margin-bottom: 25px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
     }
+
+    h2::before {
+      content: '';
+      display: block;
+      width: 8px;
+      height: 32px;
+      background: var(--primary);
+      border-radius: 4px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 25px;
+      margin-bottom: 40px;
+    }
+
     .card {
-      background: rgba(255,255,255,0.03);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px; padding: 1rem;
+      border-radius: 16px;
+      padding: 30px;
+      transition: all 0.3s ease;
     }
-    .card h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
-    .card p { font-size: 0.9rem; margin: 0; }
-    .tag {
-      display: inline-block; padding: 2px 8px; border-radius: 4px;
-      font-size: 0.75rem; font-weight: bold; margin-bottom: 8px;
-    }
-    .tag.blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-    .tag.green { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .tag.red { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-    .tag.yellow { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-    .tag.purple { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
 
-    table {
-      width: 100%; border-collapse: collapse; margin-bottom: 1rem;
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(0, 242, 254, 0.4);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      background: var(--surface-hover);
     }
-    th, td {
-      text-align: left; padding: 0.75rem; border-bottom: 1px solid var(--border);
-      font-size: 0.9rem; color: var(--text-muted);
-    }
-    th { color: #fff; background: rgba(255,255,255,0.05); }
 
-    footer {
-      text-align: center; color: var(--text-muted);
-      font-size: 0.875rem; margin-top: 3rem;
-      border-top: 1px solid var(--border); padding-top: 1.5rem;
+    .card h3 {
+      color: var(--primary);
+      font-size: 1.3rem;
+      margin-top: 0;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--code-bg);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.9em;
+      color: #a78bfa;
+      border: 1px solid var(--border);
+    }
+
+    .step-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .step-list li {
+      position: relative;
+      padding-left: 30px;
+      margin-bottom: 15px;
+    }
+
+    .step-list li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--secondary);
+      font-weight: bold;
+    }
+
+    .highlight-box {
+      background: rgba(255, 8, 68, 0.1);
+      border-left: 4px solid var(--accent);
+      padding: 20px;
+      border-radius: 0 12px 12px 0;
+      margin: 30px 0;
+    }
+
+    .highlight-box h4 {
+      margin-top: 0;
+      color: var(--accent);
     }
   </style>
 </head>
+
 <body>
-  <main>
+
+  <div class="container">
     <header>
-      <span class="badge">V4 100% Cloud-Native & Decoupled Architecture</span>
-      <h1>System Architecture & Dashboard Manual</h1>
-      <p>Dokumentasi lengkap menggabungkan cara Dashboard beroperasi dengan senibina Cloud Supabase, AI Engine (Python), dan MQL5 Native Executor (MT5).</p>
+      <h1>System Architecture & Data Flow</h1>
+      <p class="subtitle">Investment-AI_T V4: 100% Cloud-Native Hybrid (Python + MQL5 + Supabase + Groq/DeepSeek)</p>
     </header>
 
-    <section>
-      <div class="section-head">
-        <h2>1. Permulaan Sistem (Startup Sequence)</h2>
-        <p>Proses ini dibahagikan kepada 2 bahagian: Server AI (Otak) dan MT5 Klien (Tangan).</p>
-      </div>
-      <pre class="diagram"><span class="blue">A. BAHAGIAN AI (SERVER/VPS)</span>
-[KLIK] start_bot.bat
-  |
-  v
-Memulakan <span class="good">master_analyzer.py</span> (Otak / Pembaca Market)
-Tarik Data Supabase (API Keys, Dashboard Roles, Active Trades).
-Menilai market setiap 10 minit & tolak keputusan ke Supabase Cloud.
+    <h2>1. The Grand Sequence Flowchart</h2>
+    <p>Carta di bawah menerangkan keseluruhan kitaran hayat (lifecycle) sistem dari minit ke minit secara terperinci.
+    </p>
 
-<span class="warn">B. BAHAGIAN KLIEN (MT5)</span>
-Klien pasang <span class="warn">InvestmentAI_Executor.mq5</span> pada chart MT5.
-  |
-  v
-EA berhubung <span class="accent">Natively</span> dengan Supabase Cloud:
-- Tarik `account_settings` setiap 60 saat.
-- Tarik `signals` dan `sl_tp_updates` setiap 10 saat.
-- Urus Virtual SL/TP, Break-Even, Trailing, & Grid Lapis secara NATIVE di MT5.</pre>
-    </section>
+    <div class="mermaid-container">
+      <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User
+    participant BAT as start_bot.bat
+    participant BM as Bot Manager
+    participant MA as Master Analyzer
+    participant DB as Supabase (REST API)
+    participant TE as Trade Evaluator (acc_X)
+    participant MT5 as MT5 Terminal (acc_X)
+    participant EA as MQL5 EA (Grid/Close)
 
-    <section>
-      <div class="section-head">
-        <h2>2. Modul Dashboard: API Keys (Peranan AI)</h2>
-        <p>Di halaman <b>API Keys</b>, sistem mengasingkan otak AI kepada 4 peranan utama untuk keselamatan dan penjimatan quota API.</p>
-      </div>
-      <div class="cards">
-        <div class="card">
-          <span class="tag blue">MAIN MODEL</span>
-          <h3>Master Analyzer</h3>
-          <p>Membaca chart XAUUSD setiap masa untuk menghasilkan keputusan BUY/SELL, berserta TP/SL sasaran awal. Memerlukan model yang laju dan pintar.</p>
-        </div>
-        <div class="card">
-          <span class="tag green">TRADE EVALUATOR</span>
-          <h3>Active Trade Evaluator</h3>
-          <p>Dipanggil setiap 10 minit untuk menilai trade yang sedang <i>floating</i>. Bertindak mengubah SL/TP (dimasukkan ke `sl_tp_updates`) atau arah cut-loss awal.</p>
-        </div>
-        <div class="card">
-          <span class="tag purple">VISION MODEL</span>
-          <h3>Screenshot Analyst</h3>
-          <p>Digunakan khas jika analisa teknikal memerlukan AI melihat terus imej chart (vision) untuk mencari pattern candlestick tersembunyi.</p>
-        </div>
-        <div class="card">
-          <span class="tag red">RISK MODEL</span>
-          <h3>Second Opinion</h3>
-          <p>Penapis akhir signal. Boleh menolak entry dari Main Model jika ia rasakan setup itu terlampau berisiko berdasarkan sentimen.</p>
-        </div>
-      </div>
-      <p><b>Nota Penting:</b> Sistem menyokong <i>Dynamic Failover (Fallback)</i>. Jika model utama (cth: <code>openai/gpt-oss</code>) gagal atau habis limit, ia automatik melompat ke <i>Fallback Provider</i> di bawahnya.</p>
-    </section>
+    User->>BAT: Double Click
+    BAT->>BAT: git pull (Update codebase)
+    BAT->>MT5: launch_terminals.py (Auto-login Master & Clients)
+    BAT->>BM: start bot_manager.py
 
-    <section>
-      <div class="section-head">
-        <h2>3. Modul Dashboard: Account Settings</h2>
-        <p>Halaman ini menetapkan parameter trading khusus untuk setiap akaun. MQL5 EA akan sentiasa menarik data ini secara <i>real-time</i>.</p>
-      </div>
-      
-      <h4>A. Client Trading Settings</h4>
-      <p>Setiap klien mempunyai tetapan fleksibel yang dipecahkan kepada tiga gaya <i>trade</i>:</p>
-      <table>
-        <tr>
-          <th>Gaya</th>
-          <th>Lot Size</th>
-          <th>Grid Recovery / Lapis</th>
-          <th>Trailing & BE</th>
-        </tr>
-        <tr>
-          <td>Scalping</td>
-          <td>Lot besar sedikit.</td>
-          <td>Dijalankan secara Auto (Native MQL5) jika jarak harga melepasi ATR yang ditetapkan.</td>
-          <td>Cepat Break-Even (+2 pips), Trailing sangat rapat.</td>
-        </tr>
-        <tr>
-          <td>Intraday</td>
-          <td>Lot sederhana.</td>
-          <td>Grid jarak sederhana mengikut gandaan Lot (Martingale/Linear).</td>
-          <td>BE sederhana, bagi ruang harga bernafas.</td>
-        </tr>
-        <tr>
-          <td>Swing</td>
-          <td>Lot kecil.</td>
-          <td>Lapis jarak jauh jika setup valid tetapi salah masa entry.</td>
-          <td>Trailing Stop yang luas (jarak jauh).</td>
-        </tr>
-      </table>
+    loop Every 15 Seconds (Watchdog)
+        BM->>DB: Fetch System Settings & Enabled Accounts
+        BM-->>BM: Start MA (if dead)
+        BM-->>BM: Start/Stop TE per account dynamically
+    end
 
-      <h4>B. Global Limits & Filters</h4>
+    note over MA, DB: MASTER ANALYZER (Pencari Signal)
+    loop Every 1 minute (Cron-like)
+        MA->>MA: Semak minit (00/30=Scalping, 00=Intraday, etc)
+        MA->>MT5: Get OHLC, Tick, Indikator (RSI, MACD)
+        MA->>MA: ai_engine.py (Prompt Groq/DeepSeek)
+        MA-->>MA: AI Reply: BUY / SELL / HOLD + Confidence
+        opt If BUY or SELL
+            MA->>DB: POST to `market_signals`
+            MA->>DB: POST to `signals` untuk SEMUA akaun aktif
+        end
+    end
+
+    note over TE, MT5: TRADE EVALUATOR (Tukang Entry & Tapis)
+    loop Every 60 Seconds
+        TE->>DB: GET `signals` (is_active=True) untuk akaun ini
+        opt Jika ada signal baru
+            TE->>MT5: Semak Spread, Drawdown, Margin, Block News
+            opt Jika Risk Guard Lulus
+                TE->>MT5: mt5.order_send (SL=0, TP=0) - Stealth Entry
+                MT5-->>TE: Ticket ID
+                TE->>TE: Kira Virtual SL, Virtual TP, Trail Start
+                TE->>DB: POST ke `active_trades` (Termasuk be_offset_pips dll)
+                TE->>DB: PATCH `signals` (is_active=False)
+            end
+        end
+
+        note over TE, DB: AI Trade Evaluator (Penjaga Floating)
+        TE->>DB: GET `active_trades` (current_status=OPEN)
+        TE->>MA: Semak minit (Setiap 5-10 min)
+        opt Masa Penilaian
+            TE->>MA: Tanya AI (HOLD / CLOSE / UPDATE_SL)
+            opt Jika AI suruh CLOSE
+                TE->>MT5: mt5.PositionClose(ticket)
+            end
+        end
+
+        TE->>MT5: Ambil semua posisi terbuka dari Terminal
+        TE->>DB: Sync profit semasa / Tembak masuk trade manual jika tiada
+    end
+
+    note over EA, DB: MQL5 EA (Penjaga Grid & Safety Net)
+    loop OnTimer() Setiap 1 Saat
+        EA->>DB: GET /rest/v1/active_trades
+        EA->>EA: Lukis garisan Virtual SL, TP, BE/Trail di chart
+        EA->>MT5: Semak harga semasa vs garisan Virtual
+        opt Harga Langgar Virtual SL / TP
+            EA->>MT5: trade.PositionClose()
+            EA->>DB: POST ke `closed_trades` & DELETE dari `active_trades`
+        end
+        opt Floating Minus lebih dari Jarak Grid ATR
+            EA->>MT5: Buka Layer Baru (Grid)
+            EA->>DB: POST Layer Baru ke `active_trades`
+        end
+    end
+        </pre>
+    </div>
+
+    <h2>2. Deep Dive: Modul & Tanggungjawab</h2>
+
+    <div class="grid">
+      <!-- BOT MANAGER -->
+      <div class="card">
+        <h3>🤖 <code>bot_manager.py</code> (The Orchestrator)</h3>
+        <p><strong>Tugas:</strong> Menguruskan semua proses Python supaya sistem tidak pernah mati.</p>
+        <ul class="step-list">
+          <li>Melancarkan 1 proses <code>master_analyzer.py</code>.</li>
+          <li>Melancarkan 1 proses <code>trade_evaluator.py</code> untuk <strong>setiap</strong> akaun yang ditanda
+            'enabled' di Supabase.</li>
+          <li><strong>Supabase Watchdog:</strong> Setiap 15 saat, ia query Supabase. Jika anda OFF kan akaun di Web App,
+            ia terus <code>.kill()</code> proses akaun tersebut. Jika anda ON kan, ia <code>.start()</code>.</li>
+          <li><strong>Ghost Buster:</strong> Semasa start, ia akan bunuh semua "Ghost Python Processes" yang tertinggal
+            dari sesi sebelum ini menggunakan Powershell command.</li>
+        </ul>
+      </div>
+
+      <!-- MASTER ANALYZER -->
+      <div class="card">
+        <h3>🧠 <code>master_analyzer.py</code> (The Brain)</h3>
+        <p><strong>Tugas:</strong> Pencari setup dan penghasil signal.</p>
+        <ul class="step-list">
+          <li>Berjalan dalam <code>while True</code> (tidur 60 saat).</li>
+          <li><strong>Schedule Checker:</strong> Memeriksa minit semasa. Scalping (Setiap 30 min), Intraday (Setiap
+            jam), Swing (Setiap 2 jam).</li>
+          <li>Menghubungi MT5 Master (akaun khas tanpa trading) untuk sedut ribuan data OHLC, Tick, dan Indikator.</li>
+          <li>Menghantar data ke <code>ai_engine.py</code> yang akan panggil API (Groq Llama / DeepSeek).</li>
+          <li>Menulis keputusan akhir ke Supabase <code>signals</code>. AI tidak mempunyai akses MT5 untuk trade!</li>
+        </ul>
+      </div>
+
+      <!-- TRADE EVALUATOR -->
+      <div class="card">
+        <h3>🛡️ <code>trade_evaluator.py</code> (The Executor)</h3>
+        <p><strong>Tugas:</strong> Eksekusi entry, Risk Management, & Evaluate floating trades.</p>
+        <ul class="step-list">
+          <li>Berjalan serentak (Multi-processing) bagi setiap akaun.</li>
+          <li><strong>Risk Guard:</strong> Sebelum entry, ia check Spread Point, Max Drawdown, dan blok jika ada High
+            Impact News.</li>
+          <li><strong>Stealth Entry:</strong> Menggunakan <code>mt5_connector.py</code> (modul khusus Python-MT5 API)
+            untuk execute <code>order_send()</code> tanpa SL dan TP sebenar bagi mengurangkan pendedahan paras SL/TP kepada broker dan mengekalkan kawalan exit secara internal.
+          </li>
+          <li><strong>Supabase Sync:</strong> Merekodkan trade ini ke <code>active_trades</code> bersama kiraan
+            <code>virtual_sl</code>, <code>virtual_tp</code>, dan data BE/Trail dari <code>style_params.py</code>.</li>
+        </ul>
+      </div>
+
+      <!-- CONNECTOR MODULES -->
+      <div class="card">
+        <h3>🔌 <code>mt5_connector.py</code> & <code>launch_terminals.py</code> (The Adapters)</h3>
+        <p><strong>Tugas:</strong> Menjaga komunikasi fizikal dengan perisian MT5.</p>
+        <ul class="step-list">
+          <li><strong>launch_terminals.py:</strong> Skrip yang berjalan semasa <em>startup</em>. Ia membaca path `.exe` MT5 dari `.env`, melancarkan perisian tersebut secara automatik, dan melakukan Auto-Login ke dalam akaun (tanpa campur tangan manusia).</li>
+          <li><strong>mt5_connector.py:</strong> Modul wrapper khusus. Berbeza dengan <code>supabase_sync.py</code> yang urus pangkalan data awan, modul ini bertindak mengawal arahan terus ke graf MT5 tempatan seperti <code>order_send()</code> (Stealth Entry) dan membaca <code>mt5.positions_get()</code>.</li>
+        </ul>
+      </div>
+
+      <!-- SUPABASE SYNC -->
+      <div class="card">
+        <h3>☁️ <code>supabase_sync.py</code> (The Nervous System)</h3>
+        <p><strong>Tugas:</strong> Jambatan antara kod tempatan (Local) dan Cloud Database.</p>
+        <ul class="step-list">
+          <li>Menggunakan REST API biasa (Requests) berbanding library Supabase yang rasmi bagi mengelakkan isu "Event
+            Loop" di dalam thread Python.</li>
+          <li>Mempunyai fungsi <code>_upsert</code> (Update or Insert) berasaskan Conflict Resolution (seperti
+            <code>on_conflict=ticket</code>).</li>
+          <li>Ini bermakna MT5, Master Analyzer, dan Trade Evaluator tidak pernah berhubung secara "Direct". Mereka
+            semua bersembang melalui Supabase.</li>
+        </ul>
+      </div>
+
+      <!-- MQL5 EA -->
+      <div class="card">
+        <h3>⚡ <code>InvestmentAI_Executor.mq5</code> (The Muscle)</h3>
+        <p><strong>Tugas:</strong> Pengawal graf 24/7 di hadapan mata anda.</p>
+        <ul class="step-list">
+          <li>Diletakkan pada chart di MT5 anda. Mempunyai fungsi <code>OnTimer()</code> yang berjalan setiap saat.</li>
+          <li>Menggunakan <code>WebRequest()</code> untuk tarik data <code>active_trades</code> dari Supabase.</li>
+          <li><strong>Grid Master:</strong> Menjaga jarak Layer (Averaging). Jika margin merah cecah ATR, ia lepaskan
+            peluru kedua.</li>
+          <li>Menjalankan Break-Even (BE) dan Trailing Stop <strong>Virtual</strong>, bermaksud garisan ditarik di skrin
+            tetapi tidak dihantar ke broker. Jika langgar, MT5 akan execute close segera!</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>3. Anatomi Database (Supabase Schema)</h2>
+    <p>Bagaimana maklumat diikat bersama.</p>
+
+    <div class="card">
       <ul>
-        <li><b>Risk Guard:</b> Sebelum membuka sebarang trade isyarat (Signal), EA akan membaca tetapan Dashboard untuk menyemak Spread Maksimum, Had Dagangan Terbuka (Max Trades), Baki Keseluruhan Drawdown Harian (Daily Drawdown %), dan Waktu Larangan (Asia Session). Isyarat akan ditolak secara automatik jika tidak menepati tahap keselamatan.</li>
-        <li><b>Manual Trade Management:</b> Jika anda entry secara MANUAL di phone (Magic Number 0), EA MT5 akan kesan dan tolak terus ke Supabase. EA dan AI akan auto-jaga SL, TP dan BE mengikut setting dashboard anda!</li>
-        <li><b>Native Processing:</b> Jarak Trailing dan Break-even dikira secara "Real-Time" pada setiap Tick di dalam MT5 tanpa "Delay" dari sambungan Python.</li>
-        <li><b>Grid Protection:</b> Dagangan berlapis (Grid Recovery) kini mempunyai fungsi keselamatan SL/TP di mana ia secara automatik meminjam garisan maya trade induk (ibu), memastikan tiada lapisan dibiarkan tanpa penjagaan.</li>
-        <li><b>Evaluator Tighter-Only:</b> Apabila AI (Trade Evaluator) menghantar aras SL/TP terbaharu untuk dijaga, MQL5 EA di MT5 hanya akan menerimanya jika paras baharu itu terbukti LEBIH KETAT bagi mengunci keuntungan (lock profit) atau mengurangkan kerugian.</li>
-        <li><b>Specific History Reporting:</b> Apabila position ditutup (Virtual Hit), EA kini menangkap dengan tepat adakah "Virtual SL Hit" atau "Virtual TP Hit", berserta nilai Profit/Loss Sebenar (True Deal Profit) dari sejarah (history) terminal MT5, sebelum direkod ke Dashboard `closed_trades`.</li>
+        <li><code>account_settings</code>: Menyimpan API Keys, Drawdown limit, % target harian, status bot
+          (Enabled/Disabled). Diperiksa oleh Bot Manager.</li>
+        <li><code>system_settings</code>: Menyimpan senarai pair (XAUUSD, EURUSD), senarai AI Model (Groq, DeepSeek).
+          Diperiksa oleh Master Analyzer.</li>
+        <li><code>market_signals</code>: Arkib signal mentah dari AI. (Log sejarah AI).</li>
+        <li><code>signals</code>: Peti surat peribadi bagi setiap akaun. Mengandungi <code>is_active=True/False</code>.
+          Trade Evaluator sentiasa periksa table ini.</li>
+        <li><code>active_trades</code>: Jadual paling kritikal. Menyimpan status live (OPEN). Dibaca oleh MQL5 EA untuk
+          melukis garisan dan execute Layer/Grid/Trailing.
+          <br><em>*Nota Kritikal: Jadual ini WAJIB mempunyai column <code>be_offset_pips</code>,
+            <code>trail_start_pips</code>, dll, jika tidak Python akan gagal memasukkan data SL/TP!</em>
+        </li>
       </ul>
-    </section>
+    </div>
 
-    <section>
-      <div class="section-head">
-        <h2>4. Flow Lengkap (100% Cloud-Native Decoupled)</h2>
+    <div class="highlight-box">
+      <h4>🚨 Kenapa Sistem Gagal Menulis Virtual SL (Isu '-' di Dashboard)?</h4>
+      <p>Berdasarkan log yang dikesan semasa runtime:
+        <br><code>Supabase sync failed 400: {"code":"PGRST204","message":"Could not find the 'be_offset_pips' column of 'active_trades' in the schema cache"}</code>
+        <br><br>
+        Ini bermaksud proses Trade Evaluator (Python) <strong>BERJAYA</strong> mengeksekusi entry di MT5, kemudian ia
+        menghasilkan JSON Payload yang mengandungi data <code>virtual_sl</code> dan <code>virtual_tp</code> untuk
+        dihantar ke Supabase. Namun, <strong>Supabase Server Menolak (Reject)</strong> payload tersebut kerana jadual
+        (table) <code>active_trades</code> di cloud tidak dikemaskini dengan kolum-kolum baru bagi V4. Oleh sebab
+        payload ditolak, data SL dan TP anda terpadam di udara dan Dashboard membaca nilai kosong <code>-</code>.
+      </p>
+    </div>
+
+    <h2>4. Rahsia Prompt (Arahan) Kepada AI</h2>
+    <p>Ini adalah format <em>prompt</em> sebenar yang dihantar oleh sistem kepada enjin AI (Groq/DeepSeek) untuk
+      dianalisis.</p>
+
+    <div class="card">
+      <h3>Pencari Setup (master_analyzer.py)</h3>
+      <p>Prompt ini akan disuntik dengan data OHLC, Indikator (RSI, MACD, ADX) secara "Live" sebelum dihantar ke AI.</p>
+      <pre><code style="display: block; white-space: pre-wrap; font-size: 0.85em; padding: 15px;">You are an elite institutional algorithmic trading AI.
+Your objective is to analyze multi-timeframe (MTF) market data and provide
+an accurate trading decision with the appropriate trade style.
+
+CRITICAL JSON OUTPUT RULES:
+1. Respond ONLY with a valid JSON object.
+2. Format: {"action": "BUY"|"SELL"|"HOLD", "confidence": 0.0-1.0, "trade_style": "SCALPING"|"INTRADAY"|"SWING", "reason": "...", "entry_zone": "0.00-0.00", "sl_price": 0.0, "tp_price": 0.0}
+3. IMPORTANT: For sl_price, tp_price, and entry_zone, provide the EXACT numerical price levels.
+
+--- MARKET REGIME: TRENDING (ADX > 25) ---
+- The market has a clear directional trend. 
+- You may choose SCALPING OR INTRADAY.
+
+--- ASSET: XAUUSD | STYLE: SCALPING ---
+- Timeframe focus: M1, M5. Use M15 for trend context.
+- Best patterns: Pin Bar, Liquidity Sweep + Reversal.
+- SL: 20–80 pip. TP: 40–200 pip. R:R minimum 1:1.
+
+--- CURRENT MARKET DATA ---
+[DATA OHLC, MACD, RSI, BBOLL MASUK DI SINI]
+
+--- INSTRUCTIONS ---
+Evaluate the timeframes logically based on the MARKET REGIME above:
+1. Identify the best trade_style based on market conditions.
+2. If no clear setup exists, return HOLD.
+Return the JSON decision now.</code></pre>
+    </div>
+
+    <div class="card" style="margin-top: 25px;">
+      <h3>Penjaga Trade Floating (trade_evaluator.py)</h3>
+      <p>Prompt ringkas dan padat ini dihantar setiap 5-10 minit bagi mengawal trade yang sedang <em>floating</em>.</p>
+      <pre><code style="display: block; white-space: pre-wrap; font-size: 0.85em; padding: 15px;">You are an AI trade management assistant. You must evaluate the following active trade and decide what to do.
+
+[DATA FLOATING P/L & HARGA SEMASA MASUK DI SINI]
+
+Analyze the trade and respond with EXACTLY one JSON object:
+{
+  "action": "HOLD" or "CLOSE_TRADE" or "UPDATE_SL_TP",
+  "confidence": 0.0 to 1.0,
+  "reason": "Brief explanation",
+  "sl": null or new_sl_price,
+  "tp": null or new_tp_price
+}
+
+Rules:
+- HOLD: Trade is healthy, let it run.
+- CLOSE_TRADE: Trade should be closed (loss too deep, reversal detected).
+- UPDATE_SL_TP: Adjust SL/TP to lock in profit.
+- Be conservative. Only CLOSE if clearly necessary.
+
+Return the JSON now.</code></pre>
+    </div>
+
+    <div class="card" style="margin-top: 25px;">
+      <h3>Penapis Risiko / Second Opinion (ai_engine.py)</h3>
+      <p>Prompt ini bertindak sebagai <strong>Risk Manager</strong>. Setelah AI utama jumpa setup, setup tersebut akan
+        disahkan oleh AI kedua ini sebelum <em>entry</em> dibenarkan.</p>
+      <pre><code style="display: block; white-space: pre-wrap; font-size: 0.85em; padding: 15px;">You are a quantitative trading risk reviewer.
+Your job is to approve or reject a proposed trade after the primary AI has already produced a signal.
+
+CRITICAL JSON OUTPUT RULES:
+1. Respond ONLY with a valid JSON object.
+2. Format: {"approved": true|false, "confidence": 0.0-1.0, "reason": "brief explanation"}
+3. Evaluate the trade based on its trade_style:
+   - SCALPING: Tight SL/TP are expected. Approve if M5/M15 momentum is clear. Don't reject based on H4 alone.
+   - INTRADAY: Require minimum 1:2 R:R. Reject if trading against the H1/H4 trend.
+   - SWING: Require minimum 1:2 R:R. Reject if Daily trend is clearly opposite.
+
+--- PROPOSED TRADE ---
+Symbol: XAUUSD
+Action: BUY
+Primary AI Confidence: 0.85
+
+--- TRADE PARAMETERS ---
+Stop Loss: 2315.00 (50.0 pips)
+Take Profit: 2330.00 (150.0 pips)
+Risk Reward Ratio: 3.0
+
+[DATA TREND SEMASA & POLA CANDLESTICK DIMASUKKAN DI SINI]</code></pre>
+    </div>
+
+    <div class="card" style="margin-top: 25px;">
+      <h3>Mata AI / Vision Model (vision_engine.py)</h3>
+      <p>Ini adalah prompt <strong>Multimodal (Gambar + Teks)</strong>. Bot akan tangkap (screenshot) graf MT5 dan
+        hantar gambar tersebut bersama prompt ini supaya AI dapat "melihat" Candlestick secara visual.</p>
+      <pre><code style="display: block; white-space: pre-wrap; font-size: 0.85em; padding: 15px;">You are an elite institutional chart analysis AI.
+Analyze the attached chart screenshot(s) along with the structured market data provided.
+
+YOUR TASK:
+1. Read the candlestick chart visually. Identify trend direction, key patterns, S/R zones, and momentum.
+2. Cross-reference what you see with the text market data provided.
+3. Provide a trading decision.
+
+CRITICAL JSON OUTPUT RULES:
+1. Respond ONLY with a valid JSON object.
+2. Format:
+{
+  "action": "BUY"|"SELL"|"HOLD",
+  "confidence": 0.0-1.0,
+  "trade_style": "SCALPING"|"INTRADAY"|"SWING",
+  "image_bias": "bullish"|"bearish"|"sideways",
+  "support": [list of visible support levels as floats],
+  "resistance": [list of visible resistance levels as floats],
+  "reason": "brief explanation of what you see in the chart"
+}
+
+--- ASSET: XAUUSD (GOLD) ---
+Gold is volatile and prone to stop hunts. Look for:
+- Liquidity sweeps (wick spikes beyond S/R that reverse).
+- FVG (fair value gaps) as continuation zones.
+- Psychological levels ($50/$100 rounds).
+
+--- CHART SCREENSHOTS ---
+The following chart timeframes are attached as images: H4, H1, M15
+[GAMBAR SCREENSHOT GRAF DISERTAKAN DI SINI]
+
+Analyze the chart visually and return the JSON decision now.</code></pre>
+    </div>
+
+    <h2>5. Edge Cases & Advanced Configurations</h2>
+    <p>Di bawah ini merangkumi mekanik terperinci untuk pengurusan risiko, pelan sandaran (failover), dan formula logik
+      konkrit.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>🧮 Lot Size & Risk Calculation</h3>
+        <p><strong>Lokasi:</strong> <code>account_settings.py</code></p>
+        <ul class="step-list">
+          <li>Sistem tidak menggunakan Fixed Lot buta-buta.</li>
+          <li>Ia mengira: <code>Lot = (Balance * Risk_Percentage) / StopLoss_Pips / Pip_Value</code>.</li>
+          <li><em>Nota Penting: Pip value mesti dikira secara dinamik berdasarkan <code>symbol_info.trade_tick_value</code>, <code>trade_tick_size</code>, contract size, dan mata wang akaun broker bagi mengelakkan kesalahan pengiraan lot untuk pair XAUUSD.</em></li>
+          <li>Jika baki naik (compound), lot size akan automatik membesar secara berperingkat berdasarkan <em>Risk Per
+              Trade</em> yang diset (Contoh: 2%).</li>
+        </ul>
       </div>
-      <pre class="diagram"><span class="blue">A. OTAK MEMBACA MARKET (Python AI Server)</span>
-Setiap 10 Minit, Master analisa market XAUUSD.
-|--> MAIN MODEL keluarkan signal.
-|--> Master hantar signal ke jadual `signals` di Supabase.
 
-<span class="warn">B. TANGAN MENERIMA SIGNAL (MQL5 EA)</span>
-EA MT5 Klien A (OnTimer setiap 10 saat) semak Supabase.
-|--> Jika ada Signal = Buka Trade Natively (Stealth Mode).
-|--> Lukis garisan putus-putus merah (SL) dan hijau (TP) di Chart MT5.
-
-<span class="good">C. TANGAN MENJAGA TRADE (Native OnTick)</span>
-Setiap kali harga bergerak (Setiap Tick), EA MT5 semak:
-|--> Kena SL Virtual / TP Virtual? (Cut-loss / Take-profit)
-|--> Harga pergi jauh? Alih garisan SL kepada Break-Even (+2 pips).
-|--> Masih floating untung? Gerakkan garisan Trailing Stop Natively.
-|--> Salah Arah? Buka lapis (Grid Recovery) secara Auto!
-
-<span class="accent">D. OTAK MENEGUR TANGAN (AI Evaluator via Supabase)</span>
-Setiap 10 minit, Master Analyzer semak `active_trades` di Supabase.
-|--> TRADE EVALUATOR nilai trade. Jika perlu ubah, hantar ke `sl_tp_updates`.
-|--> MQL5 EA kutip `sl_tp_updates`, ubah garisan di chart, hantar respon "applied".</pre>
-    </section>
-
-    <section>
-      <div class="section-head">
-        <h2>5. Modul Dashboard: Live Monitor</h2>
-        <p>Halaman pemerhatian pasif <i>(read-only)</i> yang boleh diakses dari mana-mana peranti untuk melihat "kesihatan" bot.</p>
+      <div class="card">
+        <h3>📏 Parameter Trailing (style_params.py)</h3>
+        <p><strong>Isu:</strong> Punca utama kegagalan menulis SL (Error `-`).</p>
+        <ul class="step-list">
+          <li>Fail ini membekalkan titik <em>Breakeven</em> dan <em>Trailing Stop</em> sebenar untuk XAUUSD.</li>
+          <li><strong>SCALPING:</strong> <code>be_offset_pips</code> = 2 pips, <code>trail_start_pips</code> = 20 pips.
+          </li>
+          <li><strong>INTRADAY:</strong> <code>be_offset_pips</code> = 5 pips, <code>trail_start_pips</code> = 60 pips.
+          </li>
+          <li><strong>SWING:</strong> <code>be_offset_pips</code> = 10 pips, <code>trail_start_pips</code> = 120 pips.
+          </li>
+          <li>Data konkrit ini disuntik ke dalam Supabase untuk dibaca oleh MQL5. Tanpa parameter ini, EA gagal
+            melakukan Trailing.</li>
+        </ul>
       </div>
-      <ul>
-        <li><b>Bot Status Heartbeat:</b> Memastikan Python Server (Master) masih hidup dan EA MT5 klien (Executor) online.</li>
-        <li><b>Market Signals (Broadcast):</b> Sejarah isyarat AI (beserta <i>Signal ID</i> dan sebab-sebab entry).</li>
-        <li><b>Active Trades (Sync Live):</b> Semua trade aktif, TERSMASUK TRADE MANUAL, akan dipaparkan berserta jarak pips, profit terapung (floating profit), SL dan TP secara live.</li>
-        <li><b>SL / TP Updates History:</b> Jejak setiap kali AI Evaluator ubah posisi SL dan TP.</li>
-      </ul>
-    </section>
 
-    <footer>
-      Investment-AI_T system running document - V4 Hybrid Cloud-Native Architecture. Decoupled, Robust, and Fast.
-    </footer>
-  </main>
+      <div class="card">
+        <h3>🗞️ High-Impact News Filter</h3>
+        <p><strong>Lokasi:</strong> <code>news_manager.py</code></p>
+        <ul class="step-list">
+          <li><strong>Sumber:</strong> Mengambil fail XML / JSON dari ForexFactory.</li>
+          <li><strong>Logic Blok:</strong> Jika terdapat berita "High Impact" (merah) untuk pair USD, sistem akan
+            menyekat sebarang entry baru <strong>30 minit sebelum</strong> dan <strong>30 minit selepas</strong> berita
+            dikeluarkan.</li>
+          <li>Ini mengelakkan AI terperangkap dalam "slippage" atau "spread hantu" ketika news rilis.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🌐 AI Failover & Rotation</h3>
+        <p><strong>Lokasi:</strong> <code>ai_clients / ai_engine.py</code></p>
+        <ul class="step-list">
+          <li>Sistem menyokong provider pelbagai seperti Groq dan DeepSeek.</li>
+          <li>Jika Groq API terputus (Timeout/Rate Limit), sistem mempunyai fungsi <strong>Exponential Backoff
+              Retries</strong> (cubaan berulang dengan masa tertunda 2s, 4s, 8s).</li>
+          <li>Jika masih gagal selepas had percubaan, modul boleh jatuh sandaran (fallback) kepada model / provider
+            kedua bagi memastikan aliran signal tidak terputus.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>👁️ Trigger Vision Engine <span style="color:var(--accent); font-size:0.8em;">[EXPERIMENTAL]</span></h3>
+        <p><strong>Lokasi:</strong> <code>vision_engine.py</code></p>
+        <ul class="step-list">
+          <li>Vision AI <strong>tidak</strong> dipanggil untuk setiap kali semakan (kerana kos token imej tinggi).</li>
+          <li>Ia bertindak sebagai <strong>Tie-Breaker</strong>. Jika text-analyzer memberikan keyakinan (confidence)
+            yang sangat rendah atau pasaran sangat Ranging, Vision API akan diaktifkan untuk melihat "Price Action" dan
+            Pola Candlestick.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🕸️ MQL5 Grid Logic Formula</h3>
+        <p><strong>Lokasi:</strong> <code>InvestmentAI_Executor.mq5</code></p>
+        <ul class="step-list">
+          <li><strong>Penanda Jarak:</strong> EA tidak tembak layer setiap 10 pip. Ia menggunakan <strong>Indikator
+              ATR</strong> pada timeframe semasa untuk menentukan "volatility".</li>
+          <li><strong>Trigger:</strong> Jika margin negatif melebihi nilai `ATR * Multiplier`, EA akan lepaskan Layer 2.
+          </li>
+          <li><strong>Max Layers:</strong> Tetapan sistem mengehadkan <code>MAX_TRADES_PER_PAIR = 10</code> layer sahaja
+            bagi setiap instrumen untuk mengelakkan Margin Call mutlak.</li>
+          <li><strong>Pengurusan SL/TP Layer Baru:</strong> Apabila layer baru dibuka, EA akan <em>recalculate</em>
+            harga purata (Average Entry Price). Virtual TP dan SL akan dianjak secara automatik untuk menyesuaikan
+            dengan harga purata yang baru (Basket Take Profit).</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>⚔️ Race Condition (Konflik Penutupan)</h3>
+        <p><strong>Isu:</strong> Bagaimana jika Python (AI Close) dan MQL5 (Sentuh Virtual SL) cuba menutup trade yang
+          sama pada saat yang sama?</p>
+        <ul class="step-list">
+          <li>Ini dipanggil konflik eksekusi serentak.</li>
+          <li><strong>Penyelesaian:</strong> Python akan set <code>closing_requested = true</code>, menghantar arahan close ke MT5, kemudian verify semula melalui <code>mt5.positions_get()</code>. Jika close gagal, status dikembalikan kepada OPEN atau dimasukkan ke dalam <em>retry queue</em>.</li>
+          <li>MQL5 sentiasa memeriksa kewujudan tiket di memori lokal/Supabase sebelum menembak arahan
+            <code>PositionClose()</code>. Jika Python sedang memproses penutupan, MQL5 mengabaikan posisi tersebut bagi mengelakkan error
+            "Invalid Ticket".</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🔄 Recovery Protocol (Python Crash)</h3>
+        <p><strong>Kes:</strong> Python mati selepas open trade.</p>
+        <ul class="step-list">
+          <li>MQL5 EA ada <strong>Safety Net</strong> dan akan terus menjaga trade yang terbuka di MT5.</li>
+          <li>Apabila <code>bot_manager</code> menghidupkan semula Python, Python akan query
+            <code>mt5.positions_get()</code>, melihat ada trade aktif, dan <strong>Sync Semula (Re-attach)</strong>
+            maklumat P/L ke dalam Supabase untuk menyambung tugas <em>Trade Evaluator</em> seolah-olah tiada apa yang
+            berlaku.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>6. Keselamatan & Data Skema Tambahan</h2>
+
+    <div class="grid">
+      <div class="card">
+        <h3>🔒 Supabase RLS & Kunci Akses (Security)</h3>
+        <p>Oleh kerana sistem berkomunikasi secara <em>Cloud-Native</em> menerusi REST API Supabase, <strong>struktur
+            keselamatan berbilang lapisan</strong> diperlukan.</p>
+        <p><strong>Frontend Dashboard:</strong> Hanya dibenarkan menggunakan <code>anon key</code> dengan perlindungan
+          RLS (<code>auth.uid() = user_id</code>).</p>
+        <p><strong>Backend Python:</strong> Boleh menggunakan <code>service_role</code> key (disimpan selamat dalam VPS
+          `.env`) untuk bypass RLS ketika memproses signal secara pukal.</p>
+        <p><strong>MQL5 EA:</strong> Tidak dinasihatkan menyimpan `service_role` terus di dalam kod EA; komunikasi EA
+          wajar dihadkan melalui Anon Key berserta penapis <code>account_id</code>, atau melalui Supabase Edge Functions
+          / Proxy selamat.</p>
+      </div>
+
+      <div class="card">
+        <h3>🗄️ Table `closed_trades`</h3>
+        <p>Apabila MQL5 atau Python selesai menutup trade, data tersebut dipadam dari <code>active_trades</code> dan
+          dilempar ke <code>closed_trades</code>.</p>
+        <p><strong>Kolum Utama:</strong> <code>ticket</code>, <code>symbol</code>, <code>pnl</code>,
+          <code>closed_at</code>, <code>close_reason</code> (Hit TP, Hit SL, AI Close).</p>
+        <p>Ini membolehkan Dashboard Web anda menjana carta prestasi harian (Win Rate) secara real-time.</p>
+      </div>
+    </div>
+
+    <h2>7. Skema Pangkalan Data Induk (SQL DDL)</h2>
+    <p>Ini adalah jadual paling kritikal (<strong>active_trades</strong>) yang menghubungkan MQL5 dan Python. <em>Wajib
+        dipastikan sama bentuk di Supabase.</em></p>
+    <pre><code style="display: block; white-space: pre-wrap; font-size: 0.85em; padding: 15px;">-- active_trades (struktur skema mandatori)
+CREATE TABLE active_trades (
+  id bigint generated always as identity primary key,
+  ticket bigint not null unique,
+  account_id text not null,
+  symbol text not null,
+  direction text not null,  -- BUY / SELL
+  lot double precision not null,
+  trade_style text,         -- SCALPING / INTRADAY / SWING
+  virtual_sl double precision,
+  virtual_tp double precision,
+  be_offset_pips double precision,   -- Pencetus Breakeven
+  trail_start_pips double precision, -- Jarak Trailing
+  trail_dist_pips double precision,
+  entry_price double precision,
+  average_entry_price double precision,
+  layer_index int default 1,
+  basket_id text,
+  magic_number bigint,
+  current_profit double precision,
+  closing_requested boolean default false,
+  close_requested_by text,
+  close_requested_at timestamptz,
+  updated_at timestamptz default now(),
+  opened_at timestamptz default now(),
+  current_status text default 'OPEN',
+  signal_id text, -- ID Isyarat Asal
+  CONSTRAINT unique_account_signal UNIQUE (account_id, signal_id) -- Halang Duplicate Entry
+);</code></pre>
+
+    <pre><code style="display: block; white-space: pre-wrap; font-size: 0.85em; padding: 15px; margin-top: 20px;">-- closed_trades (struktur arkib sejarah)
+CREATE TABLE closed_trades (
+  id bigint generated always as identity primary key,
+  ticket bigint not null unique,
+  account_id text not null,
+  symbol text not null,
+  direction text not null,
+  lot double precision,
+  trade_style text,
+  pnl double precision,
+  close_reason text,  -- Hit TP, Hit SL, AI Close
+  closed_at timestamptz default now()
+);</code></pre>
+
+    <h2>8. Kontrak API (Komunikasi Cloud-Native)</h2>
+    <p>Sistem ini tidak menggunakan fail TXT/CSV. Semuanya berkomunikasi merentasi benua (Server ke MT5) melalui
+      <strong>REST API Supabase</strong>.</p>
+    <table style="width: 100%; text-align: left; border-collapse: collapse; margin-bottom: 20px;">
+      <tr style="border-bottom: 1px solid var(--border);">
+        <th style="padding: 10px;">Penghantar</th>
+        <th style="padding: 10px;">Kaedah</th>
+        <th style="padding: 10px;">Endpoint</th>
+        <th style="padding: 10px;">Tujuan</th>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px;">Master Analyzer</td>
+        <td style="padding: 10px;">POST</td>
+        <td style="padding: 10px;"><code>/rest/v1/signals</code></td>
+        <td style="padding: 10px;">Menghantar surat arahan entry dari AI ke semua akaun.</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px;">Trade Evaluator</td>
+        <td style="padding: 10px;">GET</td>
+        <td style="padding: 10px;"><code>/rest/v1/signals?is_active=eq.true&amp;account_id=eq.XXX</code></td>
+        <td style="padding: 10px;">Membaca jika ada arahan entry baru dari otak utama (Isyarat bersifat Per-Akaun).</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px;">Trade Evaluator</td>
+        <td style="padding: 10px;">POST / PATCH</td>
+        <td style="padding: 10px;"><code>/rest/v1/active_trades</code></td>
+        <td style="padding: 10px;">Lepas entry di MT5, simpan rekod Virtual SL/TP.</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px;">MQL5 EA</td>
+        <td style="padding: 10px;">GET</td>
+        <td style="padding: 10px;"><code>/rest/v1/active_trades?account_id=eq.XXX&amp;current_status=eq.OPEN</code></td>
+        <td style="padding: 10px;">Tarik data Virtual SL/TP setiap 1 saat untuk lukis garisan chart secara spesifik (elak Rate Limit).</td>
+      </tr>
+    </table>
+
+    <div class="card" style="margin-bottom: 30px;">
+      <h3>Contoh JSON Payload & Pengendalian HTTP 409</h3>
+      <p>Apabila `trade_evaluator.py` menembak rekod baru ke jadual <code>active_trades</code>, ia akan menghantar payload JSON seperti berikut:</p>
+      <pre><code style="display: block; white-space: pre-wrap; font-size: 0.8em; padding: 15px; margin-bottom: 15px;">{
+  "ticket": 1234567,
+  "account_id": "ACC-001",
+  "symbol": "XAUUSD",
+  "direction": "BUY",
+  "lot": 0.05,
+  "trade_style": "SCALPING",
+  "virtual_sl": 2315.50,
+  "virtual_tp": 2320.00,
+  "signal_id": "SIG-998877"
+}</code></pre>
+      <p><strong>Nota Isyarat Pendua (Duplicate):</strong> Disebabkan wujudnya <em>constraint</em> <code>unique_account_signal</code> dalam DDL, jika Python cuba memasukkan isyarat (`signal_id`) yang sama buat kali kedua, Supabase secara automatik akan memulangkan ralat <strong>HTTP 409 (Conflict)</strong>. <code>supabase_sync.py</code> wajib mengendalikan ralat 409 ini dengan lancar—iaitu dengan merekodkan <em>log amaran ("Trade already exists")</em> tanpa menyebabkan bot terhenti (crash).</p>
+    </div>
+
+    <h2>9. Skop Kerja: Python vs MQL5</h2>
+    <p>Ini perbezaan ketara tanggungjawab antara kedua-dua modul pelaksana ini untuk elak kekeliruan pemaju.</p>
+    <div class="grid">
+      <div class="card" style="border-left: 4px solid var(--primary);">
+        <h3>🐍 Python (Trade Evaluator)</h3>
+        <ul class="step-list">
+          <li>Buka Trade Pertama (Stealth Entry).</li>
+          <li>Tulis data SL/TP Maya ke Supabase.</li>
+          <li>Tanya AI adakah patut HOLD atau CLOSE trade yang sedang berjalan (setiap 5 minit).</li>
+          <li><strong>TIDAK</strong> melukis apa-apa di skrin MT5.</li>
+          <li><strong>TIDAK</strong> menguruskan Layer / Grid.</li>
+        </ul>
+      </div>
+      <div class="card" style="border-left: 4px solid var(--accent);">
+        <h3>⚡ MQL5 (Expert Advisor)</h3>
+        <ul class="step-list">
+          <li>Baca data Supabase dan lukis garisan Virtual SL/TP/Trail di MT5.</li>
+          <li>Menutup trade (Close) sepantas kilat jika harga kena garisan maya.</li>
+          <li>Buka layer averaging (Grid) jika market junam melepasi Jarak ATR.</li>
+          <li><strong>TIDAK</strong> berinteraksi langsung dengan AI.</li>
+          <li><strong>TIDAK</strong> buat entry pertama.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>10. Deployment, Secrets (.env) & Troubleshooting</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>⚙️ Keperluan Server & Secrets (.env)</h3>
+        <ul class="step-list">
+          <li>OS: Windows Server (kerana MT5 Terminal tidak stabil di Linux).</li>
+          <li>Python 3.11+, <code>MetaTrader5</code>, <code>python-dotenv</code>.</li>
+        </ul>
+        <p><strong>Contoh Fail <code>.env</code> Mandatori:</strong></p>
+        <pre><code style="display: block; white-space: pre-wrap; font-size: 0.8em; padding: 10px;"># MT5 Credentials
+MT5_LOGIN=12345678
+MT5_PASSWORD=rahsia
+MT5_SERVER=Broker-Server
+
+# Cloud AI & Supabase
+AI_PROVIDER=groq
+GROQ_API_KEY=gsk_...
+DEEPSEEK_API_KEY=sk-...
+NVIDIA_API_KEY=nvapi-...
+HUGGINGFACE_API_KEY=hf_...
+OPENROUTER_API_KEY=sk-or-v1-...
+SUPABASE_URL=https://abc.supabase.co
+SUPABASE_ANON_KEY=ey...
+
+# Risk Rules
+MAX_RISK_PERCENT=2.0
+MAX_TRADES_PER_PAIR=10</code></pre>
+      </div>
+      <div class="card">
+        <h3>📝 Log & Pemantauan (Logging)</h3>
+        <ul class="step-list">
+          <li>Semua operasi sistem, dari error Groq hinggalah entry MT5, direkod secara terperinci di dalam folder lokal
+            <code>logs/</code>.</li>
+          <li>Semak fail <code>logs/bot.log</code> atau <code>logs/master_analyzer.log</code> jika sistem kelihatan
+            terhenti.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>11. Production Readiness & Safety Checklist</h2>
+    <p>Sebelum menjalankan sistem pelaburan AI ini ke akaun Live dengan saiz dana yang besar, pastikan 7 lapisan
+      "Fail-Safe" dan prosedur ini dipatuhi sepenuhnya.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>🚨 1. Emergency Safety Layer (Hard SL)</h3>
+        <p><strong>Isu:</strong> Bergantung 100% pada Virtual SL sangat berbahaya jika VPS/Internet terputus atau MT5
+          <em>freeze</em>.</p>
+        <ul class="step-list">
+          <li><strong>Solusi:</strong> Walaupun menggunakan Virtual SL/TP untuk elak tatapan Broker, setiap entry dari
+            Python WAJIB diselitkan dengan <strong>Hard Emergency SL</strong>. Emergency Hard SL patut dikira secara dinamik menggunakan ATR multiplier atau equity-risk cap, contohnya <code>Emergency_SL = max(Virtual_SL_Distance * 3, ATR * 5)</code>.</li>
+          <li>Ini adalah perlindungan mutlak jika kesemua sistem (MQL5 + Python + Supabase) gagal berfungsi serentak.
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🛑 2. Kill Switch & Daily Limit</h3>
+        <p><strong>Isu:</strong> Robot tidak mempunyai perasaan dan boleh berterusan membuka trade (Grid) walaupun
+          market sedang hancur.</p>
+        <ul class="step-list">
+          <li><strong>Global Kill Switch:</strong> Mesti ada butang fizikal atau tetapan pangkalan data untuk
+            menghentikan serta-merta sebarang <em>signal</em> baru.</li>
+          <li><strong>Daily Limits:</strong> Hadkan <em>Max Daily Loss</em>, <em>Max Consecutive Losses</em>, dan
+            <em>Max Grid Layers</em> di dalam tetapan supaya MQL5 hanya fokus pada <em>risk reduction</em> selepas limit
+            dicapai.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>✅ 3. AI Validation Layer (Sanity Check)</h3>
+        <p><strong>Isu:</strong> AI boleh berhalusinasi, memulangkan JSON rosak, atau SL/TP yang melawan logik akal.</p>
+        <ul class="step-list">
+          <li><strong>Sanity Check Python:</strong> Python <code>trade_evaluator</code> akan <em>reject</em> (tolak)
+            isyarat jika <code>sl_price</code> / <code>tp_price</code> kosong, atau R:R (Risk-to-Reward) terlalu rendah.
+          </li>
+          <li><strong>Logical Check:</strong> Tolak jika trade BUY tetapi SL diletak di <strong>atas</strong> harga
+            entry. Fallback kepada HOLD/Abaikan jika AI response invalid.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>📊 4. Testing & Validation Plan</h3>
+        <p><strong>Isu:</strong> <em>"Macam mana nak tahu AI ni betul-betul profitable?"</em></p>
+        <ul class="step-list">
+          <li>Jalankan Backtest minimum 3-6 bulan untuk melihat cara MQL5 Grid bertahan.</li>
+          <li>Forward test di akaun Demo selama 4 minggu untuk memastikan <strong>Latency</strong> Supabase & kelajuan
+            MT5.</li>
+          <li>Kumpul data Win Rate, Profit Factor, dan purata R:R secara berasingan untuk Scalping vs Swing.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🔔 5. Heartbeat & Pusat Kawalan (Alert)</h3>
+        <p><strong>Isu:</strong> Sistem cloud yang berjalan "senyap" amat berisiko. Bagaimana jika VPS 'hang' tanpa kita
+          sedar?</p>
+        <ul class="step-list">
+          <li><strong>Heartbeat Timestamp:</strong> Wujudkan satu column <code>last_seen_bot</code> di Supabase. Python
+            perlu update timestamp ini setiap 60 saat.</li>
+          <li>Jika tiada update melebihi 60 saat, Dashboard Web App akan automatik memaparkan status
+            <strong>OFFLINE</strong> dan menghantar amaran Telegram kepada anda.</li>
+          <li>Sistem juga mesti menghantar Telegram Alert bagi setiap pertambahan <em>Grid Layer</em>, Error Code 400
+            (Supabase), atau Provider AI Timeout.</li>
+          <li><strong>Contoh Notifikasi Telegram:</strong> <code>[🚨 OFFLINE] Akaun 12345: Tiada heartbeat dari VPS melebihi 60 saat!</code> atau <code>[✅ AI ENTRY] XAUUSD BUY (Lot 0.05) @ 2315.00.</code></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🗃️ 6. Supabase Migration Checklist</h3>
+        <p><strong>Isu:</strong> Menghalang Error PGRST204 (Column Not Found) & Isu <em>Duplicate</em>.</p>
+        <ul class="step-list">
+          <li>Laksanakan skrip migrasi SQL (pastikan `signal_id` ujud untuk <strong>Duplicate Trade
+              Protection</strong>).</li>
+          <li><em>Refresh Supabase Schema Cache</em>.</li>
+          <li>Uji <em>insert sample payload</em> dari Postman/Thunder Client.</li>
+          <li>Pastikan Polisi RLS dikuatkuasakan dengan sempurna.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🔐 7. Security & API Protection</h3>
+        <p><strong>Isu:</strong> Kebocoran wang dan data peribadi.</p>
+        <ul class="step-list">
+          <li><strong>JANGAN</strong> hardcode sebarang API key di dalam fail <code>.py</code>. Semua kunci (Groq,
+            DeepSeek, Supabase URL) wajib disimpan dalam fail <code>.env</code>.</li>
+          <li>Jangan sesekali expose kunci <em>Service Role</em> Supabase kepada pihak luar. Gunakan <em>Anon Key</em>
+            sahaja dengan perlindungan RLS.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>⏱️ 8. Rate Limit & Polling MQL5</h3>
+        <p><strong>Isu:</strong> EA yang menarik (GET) rekod Supabase setiap 1 saat berisiko kena <em>ban</em> kerana
+          melanggar had API Rate Limit.</p>
+        <ul class="step-list">
+          <li>Jika terdapat 10 akaun, ia bermakna berpuluh ribu request sehari yang akan memberatkan server Supabase
+            percuma.</li>
+          <li><strong>Solusi:</strong> EA harus hanya mengambil data yang statusnya <code>OPEN</code> dan ditapis
+            menggunakan param <code>account_id=eq.XXX</code>. EA juga boleh digabungkan dengan teknik pemprosesan
+            <em>timestamp cache</em> (hanya GET bila timestamp terkini berbeza).</li>
+        </ul>
+      </div>
+    </div>
+
+    </div>
+
+    <h2>12. Web App Dashboard (Kawalan Jauh)</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>📱 <code>frontend-dashboard</code> (Next.js & Supabase)</h3>
+        <p><strong>Fungsi:</strong> Antaramuka kawalan peribadi yang membolehkan anda memantau bot dari telefon pintar (tanpa perlu Remote Desktop ke VPS).</p>
+        <ul class="step-list">
+          <li><strong>Toggle ON/OFF:</strong> Update status `enabled=true/false` di jadual `account_settings`. `bot_manager` di VPS akan automatik menghidupkan/mematikan akaun tersebut dalam 15 saat.</li>
+          <li><strong>Live Status:</strong> Membaca timestamp `last_seen_bot` untuk memaparkan Heartbeat <strong>ONLINE / OFFLINE / WARNING</strong> secara <em>real-time</em>.</li>
+          <li><strong>Telegram Alert:</strong> Walaupun Web App boleh memaparkan log graf, Telegram/WhatsApp Alert tetap berjalan selari di latar belakang (diurus oleh Python) untuk <em>push notification</em> pantas bila wujud isyarat kritikal.</li>
+          <li><strong>Hosting:</strong> Boleh di-host pada <strong>Vercel</strong> secara percuma. Berkomunikasi terus ke Supabase dengan RLS (hanya pengguna <em>Auth</em> yang sah boleh akses).</li>
+        </ul>
+      </div>
+    </div>
+
+    </div>
+
+    <h2>13. Penafian Rasmi (Disclaimer)</h2>
+    <div class="card" style="border-left: 4px solid var(--accent); background: rgba(255, 8, 68, 0.05);">
+      <p><strong>Penting:</strong> Sistem Pelaburan AI (Investment-AI_T V4) ini ialah alat <em>automation and decision-support</em> (automasi dan sokongan keputusan). Prestasi masa lalu, keputusan <em>backtest</em>, atau ujian <em>forward test</em> tidak menjamin keuntungan pada masa hadapan. Segala parameter risiko wajib diuji secara mendalam di akaun Demo sebelum digunakan pada akaun <em>Live</em> dengan dana peribadi anda. Penggunaan sistem ini adalah atas risiko pengguna sepenuhnya.</p>
+    </div>
+
+  </div>
+
 </body>
+
 </html>

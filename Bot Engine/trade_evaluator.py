@@ -5,16 +5,18 @@ import os
 import sys
 import time
 import math
+import json
+from datetime import datetime
 
 import config
-from mt5_connector import MT5Connector
+from mt5_connector import mt5_conn
 from strategy import calculate_multi_indicators
 from ai_engine import get_ai_signal, query_ai_provider
-import json
 from trade_management.supabase_sync import SupabaseSync
 import system_settings
 from logger import setup_logging
 from account_settings import AccountSettings
+from news_manager import is_high_impact_news_active
 
 logger = setup_logging()
 
@@ -27,9 +29,9 @@ def _signal_handler(signum, frame):
 signal.signal(signal.SIGINT, _signal_handler)
 signal.signal(signal.SIGTERM, _signal_handler)
 
-def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector, acc: str, acct_settings):
+def sync_active_trades_from_mt5(supabase: SupabaseSync, acc: str, acct_settings):
     try:
-        mt5_positions = connector.get_open_positions()
+        mt5_positions = mt5_conn.get_open_positions()
         if mt5_positions is None:
             return  # Error connecting or fetching
             
@@ -55,7 +57,7 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
                     "ticket": tkt,
                     "account_id": acc,
                     "symbol": p["symbol"],
-                    "direction": p["direction"],
+                    "direction": p["type"],  # type=0 is BUY, type=1 is SELL
                     "lot": p["volume"],
                     "entry_price": p["price_open"],
                     "floating_profit": p["profit"],
@@ -99,16 +101,9 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
     except Exception as e:
         logger.error(f"Sync MT5 to Supabase error for {acc}: {e}")
 
-
-import MetaTrader5 as mt5
-
-
-import MetaTrader5 as mt5
-from news_manager import is_high_impact_news_active
-
-def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: str, acct_settings: AccountSettings):
+def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: AccountSettings):
     try:
-        if not connector.is_connected(): return
+        if not mt5_conn.is_connected(): return
         
         # 1. Fetch active signals
         url = f"{supabase.base_url}/rest/v1/signals?account_id=eq.{acc}&is_active=eq.true"
@@ -117,7 +112,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
         if not signals: return
         
         # 2. Base Risk Management Data
-        acct_info = connector.get_account_info()
+        acct_info = mt5_conn.get_account_info()
         if not acct_info: return
         
         balance = acct_info.get("balance", 0)
@@ -125,7 +120,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
         current_dd = ((balance - equity) / balance * 100) if (balance > 0 and equity < balance) else 0
         
         max_dd = acct_settings.max_daily_drawdown_pct or 50.0
-        open_positions = connector.get_open_positions() or []
+        open_positions = mt5_conn.get_open_positions() or []
         current_trades_count = len(open_positions)
         max_trades = acct_settings.get_max_total_trades() or 10
         min_conf = acct_settings.min_ai_confidence or 70
@@ -135,7 +130,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
         # Using the tick time of the first available symbol to get broker time
         is_asia = False
         gold_symbol = acct_settings._cache.get("symbol_xauusd", "XAUUSD")
-        sample_tick = connector.get_tick(gold_symbol)
+        sample_tick = mt5_conn.get_tick(gold_symbol)
         if sample_tick:
             import time
             broker_hour = time.gmtime(sample_tick["time"]).tm_hour
@@ -239,7 +234,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             
             # V4: Buka trade TANPA broker SL/TP (sl=0, tp=0).
             # Virtual SL/TP akan diuruskan oleh bot sendiri dan disimpan ke Supabase.
-            res_trade = connector.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}", magic=magic_number)
+            res_trade = mt5_conn.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}", magic=magic_number)
             if res_trade:
                 ticket_id = res_trade if isinstance(res_trade, int) else res_trade.get("ticket", 0) if isinstance(res_trade, dict) else 0
                 logger.info(f"✅ [{acc}] Berjaya membuka {action} {sym} (Ticket: {ticket_id})")
@@ -254,7 +249,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 final_tp = tp_price
                 if final_sl == 0 or final_tp == 0:
                     pip_value = 0.10  # Gold: 1 pip = $0.10
-                    tick_data = connector.get_tick(sym)
+                    tick_data = mt5_conn.get_tick(sym)
                     if tick_data:
                         avg_sl_pips = (s_params.get("min_sl_pips", 20) + s_params.get("max_sl_pips", 40)) / 2.0
                         avg_tp_pips = (s_params.get("min_tp_pips", 30) + s_params.get("max_tp_pips", 60)) / 2.0
@@ -275,7 +270,7 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 
                 # Tulis ke active_trades di Supabase dengan virtual SL/TP penuh
                 if ticket_id:
-                    entry_price = connector.get_tick(sym)["ask"] if action == "BUY" else connector.get_tick(sym)["bid"]
+                    entry_price = mt5_conn.get_tick(sym)["ask"] if action == "BUY" else mt5_conn.get_tick(sym)["bid"]
                     trade_payload = {
                         "ticket": ticket_id,
                         "account_id": acc,
@@ -350,10 +345,10 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
         
         logger.info(f"🧠 [{acc}] Menilai trade {ticket} ({sym} {action}) [{style}] pada minit ke-{current_minute}...")
         
-        tick = connector.get_tick(sym)
+        tick = mt5_conn.get_tick(sym)
         if not tick: continue
         
-        mdf = connector.get_multi_timeframe(sym, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=50)
+        mdf = mt5_conn.get_multi_timeframe(sym, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=50)
         if not mdf: continue
         indicators = calculate_multi_indicators(mdf, symbol=sym)
         
@@ -396,7 +391,7 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
         else:
             logger.info(f"🔵 [Evaluator: {acc}] Trade {ticket} status: HOLD.")
 
-def evaluate_pending_manual_trades(supabase: SupabaseSync, connector: MT5Connector, account_id: str, acct_settings: AccountSettings):
+def evaluate_pending_manual_trades(supabase: SupabaseSync, , account_id: str, acct_settings: AccountSettings):
     active_trades = supabase.fetch_active_trades(account_id)
     if not active_trades: return
     pending_manuals = [t for t in active_trades if t.get("current_status") == "OPEN" and t.get("trade_style") == "MANUAL_PENDING_AI"]
@@ -516,7 +511,7 @@ def main():
     path = acc_data.get("mt5_path") if acc_data else None
     
     # Hubungkan ke MT5 individu. Jika login kosong, kita cuma 'attach' tanpa ubah akaun
-    connector.connect(0, "", "", path)
+    mt5_conn.connect(0, "", "", path)
     
     acct_settings = AccountSettings(account_id)
     
@@ -543,7 +538,7 @@ def main():
             
         # ── Kemaskini Balance & Info (Ikut masa 10 minit sekali, tak wajib genap)
         if now - last_info_sync >= 600:
-            acct_info = connector.get_account_info() or {}
+            acct_info = mt5_conn.get_account_info() or {}
             acct_settings.update_connection_status(
                 connected=True,
                 error_msg="",
