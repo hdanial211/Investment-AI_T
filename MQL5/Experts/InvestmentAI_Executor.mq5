@@ -11,7 +11,7 @@
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
 
-input string   InpAccountID      = "Ammar";           // Account ID (matches Supabase)
+input string   InpAccountID      = "";                // Account ID (matches Supabase)
 input string   InpSupabaseURL    = "https://kusyjtpcjyflxgfcqenb.supabase.co"; // Supabase URL
 input string   InpSupabaseAnon   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1c3lqdHBjanlmbHhnZmNxZW5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDE0NzIsImV4cCI6MjA5NTM3NzQ3Mn0.D8qN-s92JUloY7jb_jwiUnqikRKxHb9Qap9HQod-78g"; // Supabase Anon Key
 input ulong    InpMagicNumber    = 888999;            // EA Magic Number
@@ -201,6 +201,10 @@ int OnInit() {
    g_SupabaseURL = InpSupabaseURL;
    StringTrimLeft(g_SupabaseURL);
    StringTrimRight(g_SupabaseURL);
+   if (g_AccountID == "") {
+      Print("CRITICAL ERROR: Account ID is empty! Please enter your Account ID in EA Inputs.");
+      return INIT_FAILED;
+   }
    Print("Initializing InvestmentAI Executor for Account: ", g_AccountID);
    trade.SetExpertMagicNumber(InpMagicNumber);
    
