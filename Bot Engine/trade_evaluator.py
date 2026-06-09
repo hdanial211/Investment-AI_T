@@ -232,83 +232,96 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                 
     except Exception as e:
         logger.error(f"Signal Executor error for {acc}: {e}")
-def loop_evaluator(supabase: SupabaseSync, connector: MT5Connector, acc: str, acct_settings: AccountSettings, current_minute: int = 0, is_startup: bool = False):
-    logger.info(f"🧠 [Evaluator: {acc}] Running Trade Evaluator Loop...")
-    try:
-        trades = supabase.fetch_active_trades(acc)
-        if not trades:
-            logger.info(f"🧠 [Evaluator: {acc}] Tiada active trades untuk dinilai.")
-            return
 
-        for t in trades:
-            ticket = t["ticket"]
-            sym = t["symbol"]
-            sl = t.get("virtual_sl", 0)
-            tp = t.get("virtual_tp", 0)
-            style = str(t.get("trade_style", "UNKNOWN")).upper().strip()
-            entry = t.get("entry_price", 0)
-            profit = t.get("floating_profit", 0)
-            
-            # ── LOGIK SIFIR MASA MENGIKUT STYLE ──
-            if not is_startup:
-                if style == "INTRADAY":
-                    # Intraday: Setiap 30 minit (00, 30)
-                    if current_minute % 30 != 0:
-                        logger.info(f"⏭️ [Evaluator: {acc}] Skip trade {ticket} (Intraday) pada minit {current_minute}")
-                        continue
-                elif style == "SWING":
-                    # Swing: Setiap 1 jam (00 sahaja)
-                    if current_minute != 0:
-                        logger.info(f"⏭️ [Evaluator: {acc}] Skip trade {ticket} (Swing) pada minit {current_minute}")
-                        continue
-                # SCALPING atau UNKNOWN akan lepas selagi current_minute % 15 == 0
-            
-            tick = connector.get_tick(sym)
-            if not tick: continue
-            
-            mdf = connector.get_multi_timeframe(sym, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=50)
-            if not mdf: continue
-            indicators = calculate_multi_indicators(mdf, symbol=sym)
-            
-            eval_prompt = (
-                f"Trade {ticket} | Style: {style} | Entry: {entry} | "
-                f"Current SL: {sl} | Current TP: {tp} | Floating Profit: {profit}\n"
-                f"Market ADX: {indicators.get('adx', 0)} | H4 Trend: {indicators.get('h4_trend', 'UNKNOWN')}\n"
-                f"Are there any reversal patterns on M15/H1? Provide UPDATE_SL_TP or CLOSE_TRADE if risk is high, else HOLD."
-            )
-            
-            # Guna API key individu dari dashboard (jika ada), tapi paksakan model ringan
-            eval_cfg = acct_settings.get_evaluator_config() or {}
-            eval_api_key = eval_cfg.get("api_key") if eval_cfg else None
-            
-            fast_provider = {
-                "provider": "groq", 
-                "model": "llama-3.1-8b-instant"
-            }
-            if eval_api_key:
-                fast_provider["api_key"] = eval_api_key
-            
-            ai_result = get_ai_signal(
-                {"trade_eval": eval_prompt}, 
-                tick["bid"], tick["ask"], None, sym, 
-                specific_provider_config=fast_provider,
-                trade_eval_mode=True
-            )
-            
-            if ai_result.get("action") == "UPDATE_SL_TP":
-                new_sl = ai_result.get("sl") or sl
-                new_tp = ai_result.get("tp") or tp
-                supabase._insert("sl_tp_updates", {
-                    "signal_id": t.get("signal_id", str(ticket)),
-                    "account_id": acc,
-                    "ticket": ticket,
-                    "new_sl": new_sl,
-                    "new_tp": new_tp,
-                    "applied": False
-                })
-                logger.info(f"🟡 [Evaluator: {acc}] Updated SL/TP for {ticket}")
-    except Exception as e:
-        logger.error(f"Evaluator error for {acc}: {e}")
+def loop_evaluator(supabase, connector, account_id, acct_settings, current_minute, is_startup=False):
+    """
+    Menilai setiap active trade dan menggunakan Provider (Main & Risk) 
+    untuk menapis sentimen pasaran dan pergerakan semasa.
+    Waktu Penilaian berdasarkan Trade Style:
+    - Scalping: Setiap 15 Minit (00, 15, 30, 45)
+    - Intraday: Setiap 30 Minit (00, 30)
+    - Swing: Setiap 60 Minit (00)
+    """
+    
+    acc = account_id
+    trades = supabase.client.table("active_trades").select("*").eq("account_id", acc).execute().data
+    if not trades:
+        # Kurangkan spam log: Hanya log jika minit 00, 15, 30, 45
+        if current_minute % 15 == 0:
+            logger.info(f"🧠 [{acc}] Tiada active trades untuk dinilai pada minit ke-{current_minute}.")
+        return
+
+    # Skip evaluation if provider list is empty
+    provider_config = acct_settings.get_evaluator_config()
+    if not provider_config:
+        logger.warning(f"[{acc}] Tiada konfigurasi Evaluator dijumpai. Skipping evaluation.")
+        return
+        
+    for t in trades:
+        sym = t["symbol"]
+        action = t["direction"]
+        style = t.get("trade_style", "UNKNOWN").upper()
+        ticket = t["ticket"]
+        sl = t.get("virtual_sl", 0)
+        tp = t.get("virtual_tp", 0)
+        entry = t.get("entry_price", 0)
+        profit = t.get("floating_profit", 0)
+        
+        # --- SARINGAN MASA EVALUATOR MENGIKUT STYLE ---
+        if not is_startup:
+            if style == "SCALPING" and current_minute % 15 != 0:
+                continue
+            elif style == "INTRADAY" and current_minute % 30 != 0:
+                continue
+            elif style == "SWING" and current_minute != 0:
+                continue
+        
+        logger.info(f"🧠 [{acc}] Menilai trade {ticket} ({sym} {action}) [{style}] pada minit ke-{current_minute}...")
+        
+        tick = connector.get_tick(sym)
+        if not tick: continue
+        
+        mdf = connector.get_multi_timeframe(sym, timeframes=["H4", "H1", "M30", "M15", "M5", "M1"], bars=50)
+        if not mdf: continue
+        indicators = calculate_multi_indicators(mdf, symbol=sym)
+        
+        eval_prompt = (
+            f"Trade {ticket} | Style: {style} | Entry: {entry} | "
+            f"Current SL: {sl} | Current TP: {tp} | Floating Profit: {profit}\n"
+            f"Market ADX: {indicators.get('adx', 0)} | H4 Trend: {indicators.get('h4_trend', 'UNKNOWN')}\n"
+            f"Are there any reversal patterns on M15/H1? Provide UPDATE_SL_TP or CLOSE_TRADE if risk is high, else HOLD."
+        )
+        
+        # Guna API key individu dari dashboard (jika ada), tapi paksakan model ringan
+        eval_cfg = acct_settings.get_evaluator_config() or {}
+        eval_api_key = eval_cfg.get("api_key") if eval_cfg else None
+        
+        fast_provider = {
+            "provider": "groq", 
+            "model": "llama-3.1-8b-instant"
+        }
+        if eval_api_key:
+            fast_provider["api_key"] = eval_api_key
+        
+        ai_result = get_ai_signal(
+            {"trade_eval": eval_prompt}, 
+            tick["bid"], tick["ask"], None, sym, 
+            specific_provider_config=fast_provider,
+            trade_eval_mode=True
+        )
+        
+        if ai_result.get("action") == "UPDATE_SL_TP":
+            new_sl = ai_result.get("sl") or sl
+            new_tp = ai_result.get("tp") or tp
+            supabase._insert("sl_tp_updates", {
+                "signal_id": t.get("signal_id", str(ticket)),
+                "account_id": acc,
+                "ticket": ticket,
+                "new_sl": new_sl,
+                "new_tp": new_tp,
+                "applied": False
+            })
+            logger.info(f"🟡 [Evaluator: {acc}] Updated SL/TP for {ticket}")
 
 
 def main():
@@ -337,6 +350,7 @@ def main():
     
     acct_settings = AccountSettings(account_id)
     
+    # Evaluator State
     last_eval_minute = -1
     last_info_sync = 0
     
@@ -350,12 +364,13 @@ def main():
         loop_signal_executor(supabase, connector, account_id, acct_settings)
         sync_active_trades_from_mt5(supabase, connector, account_id)
         
-        # Evaluator Loop (Setiap 15 minit ikut jam sebenar: 00, 15, 30, 45)
-        # Juga akan jalan sekali sebaik sahaja bot dihidupkan (last_eval_minute == -1)
+        # Evaluator Loop (Jalankan setiap minit, dan saring di dalam loop mengikut Trade Style)
+        # Scalping (15m), Intraday (30m), Swing (60m). Startup (Sekali sahaja)
         is_startup = (last_eval_minute == -1)
-        if (current_minute % 15 == 0 and current_minute != last_eval_minute) or is_startup:
+        if current_minute != last_eval_minute or is_startup:
             loop_evaluator(supabase, connector, account_id, acct_settings, current_minute, is_startup)
             last_eval_minute = current_minute
+            
         # ── Kemaskini Balance & Info (Ikut masa 10 minit sekali, tak wajib genap)
         if now - last_info_sync >= 600:
             acct_info = connector.get_account_info() or {}
