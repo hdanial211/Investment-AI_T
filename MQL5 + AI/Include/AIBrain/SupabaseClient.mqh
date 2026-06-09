@@ -223,25 +223,28 @@ public:
       return HttpPATCH(up_url, _BuildHeaders(true), up_payload);
    }
 
-   //--- Update balance/equity heartbeat
+   //--- Update balance/equity heartbeat (UPSERT via merge-duplicates)
    void Heartbeat(double balance, double equity)
    {
       string now = TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS);
+      StringReplace(now, ".", "-");
       StringReplace(now, " ", "T");
+
+      // Minimal payload — only columns confirmed by Supabase schema
       string payload = StringFormat(
-         "{\"account_id\":\"%s\",\"balance\":%.2f,\"equity\":%.2f,"
-         "\"status\":\"online\",\"last_seen_at\":\"%sZ\"}",
+         "{\"account_id\":\"%s\",\"status\":\"online\","
+         "\"balance\":%.2f,\"equity\":%.2f,\"last_seen_at\":\"%sZ\"}",
          m_account_id, balance, equity, now
       );
-      string url = m_base_url + "/rest/v1/bot_heartbeat?account_id=eq." + m_account_id;
-      if(!HttpPATCH(url, _BuildHeaders(true), payload))
-      {
-         string extra_hdr = "apikey: " + m_anon_key + "\r\n"
-                          + "Authorization: Bearer " + m_anon_key + "\r\n"
-                          + "Content-Type: application/json\r\nPrefer: return=minimal\r\n";
-         string resp;
-         HttpPOST(m_base_url + "/rest/v1/bot_heartbeat", extra_hdr, payload, resp);
-      }
+
+      string hdr = "apikey: " + m_anon_key + "\r\n"
+                 + "Authorization: Bearer " + m_anon_key + "\r\n"
+                 + "Content-Type: application/json\r\n"
+                 + "Prefer: resolution=merge-duplicates,return=minimal\r\n";
+      string resp;
+      bool ok = HttpPOST(m_base_url + "/rest/v1/bot_heartbeat", hdr, payload, resp);
+      if(!ok)
+         PrintFormat("[Supabase] Heartbeat failed for account: %s", m_account_id);
    }
 
    //--- Write AI signal log to Supabase signals table (for dashboard visibility)

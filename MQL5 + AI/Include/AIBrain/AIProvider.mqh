@@ -61,32 +61,50 @@ private:
            "{\"role\":\"user\",\"content\":\"%s\"}"
          "],"
          "\"temperature\":0.1,"
-         "\"max_tokens\":256,"
-         "\"response_format\":{\"type\":\"json_object\"}"
+         "\"max_tokens\":300"
          "}",
          m_model, sys_escaped, user_escaped
       );
    }
 
    //--- Parse the Groq response envelope → extract content string
+   //    ROOT FIX: Groq wraps content in escaped JSON string:
+   //    "content":"{\"action\":\"BUY\"...}"
+   //    JsonGetString() flat parser returns only "{" (stops at first ").
+   //    We must walk char-by-char to honour \" escape sequences.
    string _ExtractContent(const string response)
    {
-      // Groq returns: {"choices":[{"message":{"content":"..."}}]}
-      string choices_part = JsonGetString(response, "content");
-      if(choices_part != "") return choices_part;
+      // Find the opening of the content value: "content":"
+      string marker = "\"content\":\"";
+      int pos = StringFind(response, marker);
+      if(pos == -1) { Print("[AIProvider] 'content' key not found in response."); return ""; }
+      pos += StringLen(marker); // pos now at first char inside the content string
 
-      // Fallback: find "content":" manually
-      int pos = StringFind(response, "\"content\":\"");
-      if(pos == -1) return "";
-      pos += 11;
-      int end = StringFind(response, "\"", pos);
-      // Handle escaped quotes
-      while(end != -1 && StringSubstr(response, end - 1, 1) == "\\")
-         end = StringFind(response, "\"", end + 1);
-      if(end == -1) return "";
-      string raw = StringSubstr(response, pos, end - pos);
-      StringReplace(raw, "\\\"", "\"");
-      StringReplace(raw, "\\n", " ");
+      // Walk forward respecting backslash-escaped quotes
+      string raw = "";
+      int resp_len = StringLen(response);
+      for(int i = pos; i < resp_len; i++)
+      {
+         string ch = StringSubstr(response, i, 1);
+         if(ch == "\\" && i + 1 < resp_len)  // Escape sequence
+         {
+            string next = StringSubstr(response, i + 1, 1);
+            if(next == "\"")      { raw += "\""; i++; continue; }  // \" → "
+            else if(next == "n")  { raw += " ";   i++; continue; }  // \n  → space
+            else if(next == "r")  { i++;           continue; }       // \r  skip
+            else if(next == "t")  { raw += " ";   i++; continue; }  // \t  → space
+            else if(next == "\\") { raw += "\\"; i++; continue; }  // \\\ → \
+            else                  { raw += ch;             continue; }
+         }
+         if(ch == "\"") break; // Unescaped closing quote — end of content value
+         raw += ch;
+      }
+
+      if(StringLen(raw) < 5) // Sanity check — valid JSON has at least {"a":1}
+      {
+         PrintFormat("[AIProvider] Content too short (%d chars): %s", StringLen(raw), raw);
+         return "";
+      }
       return raw;
    }
 
@@ -100,7 +118,10 @@ private:
       string resp;
       bool ok = HttpPOST(GROQ_ENDPOINT, headers, body, resp);
       if(ok && StringFind(resp, "\"content\"") != -1) return resp;
-      PrintFormat("[AIProvider] Key[%d] failed or no content.", key_idx);
+      // Print partial response for debugging
+      PrintFormat("[AIProvider] Key[%d] failed | HTTP ok=%s | Resp(100): %s",
+                  key_idx, ok ? "Y" : "N",
+                  StringSubstr(resp, 0, MathMin(100, StringLen(resp))));
       return "";
    }
 
