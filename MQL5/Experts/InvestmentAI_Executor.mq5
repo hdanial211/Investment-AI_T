@@ -1067,9 +1067,9 @@ void ManageManualBaskets() {
                               }
                            }
                         }
-                        string payload = "{\\"ticket\\":" + IntegerToString(mtkt) + ",\\"account_id\\":\\"" + InpAccountID + "\\",\\"symbol\\":\\"" + sym + "\\",\\"direction\\":\\"" + dir_str + "\\",\\"lot\\":" + DoubleToString(lot_close, 2) + ",\\"trade_style\\":\\"MANUAL_BASKET\\",\\"pnl\\":" + DoubleToString(final_pl, 2) + ",\\"close_reason\\":\\"" + close_reason + "\\"}";
+                        string payload = "{\"ticket\":" + IntegerToString(mtkt) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"MANUAL_BASKET\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
                         SupabasePOST("/rest/v1/closed_trades", payload);
-                        SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(mtkt), "{\\"exit_reason\\":\\"" + close_reason + "\\",\\"current_status\\":\\"CLOSED\\"}");
+                        SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(mtkt), "{\"exit_reason\":\"" + close_reason + "\",\"current_status\":\"CLOSED\"}");
                         
                         ObjectDelete(0, "V_SL_" + IntegerToString(mtkt));
                         ObjectDelete(0, "V_TP_" + IntegerToString(mtkt));
