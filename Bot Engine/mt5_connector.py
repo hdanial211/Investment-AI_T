@@ -129,6 +129,19 @@ class MT5Connector:
                 
         return result
 
+    def _get_filling_mode(self, symbol: str) -> int:
+        info = mt5.symbol_info(symbol)
+        if not info: return mt5.ORDER_FILLING_FOK
+        
+        # In Python MetaTrader5, filling_mode is a bit flag:
+        # 1 = FOK, 2 = IOC
+        if info.filling_mode & 1:  # FOK
+            return mt5.ORDER_FILLING_FOK
+        if info.filling_mode & 2:  # IOC
+            return mt5.ORDER_FILLING_IOC
+            
+        return mt5.ORDER_FILLING_RETURN
+
     def execute_stealth_entry(self, symbol: str, direction: str, lot: float, magic_number: int) -> Optional[int]:
         """
         Execute a market order WITH NO SL AND TP (Stealth Mode).
@@ -158,7 +171,7 @@ class MT5Connector:
             "magic": magic_number,
             "comment": "V4_AI_Stealth",
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": self._get_filling_mode(symbol),
         }
 
         result = mt5.order_send(request)
@@ -212,7 +225,7 @@ class MT5Connector:
             "magic": 0,
             "comment": "V4_Python_Close",
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": self._get_filling_mode(symbol),
         }
 
         result = mt5.order_send(request)

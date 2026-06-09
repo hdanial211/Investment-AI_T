@@ -64,6 +64,7 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, acc: str, acct_settings)
                     "floating_profit": p["profit"],
                     "trade_style": style,
                     "current_status": "OPEN",
+                    "opened_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 }
                 
@@ -143,6 +144,9 @@ def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: Accoun
         
         for sig in signals:
             sym = sig.get("symbol", "XAUUSD")
+            if sym == "XAUUSD":
+                sym = gold_symbol
+                
             action = sig.get("action") or sig.get("direction", "")
             style = sig.get("trade_style", sig.get("style", "UNKNOWN"))
             confidence = sig.get("confidence", 0)
@@ -213,8 +217,12 @@ def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: Accoun
                 continue
                 
             # 9. Check Max Spread
+            mt5.symbol_select(sym, True)
             sym_info = mt5.symbol_info(sym)
-            if not sym_info: continue
+            if not sym_info: 
+                logger.error(f"❌ [{acc}] Signal {action} gagal: Simbol {sym} tidak ditemui di broker (Sila periksa symbol suffix seperti XAUUSDc/m).")
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": f"Simbol {sym} tiada di broker"})
+                continue
             spread = sym_info.spread
             if spread > max_spread:
                 logger.warning(f"[{acc}] Signal {action} ditangguh (Hold): Spread semasa terlalu tinggi ({spread} > {max_spread})")
@@ -288,6 +296,7 @@ def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: Accoun
                         "trail_dist_pips": trail_dist_pips,
                         "current_status": "OPEN",
                         "floating_profit": 0,
+                        "opened_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     }
                     supabase._upsert("active_trades", trade_payload, conflict="ticket")
@@ -297,6 +306,7 @@ def loop_signal_executor(supabase: SupabaseSync, acc: str, acct_settings: Accoun
                 current_trades_count += 1
             else:
                 logger.error(f"❌ [{acc}] Gagal membuka {action} {sym}")
+                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Execution failed at broker"})
                 
     except Exception as e:
         logger.error(f"Signal Executor error for {acc}: {e}")
@@ -502,23 +512,27 @@ def main():
     account_id = sys.argv[1]
     config.ACCOUNT_ID = account_id
     
-    logger.info("==============================================")
-    logger.info(f" 🧠 TRADE EVALUATOR PROCESS ({account_id}) ")
-    logger.info("==============================================")
-    
-    # Refresh latest settings first
-    system_settings.fetch_and_apply_system_settings()
-    
     supabase = SupabaseSync()
     
     # Ambil laluan MT5 peribadi
     acc_data = supabase.fetch_account_settings(account_id)
     path = acc_data.get("mt5_path") if acc_data else None
     
-    # Hubungkan ke MT5 individu. Jika login kosong, kita cuma 'attach' tanpa ubah akaun
+    # Hubungkan ke MT5 individu
     mt5_conn.connect(0, "", "", path)
     
     acct_settings = AccountSettings(account_id)
+    eval_cfg = acct_settings.get_evaluator_config() or {}
+    risk_cfg = acct_settings.get_risk_config() or {}
+    
+    e_model = f"{eval_cfg.get('provider')} / {eval_cfg.get('model')}" if eval_cfg.get("model") else "groq / llama-3.1-8b-instant (Fallback)"
+    r_model = f"{risk_cfg.get('provider')} / {risk_cfg.get('model')}" if risk_cfg.get("model") else "groq / llama-3.1-8b-instant (Fallback)"
+    
+    logger.info("==================================================")
+    logger.info(f" 🧠 TRADE EVALUATOR PROCESS ({account_id}) ")
+    logger.info(f" Evaluator Model: {e_model}")
+    logger.info(f" Risk Model: {r_model}")
+    logger.info("==================================================")
     
     # Evaluator State
     last_eval_minute = -1
