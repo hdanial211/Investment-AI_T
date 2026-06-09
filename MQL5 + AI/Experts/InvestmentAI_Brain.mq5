@@ -1,16 +1,15 @@
 //+------------------------------------------------------------------+
 //|                                          InvestmentAI_Brain.mq5 |
 //|                         Investment-AI_T v5 — MQL5+AI Standalone  |
-//|  All-in-one EA: AI analysis + execution + virtual SL/TP + sync  |
+//|    All-in-one: AI analysis + virtual SL/TP — NO Supabase        |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, Investment-AI_T"
 #property link      "https://github.com/hdanial211/Investment-AI_T"
-#property version   "5.00"
-#property description "Standalone AI Trading EA — calls Groq directly, no Python needed."
+#property version   "5.10"
+#property description "Standalone AI Trading EA — Groq AI + MT5 execution. No cloud required."
 
 #include "..\Include\AIBrain\JsonParser.mqh"
 #include "..\Include\AIBrain\HttpClient.mqh"
-#include "..\Include\AIBrain\SupabaseClient.mqh"
 #include "..\Include\AIBrain\MarketData.mqh"
 #include "..\Include\AIBrain\AIProvider.mqh"
 #include "..\Include\AIBrain\RiskGuard.mqh"
@@ -21,72 +20,77 @@
 // INPUT PARAMETERS
 //============================================================
 
-// ── Identity ─────────────────────────────────────────────
-input string   Inp_AccountID       = "";             // Account ID (matches Supabase)
-
-// ── Supabase ──────────────────────────────────────────────
-input string   Inp_SupabaseURL     = "https://kusyjtpcjyflxgfcqenb.supabase.co"; // Supabase URL
-input string   Inp_SupabaseAnon    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1c3lqdHBjanlmbHhnZmNxZW5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDE0NzIsImV4cCI6MjA5NTM3NzQ3Mn0.D8qN-s92JUloY7jb_jwiUnqikRKxHb9Qap9HQod-78g"; // Supabase Anon Key
-
-// ── Groq API Keys (3 keys — rotate on quota/failure) ─────
+// ── Groq API Keys (3-key rotation) ───────────────────────
 input string   Inp_GroqKey1        = "";             // Groq API Key #1 (Primary)
 input string   Inp_GroqKey2        = "";             // Groq API Key #2 (Backup 1)
 input string   Inp_GroqKey3        = "";             // Groq API Key #3 (Backup 2)
 input string   Inp_GroqModel       = "llama-3.3-70b-versatile"; // Groq Model
 
 // ── Symbol ────────────────────────────────────────────────
-input string   Inp_Symbol          = "XAUUSDc";     // Gold symbol (XAUUSDc or XAUUSD)
+input string   Inp_Symbol          = "XAUUSDc";     // Gold symbol
 
 // ── Trading Styles Enable/Disable ────────────────────────
-input bool     Inp_EnableScalping  = true;           // Enable SCALPING (every 5min)
-input bool     Inp_EnableIntraday  = true;           // Enable INTRADAY (every 1hr)
-input bool     Inp_EnableSwing     = true;           // Enable SWING (every 2hr)
+input bool     Inp_EnableScalping  = true;           // Enable SCALPING (5 min)
+input bool     Inp_EnableIntraday  = true;           // Enable INTRADAY (30 min)
+input bool     Inp_EnableSwing     = true;           // Enable SWING (1 jam)
 
-// ── Risk (overridden by Supabase if settings exist) ──────
-input int      Inp_MinConfidence   = 70;             // Min AI confidence to trade (%)
-input int      Inp_MaxSpread       = 50;             // Max spread in points
+// ── Lot Sizes ─────────────────────────────────────────────
+input double   Inp_LotScalping     = 0.01;           // Lot size — SCALPING
+input double   Inp_LotIntraday     = 0.02;           // Lot size — INTRADAY
+input double   Inp_LotSwing        = 0.03;           // Lot size — SWING
+
+// ── Risk Settings ─────────────────────────────────────────
+input int      Inp_MinConfidence   = 70;             // Min AI confidence (%)
+input int      Inp_MaxSpread       = 50;             // Max spread (points)
 input int      Inp_MaxTrades       = 5;              // Max concurrent trades
 input double   Inp_MaxDrawdown     = 5.0;            // Max daily drawdown (%)
+input bool     Inp_BlockAsia       = false;          // Block Asia session (00-08)
+
+// ── Virtual SL/TP — SCALPING ──────────────────────────────
+input double   Inp_S_BETrigger     = 15;             // Scalping: BE trigger (pips)
+input double   Inp_S_BEOffset      = 2;              // Scalping: BE offset (pips)
+input double   Inp_S_TrailStart    = 20;             // Scalping: Trail start (pips)
+input double   Inp_S_TrailDist     = 10;             // Scalping: Trail distance (pips)
+
+// ── Virtual SL/TP — INTRADAY ──────────────────────────────
+input double   Inp_I_BETrigger     = 25;             // Intraday: BE trigger (pips)
+input double   Inp_I_BEOffset      = 5;              // Intraday: BE offset (pips)
+input double   Inp_I_TrailStart    = 40;             // Intraday: Trail start (pips)
+input double   Inp_I_TrailDist     = 20;             // Intraday: Trail distance (pips)
+
+// ── Virtual SL/TP — SWING ─────────────────────────────────
+input double   Inp_W_BETrigger     = 60;             // Swing: BE trigger (pips)
+input double   Inp_W_BEOffset      = 15;             // Swing: BE offset (pips)
+input double   Inp_W_TrailStart    = 100;            // Swing: Trail start (pips)
+input double   Inp_W_TrailDist     = 50;             // Swing: Trail distance (pips)
 
 // ── Magic Numbers ─────────────────────────────────────────
-input ulong    Inp_MagicBase       = 999000;         // Base magic (+1=Scalp,+2=Intra,+3=Swing)
+input ulong    Inp_MagicBase       = 999000;         // Base magic number
 
 //============================================================
 // GLOBAL OBJECTS
 //============================================================
 
-CSupabaseClient g_supa;
 CAIProvider     g_ai;
 CRiskGuard      g_risk;
 CTradeExecutor  g_exec;
 CVirtualManager g_virt;
 
-// Analysis timestamps per style (Unix seconds of last run)
-datetime g_last_scalping  = 0;
-datetime g_last_intraday  = 0;
-datetime g_last_swing     = 0;
+datetime g_last_scalping = 0;
+datetime g_last_intraday = 0;
+datetime g_last_swing    = 0;
 
-// Settings sync
-datetime g_last_settings  = 0;
-datetime g_last_heartbeat = 0;
-
-// Intervals (seconds)
+// Analysis intervals (seconds)
 #define INTERVAL_SCALPING   300     // 5 minit
 #define INTERVAL_INTRADAY   1800    // 30 minit
 #define INTERVAL_SWING      3600    // 1 jam
-#define INTERVAL_SETTINGS   60      // 1 minute
-#define INTERVAL_HEARTBEAT  60      // 1 minute
 
 //============================================================
-// HELPER: Check if analysis should run based on interval
-//         aligned to midnight (time % interval == 0)
+// HELPER: Run if new time slot reached (midnight-aligned)
 //============================================================
 bool ShouldRun(datetime &last_run, int interval_sec)
 {
-   datetime now  = TimeCurrent();
-   long     sod  = (long)now % 86400;  // seconds since midnight (server time)
-   long     slot = (sod / interval_sec) * interval_sec;
-   // Run if we're in a new slot since last run
+   datetime now       = TimeCurrent();
    datetime slot_start = now - (now % interval_sec);
    if(last_run < slot_start)
    {
@@ -97,7 +101,7 @@ bool ShouldRun(datetime &last_run, int interval_sec)
 }
 
 //============================================================
-// HELPER: Run full AI analysis → risk check → execute
+// HELPER: Run AI analysis → risk check → execute trade
 //============================================================
 void RunAnalysis(const string style)
 {
@@ -107,102 +111,78 @@ void RunAnalysis(const string style)
    string mkt_json = BuildMarketDataJson(sym, style);
    if(mkt_json == "")
    {
-      PrintFormat("[Brain] ⚠ Could not build market data for %s", style);
+      PrintFormat("[Brain] ⚠ Cannot build market data for %s", style);
       return;
    }
 
    // 2. Call AI
-   AIDecision decision = g_ai.Analyze(mkt_json);
-   if(!decision.valid || decision.action == "HOLD")
+   AIDecision d = g_ai.Analyze(mkt_json);
+   if(!d.valid || d.action == "HOLD")
    {
-      PrintFormat("[Brain] 🤔 [%s] AI says HOLD (conf=%d)", style, decision.confidence);
+      PrintFormat("[Brain] 🤔 [%s] HOLD (conf=%d)", style, d.confidence);
       return;
    }
 
-   // 3. Log signal to Supabase (for dashboard visibility)
-   g_supa.LogSignal(decision.action, style, decision.confidence,
-                    decision.sl, decision.tp, decision.reason);
-
-   // 4. Risk Guard check
-   RiskResult rr = g_risk.Check(sym, decision.action, style,
-                                 decision.confidence, PositionsTotal());
+   // 3. Risk Guard
+   RiskResult rr = g_risk.Check(sym, d.action, style, d.confidence, PositionsTotal());
    if(!rr.passed)
    {
-      PrintFormat("[Brain] 🛡 [%s] Risk Guard blocked: %s", style, rr.reason);
+      PrintFormat("[Brain] 🛡 [%s] Blocked: %s", style, rr.reason);
       return;
    }
 
-   // 5. Determine lot size
-   double lot = g_supa.lot_intraday;
+   // 4. Lot size and magic per style
+   double lot   = Inp_LotIntraday;
    ulong  magic = Inp_MagicBase + 2;
-   double be_trig = g_supa.intraday_be_trigger, be_off = g_supa.intraday_be_offset;
-   double trail_s = g_supa.intraday_trail_start, trail_d = g_supa.intraday_trail_dist;
+   double be_t  = Inp_I_BETrigger, be_o = Inp_I_BEOffset;
+   double tr_s  = Inp_I_TrailStart, tr_d = Inp_I_TrailDist;
 
    if(style == "SCALPING")
    {
-      lot     = g_supa.lot_scalping;
-      magic   = Inp_MagicBase + 1;
-      be_trig = g_supa.scalping_be_trigger;
-      be_off  = g_supa.scalping_be_offset;
-      trail_s = g_supa.scalping_trail_start;
-      trail_d = g_supa.scalping_trail_dist;
+      lot   = Inp_LotScalping; magic = Inp_MagicBase + 1;
+      be_t  = Inp_S_BETrigger; be_o = Inp_S_BEOffset;
+      tr_s  = Inp_S_TrailStart; tr_d = Inp_S_TrailDist;
    }
    else if(style == "SWING")
    {
-      lot     = g_supa.lot_swing;
-      magic   = Inp_MagicBase + 3;
-      be_trig = g_supa.swing_be_trigger;
-      be_off  = g_supa.swing_be_offset;
-      trail_s = g_supa.swing_trail_start;
-      trail_d = g_supa.swing_trail_dist;
+      lot   = Inp_LotSwing; magic = Inp_MagicBase + 3;
+      be_t  = Inp_W_BETrigger; be_o = Inp_W_BEOffset;
+      tr_s  = Inp_W_TrailStart; tr_d = Inp_W_TrailDist;
    }
 
    lot = g_exec.NormalizeLot(sym, lot);
 
-   // 6. Execute trade
-   string comment = "AI_" + style;
-   ulong ticket = g_exec.OpenOrder(sym, decision.action, lot, magic, comment);
+   // 5. Execute
+   ulong ticket = g_exec.OpenOrder(sym, d.action, lot, magic, "AI_" + style);
    if(ticket == 0)
    {
-      PrintFormat("[Brain] ❌ [%s] Trade execution failed.", style);
+      PrintFormat("[Brain] ❌ [%s] Execution failed.", style);
       return;
    }
 
-   // 7. Calculate final Virtual SL/TP
-   double entry   = g_exec.GetEntryPrice(sym, decision.action);
-   double pip     = 0.01; // Gold pip
-   double v_sl    = decision.sl;
-   double v_tp    = decision.tp;
+   // 6. Calculate virtual SL/TP
+   double entry = g_exec.GetEntryPrice(sym, d.action);
+   double pip   = 0.01; // Gold pip
+   double v_sl  = d.sl;
+   double v_tp  = d.tp;
 
-   // Fallback SL/TP from style params if AI didn't provide valid ones
+   // Fallback SL/TP if AI didn't provide valid values
    if(v_sl <= 0 || v_tp <= 0)
    {
-      double sl_pips = 20, tp_pips = 40;
-      if(style == "INTRADAY") { sl_pips = 50;  tp_pips = 100; }
-      if(style == "SWING")    { sl_pips = 150; tp_pips = 300; }
+      double sl_p = 20, tp_p = 40;
+      if(style == "INTRADAY") { sl_p = 50;  tp_p = 100; }
+      if(style == "SWING")    { sl_p = 150; tp_p = 300; }
 
-      if(decision.action == "BUY")
-      {
-         v_sl = entry - sl_pips * pip;
-         v_tp = entry + tp_pips * pip;
-      }
-      else
-      {
-         v_sl = entry + sl_pips * pip;
-         v_tp = entry - tp_pips * pip;
-      }
+      v_sl = (d.action == "BUY") ? entry - sl_p * pip : entry + sl_p * pip;
+      v_tp = (d.action == "BUY") ? entry + tp_p * pip : entry - tp_p * pip;
    }
 
-   // 8. Write to Supabase active_trades
-   g_supa.WriteTrade(ticket, sym, decision.action, lot, entry, style,
-                     v_sl, v_tp, be_trig, be_off, trail_s, trail_d);
+   // 7. Register with VirtualManager
+   g_virt.Register(ticket, sym, d.action, style, lot, entry,
+                   v_sl, v_tp, be_t, be_o, tr_s, tr_d);
 
-   // 9. Register with VirtualManager
-   g_virt.Register(ticket, sym, decision.action, style, lot, entry,
-                   v_sl, v_tp, be_trig, be_off, trail_s, trail_d);
-
-   PrintFormat("[Brain] ✅ [%s] %s %s %.2f lots | Ticket:%d | SL:%.2f TP:%.2f",
-               style, decision.action, sym, lot, ticket, v_sl, v_tp);
+   PrintFormat("[Brain] ✅ [%s] %s %s %.2f lots | #%d | SL:%.2f TP:%.2f | %s",
+               style, d.action, sym, lot, ticket, v_sl, v_tp, d.reason);
 }
 
 //============================================================
@@ -210,46 +190,32 @@ void RunAnalysis(const string style)
 //============================================================
 int OnInit()
 {
-   if(Inp_AccountID == "")
-   {
-      Alert("⛔ CRITICAL: Account ID kosong! Sila isi Account ID dalam EA Inputs.");
-      return INIT_FAILED;
-   }
    if(Inp_GroqKey1 == "" && Inp_GroqKey2 == "" && Inp_GroqKey3 == "")
    {
-      Alert("⛔ CRITICAL: Tiada Groq API Key! Sila isi sekurang-kurangnya Key #1.");
+      Alert("⛔ Tiada Groq API Key! Sila isi sekurang-kurangnya Key #1.");
       return INIT_FAILED;
    }
 
-   // Ensure symbol is in MarketWatch
    SymbolSelect(Inp_Symbol, true);
    if(!SymbolInfoInteger(Inp_Symbol, SYMBOL_EXIST))
    {
-      Alert("⛔ Symbol '" + Inp_Symbol + "' tidak ditemui. Semak nama simbol.");
+      Alert("⛔ Symbol '" + Inp_Symbol + "' tidak dijumpai.");
       return INIT_FAILED;
    }
 
    // Init subsystems
-   g_supa.Init(Inp_SupabaseURL, Inp_SupabaseAnon, Inp_AccountID);
-   // Override defaults from Supabase
-   g_supa.min_confidence  = Inp_MinConfidence;
-   g_supa.max_spread_points = Inp_MaxSpread;
-   g_supa.max_total_trades = Inp_MaxTrades;
-   g_supa.max_drawdown_pct = Inp_MaxDrawdown;
-
    g_ai.Init(Inp_GroqKey1, Inp_GroqKey2, Inp_GroqKey3, Inp_GroqModel);
+   g_risk.SetParams(Inp_MinConfidence, Inp_MaxTrades, Inp_MaxSpread, Inp_MaxDrawdown, Inp_BlockAsia);
    g_exec.Init(Inp_MagicBase);
-   g_risk.Init(&g_supa);
-   g_virt.Init(&g_supa, &g_exec, &g_risk);
+   g_virt.Init(&g_exec, &g_risk);
 
-   // Fetch live settings from Supabase (overrides inputs)
-   g_supa.SyncSettings();
-   g_last_settings = TimeCurrent();
+   EventSetTimer(1);
 
-   EventSetTimer(1); // 1-second timer
-
-   PrintFormat("✅ InvestmentAI Brain v5.0 | Account: %s | Symbol: %s | Magic: %d",
-               Inp_AccountID, Inp_Symbol, (int)Inp_MagicBase);
+   PrintFormat("✅ InvestmentAI Brain v5.1 | Symbol: %s | Magic: %d",
+               Inp_Symbol, (int)Inp_MagicBase);
+   PrintFormat("   Lots — S:%.2f I:%.2f Sw:%.2f | MinConf:%d MaxTrades:%d",
+               Inp_LotScalping, Inp_LotIntraday, Inp_LotSwing,
+               Inp_MinConfidence, Inp_MaxTrades);
    PrintFormat("   Scalping:%s | Intraday:%s | Swing:%s",
                Inp_EnableScalping ? "ON" : "OFF",
                Inp_EnableIntraday ? "ON" : "OFF",
@@ -267,11 +233,11 @@ void OnDeinit(const int reason)
    ObjectsDeleteAll(0, "VSL_");
    ObjectsDeleteAll(0, "VTP_");
    ObjectsDeleteAll(0, "VTR_");
-   Print("[Brain] EA stopped. Virtual lines cleared.");
+   Print("[Brain] EA stopped.");
 }
 
 //============================================================
-// OnTick — manage virtual SL/TP on every tick
+// OnTick — VirtualManager checks SL/TP every tick
 //============================================================
 void OnTick()
 {
@@ -279,45 +245,25 @@ void OnTick()
 }
 
 //============================================================
-// OnTimer — analysis, settings sync, heartbeat (1s timer)
+// OnTimer — AI analysis trigger (1 second timer)
 //============================================================
 void OnTimer()
 {
-   datetime now = TimeCurrent();
-
-   // ── Settings sync ──────────────────────────────────────
-   if(now - g_last_settings >= INTERVAL_SETTINGS)
-   {
-      g_supa.SyncSettings();
-      g_last_settings = now;
-   }
-
-   // ── Heartbeat ─────────────────────────────────────────
-   if(now - g_last_heartbeat >= INTERVAL_HEARTBEAT)
-   {
-      g_supa.Heartbeat(AccountInfoDouble(ACCOUNT_BALANCE),
-                       AccountInfoDouble(ACCOUNT_EQUITY));
-      g_last_heartbeat = now;
-   }
-
-   // ── SCALPING (every 5 minutes, midnight-aligned) ───────
    if(Inp_EnableScalping && ShouldRun(g_last_scalping, INTERVAL_SCALPING))
    {
-      PrintFormat("[Brain] ⏰ SCALPING analysis triggered at %s", TimeToString(now));
+      PrintFormat("[Brain] ⏰ SCALPING @ %s", TimeToString(TimeCurrent()));
       RunAnalysis("SCALPING");
    }
 
-   // ── INTRADAY (every 1 hour, midnight-aligned) ──────────
    if(Inp_EnableIntraday && ShouldRun(g_last_intraday, INTERVAL_INTRADAY))
    {
-      PrintFormat("[Brain] ⏰ INTRADAY analysis triggered at %s", TimeToString(now));
+      PrintFormat("[Brain] ⏰ INTRADAY @ %s", TimeToString(TimeCurrent()));
       RunAnalysis("INTRADAY");
    }
 
-   // ── SWING (every 2 hours, midnight-aligned) ────────────
    if(Inp_EnableSwing && ShouldRun(g_last_swing, INTERVAL_SWING))
    {
-      PrintFormat("[Brain] ⏰ SWING analysis triggered at %s", TimeToString(now));
+      PrintFormat("[Brain] ⏰ SWING @ %s", TimeToString(TimeCurrent()));
       RunAnalysis("SWING");
    }
 }
