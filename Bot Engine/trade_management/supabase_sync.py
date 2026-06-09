@@ -34,6 +34,28 @@ class SupabaseSync:
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates",
         }
+        self.column_fallbacks = {
+            "signals": {
+                "created_at": "generated_at",
+                "direction": "action",
+                "trade_style": "style",
+                "generated_at": "created_at",
+                "action": "direction",
+                "style": "trade_style"
+            },
+            "active_trades": {
+                "direction": "action",
+                "trade_style": "style",
+                "action": "direction",
+                "style": "trade_style"
+            },
+            "closed_trades": {
+                "direction": "action",
+                "trade_style": "style",
+                "action": "direction",
+                "style": "trade_style"
+            }
+        }
         if getattr(config, "SUPABASE_SYNC_ENABLED", True) and requests is None:
             logger.warning("Supabase sync disabled because the requests package is not installed.")
 
@@ -195,17 +217,22 @@ class SupabaseSync:
         if not self.enabled or not accounts:
             return
         
+        import uuid
         payloads = []
         for acc in accounts:
+            sig_id = f"{acc}_{uuid.uuid4().hex[:8]}"
             payloads.append({
-                "signal_id": signal_data.get("signal_id"),
+                "signal_id": sig_id,
                 "account_id": acc,
                 "symbol": signal_data.get("symbol"),
-                "direction": signal_data.get("action"),
-                "trade_style": signal_data.get("trade_style"),
+                "action": signal_data.get("action"),
+                "style": signal_data.get("trade_style"),
+                "sl": signal_data.get("sl"),
+                "tp": signal_data.get("tp"),
                 "confidence": signal_data.get("confidence"),
+                "reason": signal_data.get("reason"),
                 "is_active": True,
-                "created_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.utcnow().isoformat()
             })
         
         url = f"{self.base_url}/rest/v1/signals"
@@ -218,6 +245,10 @@ class SupabaseSync:
         url = f"{self.base_url}/rest/v1/signals?account_id=eq.{account_id}&is_active=eq.true&order=created_at.asc"
         try:
             resp = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if resp.status_code == 400 and "created_at" in resp.text:
+                # Try fallback column for created_at
+                url = f"{self.base_url}/rest/v1/signals?account_id=eq.{account_id}&is_active=eq.true&order=generated_at.asc"
+                resp = requests.get(url, headers=self.headers, timeout=self.timeout)
             if resp.status_code == 200:
                 return resp.json()
         except Exception as e:
@@ -251,6 +282,12 @@ class SupabaseSync:
         import re
         import copy
         
+        # Extract table name from URL
+        table = ""
+        match_table = re.search(r"/rest/v1/([^?#/]+)", url)
+        if match_table:
+            table = match_table.group(1)
+            
         max_retries = 5
         current_payload = copy.deepcopy(payload)
         
@@ -271,16 +308,29 @@ class SupabaseSync:
                         match = re.search(r"Could not find the '([^']+)' column", msg)
                         if match:
                             missing_col = match.group(1)
-                            logger.warning(f"⚠️ [Auto-Healing] Column '{missing_col}' missing in DB schema cache. Removing from payload and retrying (attempt {attempt + 1})...")
                             
-                            # Remove the missing column from payload
+                            # Look up fallback column mapping
+                            fallback_col = None
+                            if hasattr(self, "column_fallbacks") and table in self.column_fallbacks:
+                                fallback_col = self.column_fallbacks[table].get(missing_col)
+                                
+                            if fallback_col:
+                                logger.warning(f"⚠️ [Auto-Healing] Column '{missing_col}' missing in DB schema cache for table '{table}'. Mapping to fallback column '{fallback_col}' and retrying (attempt {attempt + 1})...")
+                            else:
+                                logger.warning(f"⚠️ [Auto-Healing] Column '{missing_col}' missing in DB schema cache for table '{table}' with no fallback. Removing from payload and retrying (attempt {attempt + 1})...")
+                            
+                            # Map or remove the missing column from payload
                             if isinstance(current_payload, dict):
                                 if missing_col in current_payload:
-                                    del current_payload[missing_col]
+                                    val = current_payload.pop(missing_col)
+                                    if fallback_col:
+                                        current_payload[fallback_col] = val
                             elif isinstance(current_payload, list):
                                 for item in current_payload:
                                     if isinstance(item, dict) and missing_col in item:
-                                        del item[missing_col]
+                                        val = item.pop(missing_col)
+                                        if fallback_col:
+                                            item[fallback_col] = val
                             
                             # Continue to next iteration of loop to retry with modified payload
                             continue
