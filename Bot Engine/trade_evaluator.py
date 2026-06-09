@@ -9,7 +9,8 @@ import math
 import config
 from mt5_connector import MT5Connector
 from strategy import calculate_multi_indicators
-from ai_engine import get_ai_signal
+from ai_engine import get_ai_signal, query_ai_provider
+import json
 from trade_management.supabase_sync import SupabaseSync
 import system_settings
 from logger import setup_logging
@@ -69,39 +70,9 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
                     manage_be = acct_settings.raw_data.get("manage_manual_be", False)
                     
                     if manage_sl or manage_tp or manage_be:
-                        # Fall under SCALPING class so Evaluator will manage it actively
-                        style = "SCALPING"
-                        payload["trade_style"] = style
-                        
-                        from style_params import get_style_params
-                        s_params = get_style_params(style, p["symbol"])
-                        trailing_settings = acct_settings.get_trailing_settings(style)
-                        
-                        pip_value = 0.10  # Assuming Gold
-                        avg_sl_pips = (s_params.get("min_sl_pips", 20) + s_params.get("max_sl_pips", 40)) / 2.0
-                        avg_tp_pips = (s_params.get("min_tp_pips", 30) + s_params.get("max_tp_pips", 60)) / 2.0
-                        sl_dist = avg_sl_pips * pip_value
-                        tp_dist = avg_tp_pips * pip_value
-                        
-                        if manage_sl:
-                            if p["direction"] == "BUY":
-                                payload["virtual_sl"] = round(p["price_open"] - sl_dist, 2)
-                            else:
-                                payload["virtual_sl"] = round(p["price_open"] + sl_dist, 2)
-                        
-                        if manage_tp:
-                            if p["direction"] == "BUY":
-                                payload["virtual_tp"] = round(p["price_open"] + tp_dist, 2)
-                            else:
-                                payload["virtual_tp"] = round(p["price_open"] - tp_dist, 2)
-                                
-                        if manage_be:
-                            trail_stage1 = trailing_settings.get("trail_stage1") or s_params.get("trail_stage1", 0.3)
-                            activation_dist = float(trail_stage1) * pip_value * 10  # simplified ATR distance for UI
-                            if p["direction"] == "BUY":
-                                payload["trail_activation_price"] = round(p["price_open"] + activation_dist, 2)
-                            else:
-                                payload["trail_activation_price"] = round(p["price_open"] - activation_dist, 2)
+                        payload["trade_style"] = "MANUAL_PENDING_AI"
+                        payload["virtual_sl"] = 0
+                        payload["virtual_tp"] = 0
                 supabase._upsert("active_trades", payload, conflict="ticket")
                 logger.info(f"🔄 [Sync: {acc}] Added missing MT5 trade {tkt} to Supabase")
             else:
@@ -423,7 +394,106 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
             logger.info(f"🛑 [Evaluator: {acc}] Trade {ticket} diarahkan CLOSE_TRADE.")
         else:
             logger.info(f"🔵 [Evaluator: {acc}] Trade {ticket} status: HOLD.")
+
+def evaluate_pending_manual_trades(supabase: SupabaseSync, connector: MT5Connector, account_id: str, acct_settings: AccountSettings):
+    active_trades = supabase.fetch_active_trades(account_id)
+    if not active_trades: return
+    pending_manuals = [t for t in active_trades if t.get("current_status") == "OPEN" and t.get("trade_style") == "MANUAL_PENDING_AI"]
+    
+    if not pending_manuals:
+        return
+        
+    for p in pending_manuals:
+        ticket = p.get("ticket")
+        symbol = p.get("symbol")
+        direction = p.get("direction")
+        entry_price = float(p.get("entry_price", 0))
+        
+        from style_params import get_style_params
+        s_scalping = get_style_params("SCALPING", symbol)
+        s_intraday = get_style_params("INTRADAY", symbol)
+        
+        prompt = f'''Anda adalah pakar trading AI. Terdapat satu posisi MANUAL yang baru dibuka.
+Maklumat Posisi:
+- Simbol: {symbol}
+- Arah (Direction): {direction}
+- Entry Price: {entry_price}
+
+Tugas anda adalah untuk mencadangkan paras Stop Loss (SL) dan Take Profit (TP) yang paling optimum berdasarkan struktur pasaran terkini untuk harga entry ini. 
+Anda HANYA dibenarkan memilih profil SCALPING atau INTRADAY.
+Had Maksimum Pips (Jarak SL):
+- SCALPING max: {s_scalping.get('max_sl_pips', 40)} pips
+- INTRADAY max: {s_intraday.get('max_sl_pips', 100)} pips
+
+Sila berikan maklum balas HANYA dalam format JSON tulen berikut, tanpa teks tambahan:
+{{
+    "chosen_style": "SCALPING",
+    "stop_loss_price": 0.00,
+    "take_profit_price": 0.00,
+    "reason": "..."
+}}
+'''
+        logger.info(f"🧠 [Manual Evaluator] Asking AI for ticket {ticket} ({symbol} {direction})")
+        
+        import system_settings
+        dash = system_settings.get_dashboard_settings()
+        fast_provider = dash.get("fast_model") if dash else None
+        
+        raw_resp = query_ai_provider(
+            prompt,
+            role="main",
+            provider_sequence=[fast_provider] if fast_provider else None
+        )
+        
+        try:
+            resp = raw_resp.strip()
+            if "```json" in resp:
+                resp = resp.split("```json")[1].split("```")[0].strip()
+            elif "```" in resp:
+                resp = resp.replace("```", "").strip()
+            
+            data = json.loads(resp)
+            chosen_style = data.get("chosen_style", "SCALPING")
+            if chosen_style not in ["SCALPING", "INTRADAY"]:
+                chosen_style = "SCALPING"
+                
+            ai_sl = float(data.get("stop_loss_price", 0))
+            ai_tp = float(data.get("take_profit_price", 0))
+            
+            pip_val = 0.10 if 'XAU' in symbol else 0.01
+            max_sl = s_intraday.get("max_sl_pips", 100) if chosen_style == "INTRADAY" else s_scalping.get("max_sl_pips", 40)
+            sl_dist = abs(ai_sl - entry_price) / pip_val
+            
+            if sl_dist > max_sl:
+                cap_dist = max_sl * pip_val
+                ai_sl = entry_price - cap_dist if direction == "BUY" else entry_price + cap_dist
+                logger.warning(f"⚠️ AI SL exceeded {chosen_style} cap, capped to {ai_sl}")
+                
+            new_style = f"MANUAL_{chosen_style}"
+            payload = {
+                "ticket": ticket,
+                "trade_style": new_style,
+                "virtual_sl": round(ai_sl, 2),
+                "virtual_tp": round(ai_tp, 2),
+                "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            }
+            supabase._upsert("active_trades", payload, conflict="ticket")
+            logger.info(f"✅ [Manual Evaluator] Ticket {ticket} assigned AI SL={ai_sl}, TP={ai_tp}, Style={new_style}")
+            
+        except Exception as e:
+            logger.error(f"Failed to parse AI response for manual trade {ticket}: {e}. Raw: {raw_resp}")
+            pip_val = 0.10 if 'XAU' in symbol else 0.01
+            payload = {
+                "ticket": ticket,
+                "trade_style": "MANUAL_SCALPING",
+                "virtual_sl": entry_price - (30 * pip_val) if direction == "BUY" else entry_price + (30 * pip_val),
+                "virtual_tp": entry_price + (50 * pip_val) if direction == "BUY" else entry_price - (50 * pip_val),
+                "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            }
+            supabase._upsert("active_trades", payload, conflict="ticket")
+
 def main():
+
     if len(sys.argv) < 2:
         logger.error("Sila berikan account_id. Contoh: python trade_evaluator.py acc_1")
         sys.exit(1)
