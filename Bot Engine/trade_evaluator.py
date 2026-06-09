@@ -244,7 +244,7 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
     """
     
     acc = account_id
-    trades = supabase.client.table("active_trades").select("*").eq("account_id", acc).execute().data
+    trades = supabase.fetch_active_trades(acc)
     if not trades:
         # Kurangkan spam log: Hanya log jika minit 00, 15, 30, 45
         if current_minute % 15 == 0:
