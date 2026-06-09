@@ -27,7 +27,7 @@ def _signal_handler(signum, frame):
 signal.signal(signal.SIGINT, _signal_handler)
 signal.signal(signal.SIGTERM, _signal_handler)
 
-def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector, acc: str):
+def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector, acc: str, acct_settings):
     try:
         mt5_positions = connector.get_open_positions()
         if mt5_positions is None:
@@ -41,6 +41,7 @@ def sync_active_trades_from_mt5(supabase: SupabaseSync, connector: MT5Connector,
         for p in mt5_positions:
             tkt = int(p["ticket"])
             if tkt not in db_tickets:
+                magic = int(p.get("magic", 0))
                 style = "UNKNOWN"
                 is_manual = False
                 if magic == 0: 
@@ -531,7 +532,7 @@ def main():
         
         # Executor Loop (Setiap 5 saat)
         loop_signal_executor(supabase, connector, account_id, acct_settings)
-        sync_active_trades_from_mt5(supabase, connector, account_id)
+        sync_active_trades_from_mt5(supabase, connector, account_id, acct_settings)
         
         # Evaluator Loop (Jalankan setiap minit, dan saring di dalam loop mengikut Trade Style)
         # Scalping (15m), Intraday (30m), Swing (60m). Startup (Sekali sahaja)
