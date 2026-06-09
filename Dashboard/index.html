@@ -558,7 +558,7 @@
     function renderActive(rows) {
       // Apply account filter
       const filter = $("globalAccountFilter")?.value || "all";
-      const filtered = filter === "all" ? rows : rows.filter((r) => (r.account_id || "acc_1") === filter);
+      const filtered = filter === "all" ? rows : rows.filter((r) => r.account_id === filter);
 
       $("activeCount").textContent = filtered.length;
       $("activeRows").innerHTML = filtered.map((r) => `
@@ -616,7 +616,7 @@
 
     function renderEvents(rows) {
       const filter = $("globalAccountFilter")?.value || "all";
-      const filtered = filter === "all" ? rows : rows.filter((r) => (r.account_id || "acc_1") === filter);
+      const filtered = filter === "all" ? rows : rows.filter((r) => r.account_id === filter);
       
       $("eventRows").innerHTML = filtered.map((r) => `
         <tr>

@@ -492,7 +492,7 @@ Sila berikan maklum balas HANYA dalam format JSON tulen berikut, tanpa teks tamb
 def main():
 
     if len(sys.argv) < 2:
-        logger.error("Sila berikan account_id. Contoh: python trade_evaluator.py acc_1")
+        logger.error("Sila berikan account_id. Contoh: python trade_evaluator.py Hakim")
         sys.exit(1)
         
     account_id = sys.argv[1]

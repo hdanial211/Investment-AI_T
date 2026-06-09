@@ -178,7 +178,7 @@ def main():
     logger.info(f"{'─'*70}\n")
 
     # Penyimpan rekod proses Trade Evaluator yang sedang berjalan
-    evaluators = {}  # { "acc_1": ManagedProcess, ... }
+    evaluators = {}  # { "Hakim": ManagedProcess, ... }
     last_sync_time = 0
     last_settings_hash = hash(str(supabase.fetch_system_settings()))
 
