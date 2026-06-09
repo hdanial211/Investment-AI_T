@@ -677,11 +677,10 @@
             <label>Max Risk % Per Trade <span class="tooltip" data-title="Saiz lot akan dikira secara automatik supaya jika kena Stop Loss, kerugian terhad kepada peratusan (%) modal ini.">i</span></label>
             <input id="f_max_risk" type="number" min="0.1" max="10" step="0.1" value="${acc.max_risk_percent ?? 2.0}">
           </div>
-          <div class="field-group">
-            <label>Guna Auto Lot? <span class="tooltip" data-title="Jika ON, lot akan dikira automatik berdasarkan Risiko %. Jika OFF, lot tetap akan digunakan.">i</span></label>
+          <div class="field-group" style="display:none;">
+            <label>Guna Auto Lot? <span class="tooltip" data-title="Telah ditamatkan. Sistem menggunakan Lot Tetap.">i</span></label>
             <select id="f_use_auto_lot">
-                <option value="true" ${acc.use_auto_lot !== false ? 'selected' : ''}>ON - Auto Lot Sizing</option>
-                <option value="false" ${acc.use_auto_lot === false ? 'selected' : ''}>OFF - Fixed Lot Size</option>
+                <option value="false" selected>OFF - Fixed Lot Size</option>
             </select>
           </div>
           <div class="field-group">
@@ -931,19 +930,23 @@
             </div>
           </div>
           <div style="margin-top:16px; border-top:1px solid rgba(0,0,0,0.05); padding-top:12px;">
-            <div style="font-weight:600; font-size:0.85rem; margin-bottom:12px; color:var(--text)">Trailing Stop & BE (ATR)</div>
+            <div style="font-weight:600; font-size:0.85rem; margin-bottom:12px; color:var(--text)">Trailing Stop & BE (PIPS)</div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               <div class="field-group" style="display:flex; flex-direction:column; justify-content:flex-end;">
-                <label>BE Trigger <span class="tooltip" data-title="Jarak (ATR) untuk picu (trigger) Break-Even. Kosongkan untuk matikan.">i</span></label>
-                <input type="number" id="f_${key}_trail_stage1" value="${acc[`${key}_trail_stage1`] ?? ''}" step="0.1" min="0" placeholder="0.3">
+                <label>BE Trigger Pips <span class="tooltip" data-title="Jarak profit (pips) untuk picu (trigger) Break-Even.">i</span></label>
+                <input type="number" id="f_${key}_be_trigger_pips" value="${acc[`${key}_be_trigger_pips`] ?? ''}" step="1" min="0" placeholder="15">
               </div>
               <div class="field-group" style="display:flex; flex-direction:column; justify-content:flex-end;">
-                <label>Trail Start <span class="tooltip" data-title="Jarak (ATR) untuk mula menggerakkan Trailing Stop secara agresif.">i</span></label>
-                <input type="number" id="f_${key}_trail_stage2" value="${acc[`${key}_trail_stage2`] ?? ''}" step="0.1" min="0" placeholder="0.8">
+                <label>BE Offset Pips <span class="tooltip" data-title="Jarak pips di atas harga entry untuk Break-Even (contoh: 2 pips profit).">i</span></label>
+                <input type="number" id="f_${key}_be_offset_pips" value="${acc[`${key}_be_offset_pips`] ?? ''}" step="1" min="0" placeholder="2">
               </div>
-              <div class="field-group" style="grid-column: span 2; display:flex; flex-direction:column; justify-content:flex-end;">
-                <label>Trail Distance <span class="tooltip" data-title="Jarak (ATR) di antara harga semasa dan harga Trailing Stop.">i</span></label>
-                <input type="number" id="f_${key}_trail_distance" value="${acc[`${key}_trail_distance`] ?? ''}" step="0.1" min="0" placeholder="0.5">
+              <div class="field-group" style="display:flex; flex-direction:column; justify-content:flex-end;">
+                <label>Trail Start Pips <span class="tooltip" data-title="Jarak profit (pips) untuk mula menggerakkan Trailing Stop secara dinamik.">i</span></label>
+                <input type="number" id="f_${key}_trail_start_pips" value="${acc[`${key}_trail_start_pips`] ?? ''}" step="1" min="0" placeholder="20">
+              </div>
+              <div class="field-group" style="display:flex; flex-direction:column; justify-content:flex-end;">
+                <label>Trail Dist Pips <span class="tooltip" data-title="Jarak (pips) di antara harga semasa dan garisan Trailing Stop.">i</span></label>
+                <input type="number" id="f_${key}_trail_dist_pips" value="${acc[`${key}_trail_dist_pips`] ?? ''}" step="1" min="0" placeholder="10">
               </div>
             </div>
           </div>
@@ -1006,17 +1009,20 @@
         swing_grid_lot_mult: parseFloat($("f_swing_grid_lot_mult").value) || 1.0,
         swing_grid_max: parseInt($("f_swing_grid_max").value) || 3,
 
-        scalping_trail_stage1: $("f_scalping_trail_stage1").value ? parseFloat($("f_scalping_trail_stage1").value) : null,
-        scalping_trail_stage2: $("f_scalping_trail_stage2").value ? parseFloat($("f_scalping_trail_stage2").value) : null,
-        scalping_trail_distance: $("f_scalping_trail_distance").value ? parseFloat($("f_scalping_trail_distance").value) : null,
+        scalping_be_trigger_pips: $("f_scalping_be_trigger_pips").value ? parseInt($("f_scalping_be_trigger_pips").value) : null,
+        scalping_be_offset_pips: $("f_scalping_be_offset_pips").value ? parseInt($("f_scalping_be_offset_pips").value) : null,
+        scalping_trail_start_pips: $("f_scalping_trail_start_pips").value ? parseInt($("f_scalping_trail_start_pips").value) : null,
+        scalping_trail_dist_pips: $("f_scalping_trail_dist_pips").value ? parseInt($("f_scalping_trail_dist_pips").value) : null,
 
-        intraday_trail_stage1: $("f_intraday_trail_stage1").value ? parseFloat($("f_intraday_trail_stage1").value) : null,
-        intraday_trail_stage2: $("f_intraday_trail_stage2").value ? parseFloat($("f_intraday_trail_stage2").value) : null,
-        intraday_trail_distance: $("f_intraday_trail_distance").value ? parseFloat($("f_intraday_trail_distance").value) : null,
+        intraday_be_trigger_pips: $("f_intraday_be_trigger_pips").value ? parseInt($("f_intraday_be_trigger_pips").value) : null,
+        intraday_be_offset_pips: $("f_intraday_be_offset_pips").value ? parseInt($("f_intraday_be_offset_pips").value) : null,
+        intraday_trail_start_pips: $("f_intraday_trail_start_pips").value ? parseInt($("f_intraday_trail_start_pips").value) : null,
+        intraday_trail_dist_pips: $("f_intraday_trail_dist_pips").value ? parseInt($("f_intraday_trail_dist_pips").value) : null,
 
-        swing_trail_stage1: $("f_swing_trail_stage1").value ? parseFloat($("f_swing_trail_stage1").value) : null,
-        swing_trail_stage2: $("f_swing_trail_stage2").value ? parseFloat($("f_swing_trail_stage2").value) : null,
-        swing_trail_distance: $("f_swing_trail_distance").value ? parseFloat($("f_swing_trail_distance").value) : null,
+        swing_be_trigger_pips: $("f_swing_be_trigger_pips").value ? parseInt($("f_swing_be_trigger_pips").value) : null,
+        swing_be_offset_pips: $("f_swing_be_offset_pips").value ? parseInt($("f_swing_be_offset_pips").value) : null,
+        swing_trail_start_pips: $("f_swing_trail_start_pips").value ? parseInt($("f_swing_trail_start_pips").value) : null,
+        swing_trail_dist_pips: $("f_swing_trail_dist_pips").value ? parseInt($("f_swing_trail_dist_pips").value) : null,
 
         scalping_enabled: getToggle("scalping_enabled"),
         intraday_enabled: getToggle("intraday_enabled"),
@@ -1032,7 +1038,7 @@
 
         max_total_trades: parseInt($("f_max_total").value) || 5,
         max_risk_percent: parseFloat($("f_max_risk").value) || 2.0,
-        use_auto_lot: $("f_use_auto_lot").value === "true",
+        use_auto_lot: false,
         
         max_daily_drawdown_pct: parseFloat($("f_max_dd").value) || 0,
         daily_profit_target_pct: parseFloat($("f_profit_target").value) || 0,

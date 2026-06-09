@@ -295,20 +295,15 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                             final_sl = final_sl or round(tick_data["bid"] + sl_dist, 2)
                             final_tp = final_tp or round(tick_data["bid"] - tp_dist, 2)
                 
-                # Trailing Start: guna trail_stage1 dari style_params (ATR-based)
-                trail_stage1 = trailing_settings.get("trail_stage1") or s_params.get("trail_stage1", 0.3)
-                
-                # Kira activation price
-                pip_value = 0.10
-                activation_dist = float(trail_stage1) * pip_value * 10
-                entry_price = connector.get_tick(sym)["ask"] if action == "BUY" else connector.get_tick(sym)["bid"]
-                if action == "BUY":
-                    trail_act = round(entry_price + activation_dist, 2)
-                else:
-                    trail_act = round(entry_price - activation_dist, 2)
+                # Retrieve Pip-based trailing settings
+                be_trigger_pips = trailing_settings.get("be_trigger_pips") or 15
+                be_offset_pips = trailing_settings.get("be_offset_pips") or 2
+                trail_start_pips = trailing_settings.get("trail_start_pips") or 20
+                trail_dist_pips = trailing_settings.get("trail_dist_pips") or 10
                 
                 # Tulis ke active_trades di Supabase dengan virtual SL/TP penuh
                 if ticket_id:
+                    entry_price = connector.get_tick(sym)["ask"] if action == "BUY" else connector.get_tick(sym)["bid"]
                     trade_payload = {
                         "ticket": ticket_id,
                         "account_id": acc,
@@ -319,13 +314,16 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
                         "trade_style": style,
                         "virtual_sl": final_sl,
                         "virtual_tp": final_tp,
-                        "trail_activation_price": trail_act,
+                        "be_trigger_pips": be_trigger_pips,
+                        "be_offset_pips": be_offset_pips,
+                        "trail_start_pips": trail_start_pips,
+                        "trail_dist_pips": trail_dist_pips,
                         "current_status": "OPEN",
                         "floating_profit": 0,
                         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     }
                     supabase._upsert("active_trades", trade_payload, conflict="ticket")
-                    logger.info(f"📊 [{acc}] Virtual SL: {final_sl} | Virtual TP: {final_tp} | Trailing: {trail_stage1}xATR")
+                    logger.info(f"📊 [{acc}] Virtual SL: {final_sl} | Virtual TP: {final_tp} | Pips BE/Trail Configured")
                 
                 requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Executed successfully"})
                 current_trades_count += 1
@@ -391,7 +389,7 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
             f"Trade {ticket} | Style: {style} | Entry: {entry} | "
             f"Current SL: {sl} | Current TP: {tp} | Floating Profit: {profit}\n"
             f"Market ADX: {indicators.get('adx', 0)} | H4 Trend: {indicators.get('h4_trend', 'UNKNOWN')}\n"
-            f"Are there any reversal patterns on M15/H1? Provide UPDATE_SL_TP or CLOSE_TRADE if risk is high, else HOLD."
+            f"Are there any reversal patterns on M15/H1? Provide CLOSE_TRADE if risk is high, else HOLD. DO NOT provide UPDATE_SL_TP."
         )
         
         # Guna konfigurasi Evaluator individu dari dashboard (jika ada)
@@ -420,20 +418,11 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
             trade_eval_mode=True
         )
         
-        if ai_result.get("action") == "UPDATE_SL_TP":
-            new_sl = ai_result.get("sl") or sl
-            new_tp = ai_result.get("tp") or tp
-            supabase._insert("sl_tp_updates", {
-                "signal_id": t.get("signal_id", str(ticket)),
-                "account_id": acc,
-                "ticket": ticket,
-                "new_sl": new_sl,
-                "new_tp": new_tp,
-                "applied": False
-            })
-            logger.info(f"🟡 [Evaluator: {acc}] Updated SL/TP for {ticket}")
-
-
+        if ai_result.get("action") == "CLOSE_TRADE":
+            supabase.insert_trade_command(acc, "CLOSE_TRADE", sym, ticket=ticket, reason="AI Evaluator Decision")
+            logger.info(f"🛑 [Evaluator: {acc}] Trade {ticket} diarahkan CLOSE_TRADE.")
+        else:
+            logger.info(f"🔵 [Evaluator: {acc}] Trade {ticket} status: HOLD.")
 def main():
     if len(sys.argv) < 2:
         logger.error("Sila berikan account_id. Contoh: python trade_evaluator.py acc_1")

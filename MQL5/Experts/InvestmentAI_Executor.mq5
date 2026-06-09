@@ -282,6 +282,54 @@ bool SyncAccountSettings() {
 }
 
 //+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| Active Trade Cache from Supabase                                 |
+//+------------------------------------------------------------------+
+struct ActiveTradeCache {
+   ulong ticket;
+   double v_sl;
+   double v_tp;
+   string style;
+   string dir;
+   string sym;
+   double be_pips;
+   double be_offset;
+   double trail_start;
+   double trail_dist;
+};
+ActiveTradeCache g_cached_trades[];
+
+void SyncActiveTrades() {
+   string json = SupabaseGET("/rest/v1/active_trades?account_id=eq." + InpAccountID + "&current_status=eq.OPEN");
+   if (json == "" || StringFind(json, "[]") != -1) {
+      ArrayResize(g_cached_trades, 0);
+      return;
+   }
+   
+   StringReplace(json, "},{", "|");
+   string chunks[];
+   int count = StringSplit(json, '|', chunks);
+   ArrayResize(g_cached_trades, count);
+   
+   for (int i = 0; i < count; i++) {
+      g_cached_trades[i].ticket = StringToInteger(ExtractJSONValue(chunks[i], "ticket"));
+      g_cached_trades[i].v_sl = StringToDouble(ExtractJSONValue(chunks[i], "virtual_sl"));
+      g_cached_trades[i].v_tp = StringToDouble(ExtractJSONValue(chunks[i], "virtual_tp"));
+      g_cached_trades[i].style = ExtractJSONValue(chunks[i], "trade_style");
+      g_cached_trades[i].dir = ExtractJSONValue(chunks[i], "direction");
+      g_cached_trades[i].sym = ExtractJSONValue(chunks[i], "symbol");
+      g_cached_trades[i].be_pips = StringToDouble(ExtractJSONValue(chunks[i], "be_trigger_pips"));
+      g_cached_trades[i].be_offset = StringToDouble(ExtractJSONValue(chunks[i], "be_offset_pips"));
+      g_cached_trades[i].trail_start = StringToDouble(ExtractJSONValue(chunks[i], "trail_start_pips"));
+      g_cached_trades[i].trail_dist = StringToDouble(ExtractJSONValue(chunks[i], "trail_dist_pips"));
+      
+      if (g_cached_trades[i].v_sl > 0 || g_cached_trades[i].v_tp > 0) {
+         DrawIndividualLines(g_cached_trades[i].ticket, g_cached_trades[i].sym, g_cached_trades[i].style, g_cached_trades[i].dir, g_cached_trades[i].v_sl, g_cached_trades[i].v_tp);
+      }
+   }
+}
+
 //| Fetch New Signals                                                |
 //+------------------------------------------------------------------+
 void CheckForSignals() {
@@ -359,7 +407,7 @@ void SyncSLTPUpdates() {
             double final_tp = tp_tighter ? new_tp : v_tp;
             
             if (sl_tighter || tp_tighter) {
-               DrawBasketLines(style_str, dir_str, sym, final_sl, final_tp);
+               DrawIndividualLines(ticket, sym, style_str, dir_str, final_sl, final_tp);
                // Update all tickets in basket
                for(int j = 0; j < PositionsTotal(); j++) {
                   if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == PositionGetInteger(POSITION_TYPE)) {
@@ -457,7 +505,7 @@ void ExecuteTrade(string sym, string action, double virtual_sl, double virtual_t
       SupabasePOST("/rest/v1/active_trades", payload);
       
       string dir_str = (action == "BUY") ? "BUY" : "SELL";
-      DrawBasketLines(style, dir_str, sym, virtual_sl, virtual_tp);
+      DrawIndividualLines(ticket, sym, style, dir_str, virtual_sl, virtual_tp);
    } else {
       Print("Trade execution failed: ", GetLastError());
    }
@@ -483,7 +531,7 @@ void RestoreVirtualLines() {
       string sym = ExtractJSONValue(chunks[i], "symbol");
       
       if (ticket > 0 && (v_sl > 0 || v_tp > 0) && style != "") {
-         DrawBasketLines(style, dir_str, sym, v_sl, v_tp);
+         DrawIndividualLines((ulong)ticket, sym, style, dir_str, v_sl, v_tp);
          Print("Restored Basket Virtual SL/TP for: ", style, " ", dir_str, " ", sym);
       }
    }
@@ -496,19 +544,27 @@ void DrawVirtualLines(ulong ticket, double sl, double tp) {
    // Deprecated for individual trades. Use Basket lines instead.
 }
 
-void DrawBasketLines(string style, string dir_str, string sym, double sl, double tp) {
-   string sl_name = "B_SL_" + style + "_" + dir_str + "_" + sym;
-   string tp_name = "B_TP_" + style + "_" + dir_str + "_" + sym;
+void DrawIndividualLines(ulong ticket, string sym, string style, string dir_str, double sl, double tp) {
+   string sl_name = "V_SL_" + IntegerToString(ticket);
+   string tp_name = "V_TP_" + IntegerToString(ticket);
    
-   ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true); // Ensure descriptions are shown
+   ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
    
    if (sl > 0 && ObjectFind(0, sl_name) < 0) {
       ObjectCreate(0, sl_name, OBJ_HLINE, 0, 0, sl);
       ObjectSetDouble(0, sl_name, OBJPROP_PRICE, sl);
       ObjectSetInteger(0, sl_name, OBJPROP_COLOR, clrRed);
       ObjectSetInteger(0, sl_name, OBJPROP_STYLE, STYLE_SOLID);
-      ObjectSetString(0, sl_name, OBJPROP_TEXT, style + " " + dir_str + " SL (Fixed)");
+      ObjectSetString(0, sl_name, OBJPROP_TEXT, style + " " + dir_str + " SL");
    }
+   if (tp > 0 && ObjectFind(0, tp_name) < 0) {
+      ObjectCreate(0, tp_name, OBJ_HLINE, 0, 0, tp);
+      ObjectSetDouble(0, tp_name, OBJPROP_PRICE, tp);
+      ObjectSetInteger(0, tp_name, OBJPROP_COLOR, clrLimeGreen);
+      ObjectSetInteger(0, tp_name, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSetString(0, tp_name, OBJPROP_TEXT, style + " " + dir_str + " TP");
+   }
+}
    if (tp > 0 && ObjectFind(0, tp_name) < 0) {
       ObjectCreate(0, tp_name, OBJ_HLINE, 0, 0, tp);
       ObjectSetDouble(0, tp_name, OBJPROP_PRICE, tp);
@@ -539,6 +595,7 @@ void OnTimer() {
    // Fetch SL/TP Updates every 10s
    if (now - last_sltp_sync >= 10) {
       SyncSLTPUpdates();
+      SyncActiveTrades();
       last_sltp_sync = now;
    }
    
@@ -557,12 +614,12 @@ void OnTimer() {
 //+------------------------------------------------------------------+
 //| Expert tick function (Stealth Manager)                           |
 //+------------------------------------------------------------------+
-void ManageBaskets();
-void ProcessBasket(string sym, ulong mag, string style_str, ENUM_POSITION_TYPE pos_type);
+void ManageIndividualTrades();
+
 
 void OnTick() {
    ProcessGridRecovery();
-   ManageBaskets();
+   ManageIndividualTrades();
    
    // Clean up orphaned virtual and basket lines for closed trades
    int total_objs = ObjectsTotal(0);
@@ -610,81 +667,51 @@ void OnTick() {
    }
 }
 
-void ManageBaskets() {
-   for(int m = 1; m <= 3; m++) {
-      ulong mag = InpMagicNumber + m;
-      string style_str = (m == 1) ? "SCALPING" : (m == 2) ? "INTRADAY" : "SWING";
-      
-      string symbols[];
-      int sym_count = 0;
-      for(int j = 0; j < PositionsTotal(); j++) {
-         if(position.SelectByIndex(j) && position.Magic() == mag) {
-            bool found = false;
-            for(int k=0; k<sym_count; k++) { if(symbols[k] == position.Symbol()) { found = true; break; } }
-            if(!found) {
-               ArrayResize(symbols, sym_count+1);
-               symbols[sym_count] = position.Symbol();
-               sym_count++;
-            }
+void ManageIndividualTrades() {
+   for(int j = PositionsTotal()-1; j >= 0; j--) {
+      if(position.SelectByIndex(j)) {
+         ulong tkt = position.Ticket();
+         string sym = position.Symbol();
+         long pos_type = position.PositionType();
+         
+         int cache_idx = -1;
+         for(int k=0; k<ArraySize(g_cached_trades); k++) {
+            if(g_cached_trades[k].ticket == tkt) { cache_idx = k; break; }
          }
-      }
-      
-      for(int k=0; k<sym_count; k++) {
-         string sym = symbols[k];
-         ProcessBasket(sym, mag, style_str, POSITION_TYPE_BUY);
-         ProcessBasket(sym, mag, style_str, POSITION_TYPE_SELL);
-      }
-   }
-}
-
-void ProcessBasket(string sym, ulong mag, string style_str, ENUM_POSITION_TYPE pos_type) {
-   double total_vol = 0;
-   double total_cost = 0;
-   int ticket_count = 0;
-   
-   for(int j = 0; j < PositionsTotal(); j++) {
-      if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == pos_type) {
-         total_vol += position.Volume();
-         total_cost += position.Volume() * position.PriceOpen();
-         ticket_count++;
-      }
-   }
-   
-   string dir_str = (pos_type == POSITION_TYPE_BUY) ? "BUY" : "SELL";
-   string sl_name = "B_SL_" + style_str + "_" + dir_str + "_" + sym;
-   string tp_name = "B_TP_" + style_str + "_" + dir_str + "_" + sym;
-   string tr_name = "B_TR_" + style_str + "_" + dir_str + "_" + sym;
-   
-   if (ticket_count == 0) {
-      ObjectsDeleteAll(0, sl_name);
-      ObjectsDeleteAll(0, tp_name);
-      ObjectsDeleteAll(0, tr_name);
-      return;
-   }
-   
-   double avg_price = total_cost / total_vol;
-   double current_price = (pos_type == POSITION_TYPE_BUY) ? SymbolInfoDouble(sym, SYMBOL_BID) : SymbolInfoDouble(sym, SYMBOL_ASK);
-   
-   double b_sl = ObjectGetDouble(0, sl_name, OBJPROP_PRICE);
-   double b_tp = ObjectGetDouble(0, tp_name, OBJPROP_PRICE);
-   double b_tr = ObjectGetDouble(0, tr_name, OBJPROP_PRICE);
-   
-   bool hit = false;
-   string close_reason = "";
-   if (pos_type == POSITION_TYPE_BUY) {
-      if (b_sl > 0 && current_price <= b_sl) { hit = true; close_reason = "Basket Fixed SL Hit"; }
-      if (b_tp > 0 && current_price >= b_tp) { hit = true; close_reason = "Basket TP Hit"; }
-      if (b_tr > 0 && current_price <= b_tr) { hit = true; close_reason = "Basket Trailing Hit"; }
-   } else {
-      if (b_sl > 0 && current_price >= b_sl) { hit = true; close_reason = "Basket Fixed SL Hit"; }
-      if (b_tp > 0 && current_price <= b_tp) { hit = true; close_reason = "Basket TP Hit"; }
-      if (b_tr > 0 && current_price >= b_tr) { hit = true; close_reason = "Basket Trailing Hit"; }
-   }
-   
-   if (hit) {
-      for(int j = PositionsTotal()-1; j >= 0; j--) {
-         if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == pos_type) {
-            ulong tkt = position.Ticket();
+         
+         if (cache_idx == -1) continue;
+         
+         double v_sl = g_cached_trades[cache_idx].v_sl;
+         double v_tp = g_cached_trades[cache_idx].v_tp;
+         string style = g_cached_trades[cache_idx].style;
+         string dir_str = g_cached_trades[cache_idx].dir;
+         double be_p = g_cached_trades[cache_idx].be_pips;
+         double be_o = g_cached_trades[cache_idx].be_offset;
+         double ts_p = g_cached_trades[cache_idx].trail_start;
+         double td_p = g_cached_trades[cache_idx].trail_dist;
+         
+         double current_price = (pos_type == POSITION_TYPE_BUY) ? SymbolInfoDouble(sym, SYMBOL_BID) : SymbolInfoDouble(sym, SYMBOL_ASK);
+         double open_price = position.PriceOpen();
+         double pip_size = (StringFind(sym, "JPY") != -1 || StringFind(sym, "XAU") != -1) ? 0.01 : 0.0001;
+         
+         string tr_name = "V_TR_" + IntegerToString(tkt);
+         double v_tr = 0;
+         if (ObjectFind(0, tr_name) >= 0) v_tr = ObjectGetDouble(0, tr_name, OBJPROP_PRICE);
+         
+         bool hit = false;
+         string close_reason = "";
+         
+         if (pos_type == POSITION_TYPE_BUY) {
+            if (v_sl > 0 && current_price <= v_sl) { hit = true; close_reason = "Virtual SL Hit"; }
+            else if (v_tp > 0 && current_price >= v_tp) { hit = true; close_reason = "Virtual TP Hit"; }
+            else if (v_tr > 0 && current_price <= v_tr) { hit = true; close_reason = "Virtual BE/Trailing Hit"; }
+         } else {
+            if (v_sl > 0 && current_price >= v_sl) { hit = true; close_reason = "Virtual SL Hit"; }
+            else if (v_tp > 0 && current_price <= v_tp) { hit = true; close_reason = "Virtual TP Hit"; }
+            else if (v_tr > 0 && current_price >= v_tr) { hit = true; close_reason = "Virtual BE/Trailing Hit"; }
+         }
+         
+         if (hit) {
             double lot_close = position.Volume();
             if (trade.PositionClose(tkt)) {
                Sleep(200);
@@ -701,81 +728,56 @@ void ProcessBasket(string sym, ulong mag, string style_str, ENUM_POSITION_TYPE p
                }
                if(final_pl == 0) final_pl = position.Profit() + position.Swap() + position.Commission();
                
-               string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"" + style_str + "\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
+               string payload = "{\"ticket\":" + IntegerToString(tkt) + ",\"account_id\":\"" + InpAccountID + "\",\"symbol\":\"" + sym + "\",\"direction\":\"" + dir_str + "\",\"lot\":" + DoubleToString(lot_close, 2) + ",\"trade_style\":\"" + style + "\",\"pnl\":" + DoubleToString(final_pl, 2) + ",\"close_reason\":\"" + close_reason + "\"}";
                SupabasePOST("/rest/v1/closed_trades", payload);
                SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(tkt), "{\"exit_reason\":\"" + close_reason + "\",\"current_status\":\"CLOSED\"}");
+               
+               ObjectDelete(0, "V_SL_" + IntegerToString(tkt));
+               ObjectDelete(0, "V_TP_" + IntegerToString(tkt));
+               ObjectDelete(0, tr_name);
+            }
+            continue;
+         }
+         
+         bool updated_tr = false;
+         if (pos_type == POSITION_TYPE_BUY) {
+            double profit_pips = (current_price - open_price) / pip_size;
+            if (be_p > 0 && profit_pips >= be_p && (v_tr < open_price || v_tr == 0)) {
+               v_tr = open_price + (be_o * pip_size);
+               updated_tr = true;
+            }
+            if (ts_p > 0 && profit_pips >= ts_p) {
+               double new_tr = current_price - (td_p * pip_size);
+               if (v_tr == 0 || new_tr > v_tr) {
+                  v_tr = new_tr;
+                  updated_tr = true;
+               }
+            }
+         } else {
+            double profit_pips = (open_price - current_price) / pip_size;
+            if (be_p > 0 && profit_pips >= be_p && (v_tr > open_price || v_tr == 0)) {
+               v_tr = open_price - (be_o * pip_size);
+               updated_tr = true;
+            }
+            if (ts_p > 0 && profit_pips >= ts_p) {
+               double new_tr = current_price + (td_p * pip_size);
+               if (v_tr == 0 || new_tr < v_tr) {
+                  v_tr = new_tr;
+                  updated_tr = true;
+               }
             }
          }
-      }
-      ObjectsDeleteAll(0, sl_name);
-      ObjectsDeleteAll(0, tp_name);
-      ObjectsDeleteAll(0, tr_name);
-      return;
-   }
-   
-   double style_be_trigger = 0;
-   double style_trail_start = 0;
-   double style_trail_dist = 0;
-   
-   if (style_str == "SCALPING") { style_be_trigger = g_scalping_be_trigger; style_trail_start = g_scalping_trail_start; style_trail_dist = g_scalping_trail_dist; }
-   else if (style_str == "INTRADAY") { style_be_trigger = g_intraday_be_trigger; style_trail_start = g_intraday_trail_start; style_trail_dist = g_intraday_trail_dist; }
-   else if (style_str == "SWING") { style_be_trigger = g_swing_be_trigger; style_trail_start = g_swing_trail_start; style_trail_dist = g_swing_trail_dist; }
-   
-   double atr_value = 0.0010;
-   if(g_atr_handle != INVALID_HANDLE) { double atr_arr[]; CopyBuffer(g_atr_handle, 0, 1, 1, atr_arr); if(ArraySize(atr_arr) > 0) atr_value = atr_arr[0]; }
-   double pip_size = (StringFind(sym, "JPY") != -1 || StringFind(sym, "XAU") != -1) ? 0.01 : 0.0001;
-   
-   double be_trigger_price_dist = style_be_trigger * atr_value;
-   double trail_start_price_dist = style_trail_start * atr_value;
-   double trail_dist_price = style_trail_dist * atr_value;
-   
-   bool updated_tr = false;
-   if (pos_type == POSITION_TYPE_BUY) {
-      double profit_dist = current_price - avg_price;
-      // BE Trigger
-      if (profit_dist >= be_trigger_price_dist && (b_tr < avg_price || b_tr == 0)) { 
-         b_tr = avg_price + (pip_size * 2); 
-         updated_tr = true; 
-      }
-      // Trailing
-      if (profit_dist >= trail_start_price_dist) {
-         double new_tr = current_price - trail_dist_price;
-         if (b_tr == 0 || new_tr > b_tr) { 
-            b_tr = new_tr; 
-            updated_tr = true; 
-         }
-      }
-   } else {
-      double profit_dist = avg_price - current_price;
-      // BE Trigger
-      if (profit_dist >= be_trigger_price_dist && (b_tr > avg_price || b_tr == 0)) { 
-         b_tr = avg_price - (pip_size * 2); 
-         updated_tr = true; 
-      }
-      // Trailing
-      if (profit_dist >= trail_start_price_dist) {
-         double new_tr = current_price + trail_dist_price;
-         if (new_tr < b_tr || b_tr == 0) { 
-            b_tr = new_tr; 
-            updated_tr = true; 
-         }
-      }
-   }
-   
-   if (updated_tr) {
-      if (ObjectFind(0, tr_name) < 0) {
-         ObjectCreate(0, tr_name, OBJ_HLINE, 0, 0, b_tr);
-         ObjectSetInteger(0, tr_name, OBJPROP_COLOR, clrOrange);
-         ObjectSetInteger(0, tr_name, OBJPROP_STYLE, STYLE_DASH);
-         ObjectSetString(0, tr_name, OBJPROP_TEXT, style_str + " " + dir_str + " TRAILING");
-      }
-      ObjectSetDouble(0, tr_name, OBJPROP_PRICE, b_tr);
-      
-      // Update Supabase active_trades with the trailing stop value so Python knows about it.
-      // We will override virtual_sl in Supabase so the dashboard shows the active trailing level.
-      for(int j = 0; j < PositionsTotal(); j++) {
-         if(position.SelectByIndex(j) && position.Magic() == mag && position.Symbol() == sym && position.PositionType() == pos_type) {
-            SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(position.Ticket()), "{\"virtual_sl\":" + DoubleToString(b_tr, 5) + "}");
+         
+         if (updated_tr) {
+            if (ObjectFind(0, tr_name) < 0) {
+               ObjectCreate(0, tr_name, OBJ_HLINE, 0, 0, v_tr);
+               ObjectSetInteger(0, tr_name, OBJPROP_COLOR, clrOrange);
+               ObjectSetInteger(0, tr_name, OBJPROP_STYLE, STYLE_DASH);
+               ObjectSetString(0, tr_name, OBJPROP_TEXT, style + " " + dir_str + " TRAIL/BE");
+            }
+            ObjectSetDouble(0, tr_name, OBJPROP_PRICE, v_tr);
+            SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(tkt), "{\"virtual_sl\":" + DoubleToString(v_tr, 5) + "}");
+            g_cached_trades[cache_idx].v_sl = v_tr;
          }
       }
    }
