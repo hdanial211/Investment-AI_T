@@ -222,12 +222,6 @@ def loop_signal_executor(supabase: SupabaseSync, connector: MT5Connector, acc: s
             elif style.upper() == "INTRADAY": magic_number = 889001
             elif style.upper() == "SWING": magic_number = 889002
             
-            if getattr(config, "DRY_RUN", False):
-                logger.info(f"🟢 [DRY RUN / DEMO] Would have opened {action} {sym} (Lot: {lot_size})")
-                requests.patch(f"{supabase.base_url}/rest/v1/signals?id=eq.{sig_id}", headers=supabase.headers, json={"is_active": False, "reason": "Executed successfully (DRY RUN)"})
-                current_trades_count += 1
-                continue
-                
             res_trade = connector.open_trade(action, lot_size, sl=0, tp=0, symbol=sym, comment=f"AI_{style}", magic=magic_number)
             if res_trade:
                 logger.info(f"✅ [{acc}] Berjaya membuka {action} {sym}")
@@ -319,11 +313,6 @@ def loop_evaluator(supabase, connector, account_id, acct_settings, current_minut
         if ai_result.get("action") == "UPDATE_SL_TP":
             new_sl = ai_result.get("sl") or sl
             new_tp = ai_result.get("tp") or tp
-            
-            if getattr(config, "DRY_RUN", False):
-                logger.info(f"🟢 [DRY RUN / DEMO] Would have updated SL/TP for {ticket} (SL: {new_sl}, TP: {new_tp})")
-                continue
-                
             supabase._insert("sl_tp_updates", {
                 "signal_id": t.get("signal_id", str(ticket)),
                 "account_id": acc,
