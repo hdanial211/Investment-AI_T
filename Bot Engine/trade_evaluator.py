@@ -504,7 +504,6 @@ def main():
     system_settings.fetch_and_apply_system_settings()
     
     supabase = SupabaseSync()
-    connector = MT5Connector()
     
     # Ambil laluan MT5 peribadi
     acc_data = supabase.fetch_account_settings(account_id)
