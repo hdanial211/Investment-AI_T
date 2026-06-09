@@ -134,7 +134,11 @@ class SupabaseSync:
                 data = response.json()
                 settings = {}
                 for row in data:
-                    settings[row.get("key_name")] = row.get("key_value")
+                    if "key_name" in row and "key_value" in row:
+                        settings[row.get("key_name")] = row.get("key_value")
+                    else:
+                        # Legacy/Flat schema (V3)
+                        settings.update(row)
                 return settings
         except Exception as e:
             logger.warning(f"Error fetching system_settings: {e}")
