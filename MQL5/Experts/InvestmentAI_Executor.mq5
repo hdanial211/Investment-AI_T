@@ -1050,7 +1050,32 @@ void ManageManualBaskets() {
             
             if (hit) {
                for(int m=0; m<bt_count; m++) {
-                  CloseTradeWithReason(basket_tickets[m], close_reason);
+                  ulong mtkt = basket_tickets[m];
+                  if(position.SelectByTicket(mtkt)) {
+                     double lot_close = position.Volume();
+                     double prof = position.Profit() + position.Swap() + position.Commission();
+                     if (trade.PositionClose(mtkt)) {
+                        Sleep(200);
+                        double final_pl = prof;
+                        if(HistorySelect(TimeCurrent()-86400, TimeCurrent()+86400)) {
+                           int deals_total = HistoryDealsTotal();
+                           for(int d = deals_total-1; d >= 0; d--) {
+                              ulong deal_ticket = HistoryDealGetTicket(d);
+                              if(HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID) == mtkt && HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT) {
+                                 final_pl = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) + HistoryDealGetDouble(deal_ticket, DEAL_SWAP) + HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+                                 break;
+                              }
+                           }
+                        }
+                        string payload = "{\\"ticket\\":" + IntegerToString(mtkt) + ",\\"account_id\\":\\"" + InpAccountID + "\\",\\"symbol\\":\\"" + sym + "\\",\\"direction\\":\\"" + dir_str + "\\",\\"lot\\":" + DoubleToString(lot_close, 2) + ",\\"trade_style\\":\\"MANUAL_BASKET\\",\\"pnl\\":" + DoubleToString(final_pl, 2) + ",\\"close_reason\\":\\"" + close_reason + "\\"}";
+                        SupabasePOST("/rest/v1/closed_trades", payload);
+                        SupabasePATCH("/rest/v1/active_trades?ticket=eq." + IntegerToString(mtkt), "{\\"exit_reason\\":\\"" + close_reason + "\\",\\"current_status\\":\\"CLOSED\\"}");
+                        
+                        ObjectDelete(0, "V_SL_" + IntegerToString(mtkt));
+                        ObjectDelete(0, "V_TP_" + IntegerToString(mtkt));
+                        ObjectDelete(0, "V_TR_" + IntegerToString(mtkt));
+                     }
+                  }
                }
                ObjectDelete(0, sl_name);
                ObjectDelete(0, tp_name);
